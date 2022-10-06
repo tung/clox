@@ -1,0 +1,5 @@
+/.clangd/
+/build/
+/clox
+/*_test
+/compile_commands.json
