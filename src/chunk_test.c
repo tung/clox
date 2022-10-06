@@ -57,15 +57,6 @@ void testLines(void) {
   freeChunk(&chunk);
 }
 
-void testOpReturn(void) {
-  Chunk chunk;
-  initChunk(&chunk);
-  writeChunk(&chunk, OP_RETURN, 1);
-  TEST_CHECK(chunk.count == 1);
-  TEST_CHECK(chunk.code[0] == OP_RETURN);
-  freeChunk(&chunk);
-}
-
 void testOpConstant(void) {
   Chunk chunk;
   initChunk(&chunk);
@@ -81,12 +72,21 @@ void testOpConstant(void) {
   freeChunk(&chunk);
 }
 
+void testOpReturn(void) {
+  Chunk chunk;
+  initChunk(&chunk);
+  writeChunk(&chunk, OP_RETURN, 1);
+  TEST_CHECK(chunk.count == 1);
+  TEST_CHECK(chunk.code[0] == OP_RETURN);
+  freeChunk(&chunk);
+}
+
 TEST_LIST = {
   { "Empty", testEmpty },
   { "Write", testWrite },
   { "AddConstant", testAddConstant },
   { "Lines", testLines },
-  { "OpReturn", testOpReturn },
   { "OpConstant", testOpConstant },
+  { "OpReturn", testOpReturn },
   { NULL, NULL }
 };
