@@ -23,6 +23,44 @@ void testWrite(void) {
   freeChunk(&chunk);
 }
 
+void testWriteConstant(void) {
+  Chunk chunk;
+  initChunk(&chunk);
+
+  const int NUM = 258;
+  for (int i = 0; i < NUM; ++i) {
+    writeConstant(&chunk, (double)i, i + 1);
+  }
+
+  int shortConst = NUM < 256 ? NUM : 256;
+  int longConst = NUM < 256 ? 0 : NUM - 256;
+  TEST_CHECK(chunk.count == shortConst * 2 + longConst * 4);
+
+  for (int i = 0; i < shortConst; ++i) {
+    TEST_CASE_("OP_CONSTANT code i = %d", i);
+    TEST_CHECK(chunk.code[i * 2] == OP_CONSTANT);
+    TEST_CHECK(chunk.code[i * 2 + 1] == i);
+  }
+
+  for (int i = 0; i < longConst; ++i) {
+    int baseIndex = 256 * 2 + i * 4;
+    TEST_CASE_("OP_CONSTANT_LONG code i = %d", i + 256);
+    TEST_CHECK(chunk.code[baseIndex] == OP_CONSTANT_LONG);
+    int constIndex = (chunk.code[baseIndex + 1] << 16) +
+        (chunk.code[baseIndex + 2] << 8) +
+        chunk.code[baseIndex + 3];
+    TEST_CHECK(constIndex == i + 256);
+  }
+
+  TEST_CHECK(chunk.constants.count == NUM);
+  for (int i = 0; i < NUM; ++i) {
+    TEST_CASE_("constant i = %d", i);
+    TEST_CHECK(chunk.constants.values[i] == (double)i);
+  }
+
+  freeChunk(&chunk);
+}
+
 void testAddConstant(void) {
   Chunk chunk;
   initChunk(&chunk);
@@ -85,6 +123,7 @@ void testOpConstant(void) {
 TEST_LIST = {
   { "Empty", testEmpty },
   { "Write", testWrite },
+  { "WriteConstant", testWriteConstant },
   { "AddConstant", testAddConstant },
   { "Lines", testLines },
   { "OpReturn", testOpReturn },
