@@ -47,13 +47,14 @@ void testLines(void) {
   writeChunk(&chunk, OP_RETURN, 3);
   writeChunk(&chunk, OP_RETURN, 4);
   TEST_CHECK(chunk.count == 7);
-  TEST_CHECK(chunk.lines[0] == 1);
-  TEST_CHECK(chunk.lines[1] == 2);
-  TEST_CHECK(chunk.lines[2] == 2);
-  TEST_CHECK(chunk.lines[3] == 3);
-  TEST_CHECK(chunk.lines[4] == 3);
-  TEST_CHECK(chunk.lines[5] == 3);
-  TEST_CHECK(chunk.lines[6] == 4);
+  TEST_CHECK(getLine(&chunk, 0) == 1);
+  TEST_CHECK(getLine(&chunk, 1) == 2);
+  TEST_CHECK(getLine(&chunk, 2) == 2);
+  TEST_CHECK(getLine(&chunk, 3) == 3);
+  TEST_CHECK(getLine(&chunk, 4) == 3);
+  TEST_CHECK(getLine(&chunk, 5) == 3);
+  TEST_CHECK(getLine(&chunk, 6) == 4);
+  TEST_CHECK(chunk.lineCount == 4);
   freeChunk(&chunk);
 }
 

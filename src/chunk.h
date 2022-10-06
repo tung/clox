@@ -14,6 +14,8 @@ typedef struct {
   int count;
   int capacity;
   uint8_t* code;
+  int lineCount;
+  int lineCapacity;
   int* lines;
   ValueArray constants;
 } Chunk;
@@ -21,6 +23,7 @@ typedef struct {
 void initChunk(Chunk* chunk);
 void freeChunk(Chunk* chunk);
 void writeChunk(Chunk* chunk, uint8_t byte, int line);
+int getLine(Chunk* chunk, int instructionIndex);
 int addConstant(Chunk* chunk, Value value);
 
 #endif

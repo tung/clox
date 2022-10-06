@@ -7,6 +7,8 @@ void initChunk(Chunk* chunk) {
   chunk->count = 0;
   chunk->capacity = 0;
   chunk->code = NULL;
+  chunk->lineCount = 0;
+  chunk->lineCapacity = 0;
   chunk->lines = NULL;
   initValueArray(&chunk->constants);
 }
@@ -24,13 +26,38 @@ void writeChunk(Chunk* chunk, uint8_t byte, int line) {
     chunk->capacity = GROW_CAPACITY(oldCapacity);
     chunk->code = GROW_ARRAY(uint8_t, chunk->code,
         oldCapacity, chunk->capacity);
-    chunk->lines = GROW_ARRAY(int, chunk->lines,
-        oldCapacity, chunk->capacity);
   }
 
   chunk->code[chunk->count] = byte;
-  chunk->lines[chunk->count] = line;
   chunk->count++;
+
+  if (line > chunk->lineCapacity) {
+    int oldLineCapacity = chunk->lineCapacity;
+    while (line > chunk->lineCapacity) {
+      chunk->lineCapacity = GROW_CAPACITY(chunk->lineCapacity);
+    }
+    chunk->lines = GROW_ARRAY(int, chunk->lines,
+        oldLineCapacity, chunk->lineCapacity);
+    for (int i = oldLineCapacity; i < chunk->lineCapacity; ++i) {
+      chunk->lines[i] = 0;
+    }
+  }
+
+  if (line > chunk->lineCount) {
+    chunk->lineCount = line;
+  }
+
+  chunk->lines[line - 1]++;
+}
+
+int getLine(Chunk* chunk, int instructionIndex) {
+  int line = 0;
+  int instructionsPassed = 0;
+  while (line < chunk->lineCapacity && instructionsPassed <= instructionIndex) {
+    instructionsPassed += chunk->lines[line];
+    line++;
+  }
+  return line;
 }
 
 int addConstant(Chunk* chunk, Value value) {
