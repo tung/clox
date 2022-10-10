@@ -36,7 +36,13 @@ cur_dir = $(abspath .)
 ###################
 
 # List of all possible modes.
-all_modes = debug release
+all_modes = debug release coverage
+
+# Override mode to coverage if "gcovr" is the target.
+ifeq ($(MAKECMDGOALS),gcovr)
+  override MODE = coverage
+  $(info MODE = coverage override for gcovr target.)
+endif
 
 # If no mode is set, build in debug mode by default.
 ifeq ($(MODE),)
@@ -68,6 +74,16 @@ else ifeq ($(MODE),release)
   LDFLAGS    =
   LDLIBS     =
   TESTLDLIBS =
+
+# "coverage" mode settings.
+else ifeq ($(MODE),coverage)
+  CFLAGS     = -Wall -Wextra -O1 -g -fsanitize=address -fno-omit-frame-pointer --coverage
+  LDFLAGS    = -g -fsanitize=address --coverage
+  LDLIBS     =
+  TESTLDLIBS =
+  GCOVR      = gcovr -e "$(src_dir)acutest.h"
+  report_dir = $(mode_dir)gcovr/
+  report_loc = $(report_dir)report.html
 
 # All valid modes should have a settings block above.
 else
@@ -223,6 +239,57 @@ ifeq ($(findstring clean,$(MAKECMDGOALS)),)
   -include $(main_link_dep)
   -include $(test_link_deps)
 endif
+
+#########################################################################
+### Coverage Mode: Report lines, branches and functions run by tests. ###
+#########################################################################
+
+ifeq ($(MODE),coverage)
+
+# Rerun tests with coverage instrumentation, generate report and show its URI.
+.PHONY: gcovr
+gcovr: cleancoverage
+	$(MAKE) --no-print-directory -f $(firstword $(MAKEFILE_LIST)) MODE=coverage test
+	$(MAKE) --no-print-directory -f $(firstword $(MAKEFILE_LIST)) MODE=coverage report
+
+# Generate/update a coverage report and show its URI.
+.PHONY: report
+report: $(report_loc)
+	@printf "Coverage report at: file://%s\n" "$(abspath $(report_loc))"
+
+# Generate a coverage report from *.gcda stats and *.gcno files.
+$(report_loc): $(objs_dir) $(wildcard $(objs_dir)*.gcda) | $(report_dir)
+	$(GCOVR) --html-details "$(report_loc)" -r "$(src_dir)" "$(objs_dir)"
+
+# Ensure the report directory exists for report generation.
+$(report_dir): | $(mode_dir)
+	mkdir -p $@
+
+# Extend the "clean" target in coverage mode to delete coverage files.
+clean: cleancoverage cleangcno
+
+# Delete coverage files that can be recreated without recompiling.
+.PHONY: cleancoverage
+cleancoverage: cleanreport cleanstats
+
+# Clean coverage report files by deleting its directory.
+.PHONY: cleanreport
+cleanreport:
+	$(RM) -r "$(report_dir)"
+
+# Delete coverage stats.
+.PHONY: cleanstats
+cleanstats:
+	$(RM) "$(objs_dir)"*.gcda
+
+# Delete *.gcno support files made when *.o files are compiled for coverage.
+# Doesn't make much sense on its own; exists to extend the "clean" target in
+# coverage mode.
+.PHONY: cleangcno
+cleangcno:
+	$(RM) "$(objs_dir)"*.gcno
+
+endif # ifeq ($(MODE),coverage)
 
 ######################################################################
 ### Change Tracking for Directories that appear in Build Artifacts ###
