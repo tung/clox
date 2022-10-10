@@ -314,7 +314,7 @@ dir_vars = $(filter %_dir,$(var_names))
 mode_mk = $(mode_dir)mode.mk
 
 # Populate $(mode_mk) directory variables and values in $(dir_vars).
-$(mode_mk):
+$(mode_mk): | $(mode_dir)
 	printf " $(foreach dv,$(dir_vars),orig_$(dv) = $($(dv))\n)" > $@
 
 # Detect changes to dir values, but only if we're not cleaning up.
