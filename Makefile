@@ -324,21 +324,14 @@ ifeq ($(findstring clean,$(MAKECMDGOALS)),)
 
   # Only detect dir value changes if $(mode_mk) existed to begin with.
   ifneq ($(wildcard $(mode_mk)),)
-    # Warn if FORCE=1 was ever used for this mode directory.
-    ifdef mixed_dirs_forced_from
-      $(info Build forced from different directories; strange outcomes may occur.)
-      $(info Run 'make MODE=$(MODE) clean' to clear this warning.)
-    endif
+    # Message helper: empty if MODE=debug, otherwise " MODE=$(MODE)".
+    mode_flag = $(if $(filter debug,$(MODE)),, MODE=$(MODE))
 
     # Detect changes to all dir_vars, except for cur_dir.
     test_dir_vars = $(filter-out cur_dir,$(dir_vars))
     changed_dirs = $(strip $(foreach dv,$(test_dir_vars),$(if $(filter $($(dv)),$(orig_$(dv))),,$(dv))))
 
     ifneq ($(changed_dirs),)
-      # Message helper variables.
-      empty =
-      spaces = $(empty)  $(empty)
-
       ifeq ($(FORCE),1)
         $(info Proceeding with FORCE=1, despite changed dir values: $(changed_dirs))
         ifndef mixed_dirs_forced_from
@@ -347,22 +340,26 @@ ifeq ($(findstring clean,$(MAKECMDGOALS)),)
         endif
       else
         # Summarize dir values that differ.
-        $(info Changed dir values: $(changed_dirs).)
+        $(info Changed paths detected! ($(changed_dirs)))
 
         # Display a message for each changed dir value, i.e. $(orig_*_dir) != $(*_dir).
-        changed_dir_msg = $(info $(1) values differ!)$(info $(spaces)was = $(orig_$(1)))$(info $(spaces)now = $($(1)))
+        changed_dir_msg = $(info $(1) was = $(orig_$(1)))$(info $(1) now = $($(1)))
         $(foreach dv,$(changed_dirs),$(call changed_dir_msg,$(dv)))
 
-        # Suggest further actions and stop.
-        $(info Try again:)
+        # Suggest further actions and stop; include MODE=... if it's not "debug".
         ifneq ($(orig_cur_dir),$(cur_dir))
-          $(info $(spaces)- from $(orig_cur_dir), or)
+          $(info - Retry from $(orig_cur_dir), or)
         endif
-        $(info $(spaces)- after running 'make MODE=$(MODE) clean', or)
-        $(info $(spaces)- with FORCE=1 after running 'make MODE=$(MODE) cleandeps')
-        $(info $(spaces)$(spaces)(may produce strange results))
+        $(info - Retry after 'make$(mode_flag) clean', or)
+        $(info - Retry after 'make$(mode_flag) cleandeps' with FORCE=1 (strange results may occur))
         $(error Changed dir values detected)
       endif
+    endif
+
+    # Warn if FORCE=1 was ever used for this mode directory.
+    ifdef mixed_dirs_forced_from
+      $(info Build forced with different paths; strange results may occur.)
+      $(info Run 'make$(mode_flag) clean' to clear this warning.)
     endif
   endif
 endif
