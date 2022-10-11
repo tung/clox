@@ -146,7 +146,7 @@ run: build
 # Run all tests.
 .PHONY: test
 test: buildtests
-	"$(makefile_prefix)runtests.bash" $(tests:%=$(call run_path,%))
+	"$(makefile_prefix)runtests.bash" $(foreach t,$(tests),$(call run_path,$(t)))
 
 # Build main target.
 .PHONY: build
