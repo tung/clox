@@ -3,7 +3,7 @@
 ##################################################
 
 # Begin variable tracking; leave overrides out so they're picked up later.
-override_vars := $(filter-out =%,$(subst =, =,$(MAKEOVERRIDES)))
+override_vars := $(patsubst %=,%,$(filter %=,$(subst =,= ,$(MAKEOVERRIDES))))
 begin_vars := $(sort $(filter-out $(override_vars),$(.VARIABLES)))
 
 ###################
