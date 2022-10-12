@@ -45,6 +45,7 @@ void testWriteLots(void) {
   freeValueArray(&va);
 }
 
+// clang-format off
 TEST_LIST = {
   { "Empty", testEmpty },
   { "WriteOne", testWriteOne },
@@ -52,3 +53,4 @@ TEST_LIST = {
   { "WriteLots", testWriteLots },
   { NULL, NULL }
 };
+// clang-format on

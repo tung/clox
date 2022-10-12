@@ -81,6 +81,7 @@ void testOpReturn(void) {
   freeChunk(&chunk);
 }
 
+// clang-format off
 TEST_LIST = {
   { "Empty", testEmpty },
   { "Write", testWrite },
@@ -90,3 +91,4 @@ TEST_LIST = {
   { "OpReturn", testOpReturn },
   { NULL, NULL }
 };
+// clang-format on

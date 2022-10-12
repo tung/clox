@@ -106,6 +106,9 @@ tests     = $(sort $(test_srcs:$(src_dir)%.c=$(mode_dir)%))
 # All C source files.
 c_srcs = $(wildcard $(src_dir)*.c)
 
+# Source files to apply automatic formatting to.
+format_srcs = $(sort $(test_srcs))
+
 # Output sub-directories for the current mode's build directory.
 objs_dir = $(mode_dir)objs/
 deps_dir = $(mode_dir)deps/
@@ -121,8 +124,19 @@ test_link_deps = $(test_srcs:$(src_dir)%.c=$(deps_dir)%.link.d)
 missing_objs = $(filter-out $(c_objs),$(wildcard $(objs_dir)*.o))
 missing_deps = $(filter-out $(c_deps) $(main_link_dep) $(test_link_deps),$(wildcard $(deps_dir)*.d))
 
-# End variable tracking.
-end_vars := $(sort $(.VARIABLES) )
+###############
+### Helpers ###
+###############
+
+# Name patterns of task-only targets that never build anything.
+task_only_target_pats = clean clean% format checkformat
+
+# Helpers to check if dependency files are needed for this run.
+current_goals    = $(if $(MAKECMDGOALS),$(MAKECMDGOALS),all)
+should_make_deps = $(filter-out $(task_only_target_pats),$(current_goals))
+
+# End variable tracking and gather names of all custom variables above this point.
+end_vars := $(sort $(.VARIABLES))
 var_names = $(filter-out begin_vars $(subst %,\%,$(begin_vars)),$(end_vars))
 
 # Helper to add "./" prefix to a path that doesn't already start with "/", "./" or "../".
@@ -190,6 +204,27 @@ endif
 # Always run 'cleanmissing' target before anything else with the -include .PHONY trick.
 -include cleanmissing
 
+#############################
+### Code Style Formatting ###
+#############################
+
+# Reformat format-picked source code.
+.PHONY: format
+format:
+	clang-format -i $(format_srcs:%="%")
+
+# Check that format-picked source code passes automatic formatting without changes.
+.PHONY: checkformat
+checkformat:
+	clang-format --dry-run -Werror $(format_srcs:%="%")
+
+# Check format-picked files to git commit pass automatic formatting without changes.
+# Put 'make gitcheckformat' in .git/hooks/pre-commit to use as a pre-commit hook.
+.PHONY: gitcheckformat
+gitcheckformat:
+	srcs=$$({ git diff --name-only --cached; for f in $(format_srcs:%="%"); do echo "$$f"; done } | sort | uniq -d); \
+for s in $${srcs}; do git show :"$$s" | clang-format --dry-run -Werror --assume-filename="$$s" || exit 1; done
+
 ##########################################################
 ### Compiling, Linking and Auto-Generated Dependencies ###
 ##########################################################
@@ -231,7 +266,7 @@ $(test_link_deps): %.link.d: | $(c_deps)
 	"$(makefile_prefix)linkrule.bash" "$@" "$(*:$(deps_dir)%=$(mode_dir)%)" "$(@:.link.d=.d)" "$(header_dir)"
 
 # Avoid remaking dependency files if we're just cleaning up.
-ifeq ($(findstring clean,$(MAKECMDGOALS)),)
+ifneq ($(should_make_deps),)
   # Include auto-generated dependency files.
   # $(c_deps) lists source files that each *.o file should be recompiled for.
   -include $(c_deps)
@@ -318,7 +353,7 @@ $(mode_mk): | $(mode_dir)
 	printf " $(foreach dv,$(dir_vars),orig_$(dv) = $($(dv))\n)" > $@
 
 # Detect changes to dir values, but only if we're not cleaning up.
-ifeq ($(findstring clean,$(MAKECMDGOALS)),)
+ifneq ($(should_make_deps),)
   # Load orig_*_dir variables so we can detect changed dir values.
   -include $(mode_mk)
 
