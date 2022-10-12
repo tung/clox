@@ -129,7 +129,7 @@ missing_deps = $(filter-out $(c_deps) $(main_link_dep) $(test_link_deps),$(wildc
 ###############
 
 # Name patterns of task-only targets that never build anything.
-task_only_target_pats = clean clean% format checkformat
+task_only_target_pats = clean clean% format checkformat gitcheckformat
 
 # Helpers to check if dependency files are needed for this run.
 current_goals    = $(if $(MAKECMDGOALS),$(MAKECMDGOALS),all)
