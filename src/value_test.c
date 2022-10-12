@@ -3,18 +3,23 @@
 
 #define ufx utest_fixture
 
+typedef struct {
+  char* buf;
+  size_t size;
+} MemBuf;
+
 struct ValueArray {
   ValueArray va;
 };
 
 UTEST_F_SETUP(ValueArray) {
   initValueArray(&ufx->va);
-  EXPECT_TRUE(1);
+  ASSERT_TRUE(1);
 }
 
 UTEST_F_TEARDOWN(ValueArray) {
   freeValueArray(&ufx->va);
-  EXPECT_TRUE(1);
+  ASSERT_TRUE(1);
 }
 
 UTEST_F(ValueArray, Empty) {
@@ -46,6 +51,16 @@ UTEST_F(ValueArray, WriteLots) {
   for (size_t i = 0; i < ARRAY_SIZE(data); ++i) {
     EXPECT_EQ(data[i], ufx->va.values[i]);
   }
+}
+
+UTEST(Value, PrintValue) {
+  MemBuf out;
+  FILE* fout = open_memstream(&out.buf, &out.size);
+  printValue(fout, (Value)2.5);
+  fclose(fout);
+  ASSERT_GT(out.size, 0ul);
+  EXPECT_STREQ("2.5", out.buf);
+  free(out.buf);
 }
 
 UTEST_MAIN();

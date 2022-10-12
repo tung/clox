@@ -9,12 +9,12 @@ struct Chunk {
 
 UTEST_F_SETUP(Chunk) {
   initChunk(&ufx->chunk);
-  EXPECT_TRUE(1);
+  ASSERT_TRUE(1);
 }
 
 UTEST_F_TEARDOWN(Chunk) {
   freeChunk(&ufx->chunk);
-  EXPECT_TRUE(1);
+  ASSERT_TRUE(1);
 }
 
 UTEST_F(Chunk, Empty) {

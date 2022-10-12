@@ -26,6 +26,6 @@ void freeValueArray(ValueArray* array) {
   initValueArray(array);
 }
 
-void printValue(Value value) {
-  printf("%g", value);
+void printValue(FILE* fout, Value value) {
+  fprintf(fout, "%g", value);
 }
