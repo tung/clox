@@ -107,7 +107,7 @@ tests     = $(sort $(test_srcs:$(src_dir)%.c=$(mode_dir)%))
 c_srcs = $(wildcard $(src_dir)*.c)
 
 # Source files to apply automatic formatting to.
-format_srcs = $(sort $(test_srcs))
+format_srcs = $(sort $(c_srcs) $(filter-out $(header_dir)acutest.h,$(wildcard $(header_dir)*.h)))
 
 # Output sub-directories for the current mode's build directory.
 objs_dir = $(mode_dir)objs/
