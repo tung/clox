@@ -1,56 +1,51 @@
-#include "acutest.h"
-
 #include "value.h"
+#include "utest.h"
 
-void testEmpty(void) {
+#define ufx utest_fixture
+
+struct ValueArray {
   ValueArray va;
-  initValueArray(&va);
-  TEST_CHECK(va.count == 0);
-  freeValueArray(&va);
-}
-
-void testWriteOne(void) {
-  ValueArray va;
-  initValueArray(&va);
-  writeValueArray(&va, 1.1);
-  TEST_CHECK(va.count == 1);
-  TEST_CHECK(va.values[0] == 1.1);
-  freeValueArray(&va);
-}
-
-void testWriteSome(void) {
-  ValueArray va;
-  initValueArray(&va);
-  writeValueArray(&va, 1.1);
-  writeValueArray(&va, 2.2);
-  writeValueArray(&va, 3.3);
-  TEST_CHECK(va.count == 3);
-  TEST_CHECK(va.values[0] == 1.1);
-  TEST_CHECK(va.values[1] == 2.2);
-  TEST_CHECK(va.values[2] == 3.3);
-  freeValueArray(&va);
-}
-
-void testWriteLots(void) {
-  Value data[] = { 1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9 };
-  ValueArray va;
-  initValueArray(&va);
-  for (size_t i = 0; i < ARRAY_SIZE(data); ++i) {
-    writeValueArray(&va, data[i]);
-  }
-  for (size_t i = 0; i < ARRAY_SIZE(data); ++i) {
-    TEST_CASE_("i = %ld (%g)", i, data[i]);
-    TEST_CHECK(va.values[i] == data[i]);
-  }
-  freeValueArray(&va);
-}
-
-// clang-format off
-TEST_LIST = {
-  { "Empty", testEmpty },
-  { "WriteOne", testWriteOne },
-  { "WriteSome", testWriteSome },
-  { "WriteLots", testWriteLots },
-  { NULL, NULL }
 };
-// clang-format on
+
+UTEST_F_SETUP(ValueArray) {
+  initValueArray(&ufx->va);
+  EXPECT_TRUE(1);
+}
+
+UTEST_F_TEARDOWN(ValueArray) {
+  freeValueArray(&ufx->va);
+  EXPECT_TRUE(1);
+}
+
+UTEST_F(ValueArray, Empty) {
+  EXPECT_EQ(0, ufx->va.count);
+}
+
+UTEST_F(ValueArray, WriteOne) {
+  writeValueArray(&ufx->va, 1.1);
+  ASSERT_EQ(1, ufx->va.count);
+  EXPECT_EQ(1.1, ufx->va.values[0]);
+}
+
+UTEST_F(ValueArray, WriteSome) {
+  writeValueArray(&ufx->va, 1.1);
+  writeValueArray(&ufx->va, 2.2);
+  writeValueArray(&ufx->va, 3.3);
+  ASSERT_EQ(3, ufx->va.count);
+  EXPECT_EQ(1.1, ufx->va.values[0]);
+  EXPECT_EQ(2.2, ufx->va.values[1]);
+  EXPECT_EQ(3.3, ufx->va.values[2]);
+}
+
+UTEST_F(ValueArray, WriteLots) {
+  Value data[] = { 1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9 };
+  for (size_t i = 0; i < ARRAY_SIZE(data); ++i) {
+    writeValueArray(&ufx->va, data[i]);
+  }
+  ASSERT_EQ((int)ARRAY_SIZE(data), ufx->va.count);
+  for (size_t i = 0; i < ARRAY_SIZE(data); ++i) {
+    EXPECT_EQ(data[i], ufx->va.values[i]);
+  }
+}
+
+UTEST_MAIN();

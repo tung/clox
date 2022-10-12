@@ -81,7 +81,7 @@ else ifeq ($(MODE),coverage)
   LDFLAGS    = -g -fsanitize=address --coverage
   LDLIBS     =
   TESTLDLIBS =
-  GCOVR      = gcovr -e "$(src_dir)acutest.h"
+  GCOVR      = gcovr -e "$(src_dir)utest.h"
   report_dir = $(mode_dir)gcovr/
   report_loc = $(report_dir)report.html
 
@@ -107,7 +107,7 @@ tests     = $(sort $(test_srcs:$(src_dir)%.c=$(mode_dir)%))
 c_srcs = $(wildcard $(src_dir)*.c)
 
 # Source files to apply automatic formatting to.
-format_srcs = $(sort $(c_srcs) $(filter-out $(header_dir)acutest.h,$(wildcard $(header_dir)*.h)))
+format_srcs = $(sort $(c_srcs) $(filter-out $(header_dir)utest.h,$(wildcard $(header_dir)*.h)))
 
 # Output sub-directories for the current mode's build directory.
 objs_dir = $(mode_dir)objs/
@@ -294,7 +294,7 @@ report: $(report_loc)
 
 # Generate a coverage report from *.gcda stats and *.gcno files.
 $(report_loc): $(objs_dir) $(wildcard $(objs_dir)*.gcda) | $(report_dir)
-	$(GCOVR) --html-details "$(report_loc)" -r "$(src_dir)" "$(objs_dir)"
+	$(GCOVR) $(test_srcs:%=-e "%") --html-details "$(report_loc)" -r "$(src_dir)" "$(objs_dir)"
 
 # Ensure the report directory exists for report generation.
 $(report_dir): | $(mode_dir)
