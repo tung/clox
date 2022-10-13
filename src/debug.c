@@ -1,6 +1,7 @@
+#include "debug.h"
+
 #include <stdio.h>
 
-#include "debug.h"
 #include "value.h"
 
 void disassembleChunk(

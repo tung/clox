@@ -1,6 +1,8 @@
 #include "debug.h"
-#include "chunk.h"
+
 #include "utest.h"
+
+#include "chunk.h"
 
 #define ufx utest_fixture
 
