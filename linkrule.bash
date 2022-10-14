@@ -94,6 +94,15 @@
 #     build/hello_world: build/obj/main.o build/obj/foo.o build/obj/bar.o
 #
 #     build/deps/main.link.d: build/deps/main.d build/deps/foo.d build/deps/bar.d
+#
+#     build/deps/main.d:
+#
+#     build/deps/foo.d:
+#
+#     build/deps/bar.d:
+#
+# Empty fake targets are added to let main.link.d update itself even if
+# its dependent *.d files are deleted.
 
 set -Eeuo pipefail
 
@@ -192,7 +201,15 @@ if [[ ${1} == - ]]; then
   fi
   printf "%s: %s\n\n%s: %s\n" "${2}" "${objs[*]}" \
       "${guessed_out_file}" "${existing_deps[*]}"
+  for dep in "${existing_deps[@]}"; do
+    printf "\n%s:\n" "${dep}"
+  done
 else
-  printf "%s: %s\n\n%s: %s\n" "${2}" "${objs[*]}" \
-      "${1}" "${existing_deps[*]}" > "${1}"
+  {
+    printf "%s: %s\n\n%s: %s\n" "${2}" "${objs[*]}" \
+        "${1}" "${existing_deps[*]}"
+    for dep in "${existing_deps[@]}"; do
+      printf "\n%s:\n" "${dep}"
+    done
+  } > "${1}"
 fi

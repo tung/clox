@@ -253,7 +253,7 @@ $(c_objs): $(objs_dir)%.o: $(src_dir)%.c
 # Auto-generate $(deps_dir)*.d files from each $(src_dir)*.c source file.
 # These files contain *.o compile dependencies that are -include'd by this Makefile.
 $(c_deps): $(deps_dir)%.d: $(src_dir)%.c
-	$(CPP) $(CPPFLAGS) -MM -MT $(@:$(deps_dir)%.d=$(objs_dir)%.o) -MT $@ -MF $@ $<
+	$(CPP) $(CPPFLAGS) -MM -MT $(@:$(deps_dir)%.d=$(objs_dir)%.o) -MT $@ -MP -MF $@ $<
 
 # Auto-generate dependecy rule for $(main_target).
 # This scans the dependency files for *.o files to be linked into $(main_target).
