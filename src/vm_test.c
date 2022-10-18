@@ -48,18 +48,30 @@ UTEST_F_TEARDOWN(VM) {
 }
 
 UTEST_F(VM, Empty) {
-  ASSERT_EQ(0, ufx->vm.stackTop - ufx->vm.stack);
+  ASSERT_EQ(0ul, ufx->vm.stackCount);
 }
 
 UTEST_F(VM, PushPop) {
   push(&ufx->vm, 1.2);
   push(&ufx->vm, 3.4);
   push(&ufx->vm, 5.6);
-  ASSERT_EQ(3, ufx->vm.stackTop - ufx->vm.stack);
+  ASSERT_EQ(3ul, ufx->vm.stackCount);
   EXPECT_EQ(5.6, pop(&ufx->vm));
   EXPECT_EQ(3.4, pop(&ufx->vm));
   EXPECT_EQ(1.2, pop(&ufx->vm));
-  ASSERT_EQ(0, ufx->vm.stackTop - ufx->vm.stack);
+  ASSERT_EQ(0ul, ufx->vm.stackCount);
+}
+
+UTEST_F(VM, PushPopLots) {
+  const size_t count = 256;
+  for (size_t i = 0; i < count; ++i) {
+    push(&ufx->vm, 1.0);
+  }
+  ASSERT_EQ(count, ufx->vm.stackCount);
+  for (size_t i = 0; i < count; ++i) {
+    EXPECT_EQ(1.0, pop(&ufx->vm));
+  }
+  ASSERT_EQ(0ul, ufx->vm.stackCount);
 }
 
 UTEST_F(VM, OpConstantOpReturn) {

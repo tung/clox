@@ -5,9 +5,12 @@
 
 #include "common.h"
 #include "debug.h"
+#include "memory.h"
 
 static void resetStack(VM* vm) {
-  vm->stackTop = vm->stack;
+  vm->stack = NULL;
+  vm->stackCount = 0;
+  vm->stackCapacity = 0;
 }
 
 void initVM(VM* vm) {
@@ -15,19 +18,26 @@ void initVM(VM* vm) {
 }
 
 void freeVM(VM* vm) {
-  (void)vm;
+  FREE_ARRAY(Value, vm->stack, vm->stackCapacity);
+  resetStack(vm);
 }
 
 void push(VM* vm, Value value) {
-  assert(vm->stackTop < vm->stack + STACK_MAX);
-  *vm->stackTop = value;
-  vm->stackTop++;
+  if (vm->stackCapacity < vm->stackCount + 1) {
+    int oldCapacity = vm->stackCapacity;
+    vm->stackCapacity = GROW_CAPACITY(oldCapacity);
+    vm->stack =
+        GROW_ARRAY(Value, vm->stack, oldCapacity, vm->stackCapacity);
+  }
+
+  vm->stack[vm->stackCount] = value;
+  vm->stackCount++;
 }
 
 Value pop(VM* vm) {
-  assert(vm->stackTop > vm->stack);
-  vm->stackTop--;
-  return *vm->stackTop;
+  assert(vm->stackCount > 0);
+  vm->stackCount--;
+  return vm->stack[vm->stackCount];
 }
 
 static InterpretResult run(FILE* fout, FILE* ferr, VM* vm) {
@@ -44,9 +54,9 @@ static InterpretResult run(FILE* fout, FILE* ferr, VM* vm) {
   while (vm->ip < codeEnd) {
 #ifdef DEBUG_TRACE_EXECUTION
     fprintf(fout, "          ");
-    for (Value* slot = vm->stack; slot < vm->stackTop; slot++) {
+    for (size_t i = 0; i < vm->stackCount; ++i) {
       fprintf(fout, "[ ");
-      printValue(fout, *slot);
+      printValue(fout, vm->stack[i]);
       fprintf(fout, " ]");
     }
     fprintf(fout, "\n");
