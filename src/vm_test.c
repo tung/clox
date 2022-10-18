@@ -72,7 +72,7 @@ UTEST_F(VM, OpConstantOpReturn) {
 
   const char outMsg[] = "2.5\n";
   fflush(ufx->out.fptr);
-  ASSERT_LE(sizeof(outMsg), ufx->out.size);
+  ASSERT_LE(sizeof(outMsg), ufx->out.size + 1);
   EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
 }
 
@@ -88,7 +88,7 @@ UTEST_F(VM, OpAdd) {
 
   fflush(ufx->out.fptr);
   const char outMsg[] = "5\n";
-  ASSERT_LE(sizeof(outMsg), ufx->out.size);
+  ASSERT_LE(sizeof(outMsg), ufx->out.size + 1);
   EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
 }
 
@@ -104,7 +104,7 @@ UTEST_F(VM, OpSubtract) {
 
   fflush(ufx->out.fptr);
   const char outMsg[] = "1\n";
-  ASSERT_LE(sizeof(outMsg), ufx->out.size);
+  ASSERT_LE(sizeof(outMsg), ufx->out.size + 1);
   EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
 }
 
@@ -120,7 +120,7 @@ UTEST_F(VM, OpMultiply) {
 
   fflush(ufx->out.fptr);
   const char outMsg[] = "6\n";
-  ASSERT_LE(sizeof(outMsg), ufx->out.size);
+  ASSERT_LE(sizeof(outMsg), ufx->out.size + 1);
   EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
 }
 
@@ -136,7 +136,7 @@ UTEST_F(VM, OpDivide) {
 
   fflush(ufx->out.fptr);
   const char outMsg[] = "1.5\n";
-  ASSERT_LE(sizeof(outMsg), ufx->out.size);
+  ASSERT_LE(sizeof(outMsg), ufx->out.size + 1);
   EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
 }
 
@@ -151,8 +151,32 @@ UTEST_F(VM, OpNegate) {
 
   fflush(ufx->out.fptr);
   const char outMsg[] = "-3\n";
-  ASSERT_LE(sizeof(outMsg), ufx->out.size);
+  ASSERT_LE(sizeof(outMsg), ufx->out.size + 1);
   EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
+}
+
+UTEST_F(VM, UnknownOp) {
+  writeChunk(&ufx->chunk, 255, 1);
+
+  InterpretResult ires =
+      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  fflush(ufx->err.fptr);
+  const char errMsg[] = "Unknown opcode 255\n";
+  ASSERT_LE(sizeof(errMsg), ufx->err.size + 1);
+  EXPECT_STREQ(errMsg, memBufSuffix(ufx->err, errMsg));
+}
+
+UTEST_F(VM, InterpretEmpty) {
+  InterpretResult ires =
+      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  fflush(ufx->err.fptr);
+  const char errMsg[] = "missing OP_RETURN\n";
+  ASSERT_LE(sizeof(errMsg), ufx->err.size + 1);
+  EXPECT_STREQ(errMsg, memBufSuffix(ufx->err, errMsg));
 }
 
 UTEST_MAIN();
