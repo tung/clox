@@ -167,6 +167,20 @@ UTEST_F(VM, OpNegate) {
   EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
 }
 
+UTEST_F(VM, OpNegateStackUnderflow) {
+  writeChunk(&ufx->chunk, OP_NEGATE, 1);
+  writeChunk(&ufx->chunk, OP_RETURN, 1);
+
+  InterpretResult ires =
+      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  fflush(ufx->err.fptr);
+  const char errMsg[] = "Stack underflow\n";
+  ASSERT_LE(sizeof(errMsg), ufx->err.size + 1);
+  EXPECT_STREQ(errMsg, memBufSuffix(ufx->err, errMsg));
+}
+
 UTEST_F(VM, UnknownOp) {
   writeChunk(&ufx->chunk, 255, 1);
 

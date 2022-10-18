@@ -75,7 +75,14 @@ static InterpretResult run(FILE* fout, FILE* ferr, VM* vm) {
       case OP_SUBTRACT: BINARY_OP(-); break;
       case OP_MULTIPLY: BINARY_OP(*); break;
       case OP_DIVIDE: BINARY_OP(/); break;
-      case OP_NEGATE: push(vm, -pop(vm)); break;
+      case OP_NEGATE: {
+        if (vm->stackCount == 0) {
+          fprintf(ferr, "Stack underflow\n");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        vm->stack[vm->stackCount - 1] *= -1;
+        break;
+      }
       case OP_RETURN: {
         printValue(fout, pop(vm));
         fprintf(fout, "\n");
