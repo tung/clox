@@ -24,8 +24,8 @@ typedef enum {
 
 void initVM(VM* vm);
 void freeVM(VM* vm);
-InterpretResult interpret(FILE* fout, FILE* ferr, VM* vm, Chunk* chunk);
 void push(VM* vm, Value value);
 Value pop(VM* vm);
+InterpretResult interpret(FILE* fout, FILE* ferr, VM* vm, Chunk* chunk);
 
 #endif
