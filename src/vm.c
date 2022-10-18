@@ -1,5 +1,6 @@
 #include "vm.h"
 
+#include <assert.h>
 #include <stdio.h>
 
 #include "common.h"
@@ -18,11 +19,13 @@ void freeVM(VM* vm) {
 }
 
 void push(VM* vm, Value value) {
+  assert(vm->stackTop < vm->stack + STACK_MAX);
   *vm->stackTop = value;
   vm->stackTop++;
 }
 
 Value pop(VM* vm) {
+  assert(vm->stackTop > vm->stack);
   vm->stackTop--;
   return *vm->stackTop;
 }
@@ -37,7 +40,8 @@ static InterpretResult run(FILE* fout, FILE* ferr, VM* vm) {
     push(vm, a op b); \
   } while (false)
 
-  for (;;) {
+  const uint8_t* codeEnd = &vm->chunk->code[vm->chunk->count];
+  while (vm->ip < codeEnd) {
 #ifdef DEBUG_TRACE_EXECUTION
     fprintf(fout, "          ");
     for (Value* slot = vm->stack; slot < vm->stackTop; slot++) {
@@ -67,8 +71,15 @@ static InterpretResult run(FILE* fout, FILE* ferr, VM* vm) {
         fprintf(fout, "\n");
         return INTERPRET_OK;
       }
+      default: {
+        fprintf(ferr, "Unknown opcode %d\n", instruction);
+        return INTERPRET_RUNTIME_ERROR;
+      }
     }
   }
+
+  fprintf(ferr, "missing OP_RETURN\n");
+  return INTERPRET_RUNTIME_ERROR;
 
 #undef READ_BYTE
 #undef READ_CONSTANT
