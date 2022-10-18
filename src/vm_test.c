@@ -179,4 +179,85 @@ UTEST_F(VM, InterpretEmpty) {
   EXPECT_STREQ(errMsg, memBufSuffix(ufx->err, errMsg));
 }
 
+UTEST_F(VM, Expression1) {
+  // 1 * 2 + 3
+  writeConstant(&ufx->chunk, 1.0, 1);
+  writeConstant(&ufx->chunk, 2.0, 1);
+  writeChunk(&ufx->chunk, OP_MULTIPLY, 1);
+  writeConstant(&ufx->chunk, 3.0, 1);
+  writeChunk(&ufx->chunk, OP_ADD, 1);
+  writeChunk(&ufx->chunk, OP_RETURN, 1);
+
+  InterpretResult ires =
+      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  fflush(ufx->out.fptr);
+  const char outMsg[] = "5\n";
+  ASSERT_LE(sizeof(outMsg), ufx->out.size);
+  EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
+}
+
+UTEST_F(VM, Expression2) {
+  // 1 + 2 * 3
+  writeConstant(&ufx->chunk, 1.0, 1);
+  writeConstant(&ufx->chunk, 2.0, 1);
+  writeConstant(&ufx->chunk, 3.0, 1);
+  writeChunk(&ufx->chunk, OP_MULTIPLY, 1);
+  writeChunk(&ufx->chunk, OP_ADD, 1);
+  writeChunk(&ufx->chunk, OP_RETURN, 1);
+
+  InterpretResult ires =
+      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  fflush(ufx->out.fptr);
+  const char outMsg[] = "7\n";
+  ASSERT_LE(sizeof(outMsg), ufx->out.size);
+  EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
+}
+
+UTEST_F(VM, Expression3) {
+  // 3 - 2 - 1
+  writeConstant(&ufx->chunk, 3.0, 1);
+  writeConstant(&ufx->chunk, 2.0, 1);
+  writeChunk(&ufx->chunk, OP_SUBTRACT, 1);
+  writeConstant(&ufx->chunk, 1.0, 1);
+  writeChunk(&ufx->chunk, OP_SUBTRACT, 1);
+  writeChunk(&ufx->chunk, OP_RETURN, 1);
+
+  InterpretResult ires =
+      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  fflush(ufx->out.fptr);
+  const char outMsg[] = "0\n";
+  ASSERT_LE(sizeof(outMsg), ufx->out.size);
+  EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
+}
+
+UTEST_F(VM, Expression4) {
+  // 1 + 2 * 3 - 4 / -5
+  writeConstant(&ufx->chunk, 1.0, 1);
+  writeConstant(&ufx->chunk, 2.0, 1);
+  writeConstant(&ufx->chunk, 3.0, 1);
+  writeChunk(&ufx->chunk, OP_MULTIPLY, 1);
+  writeChunk(&ufx->chunk, OP_ADD, 1);
+  writeConstant(&ufx->chunk, 4.0, 1);
+  writeConstant(&ufx->chunk, 5.0, 1);
+  writeChunk(&ufx->chunk, OP_NEGATE, 1);
+  writeChunk(&ufx->chunk, OP_DIVIDE, 1);
+  writeChunk(&ufx->chunk, OP_SUBTRACT, 1);
+  writeChunk(&ufx->chunk, OP_RETURN, 1);
+
+  InterpretResult ires =
+      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  fflush(ufx->out.fptr);
+  const char outMsg[] = "7.8\n";
+  ASSERT_LE(sizeof(outMsg), ufx->out.size);
+  EXPECT_STREQ(outMsg, memBufSuffix(ufx->out, outMsg));
+}
+
 UTEST_MAIN();
