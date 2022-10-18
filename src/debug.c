@@ -38,11 +38,18 @@ int disassembleInstruction(
 
   uint8_t instruction = chunk->code[offset];
   switch (instruction) {
-  case OP_CONSTANT:
-    return constantInstruction(fout, "OP_CONSTANT", chunk, offset);
-  case OP_RETURN: return simpleInstruction(fout, "OP_RETURN", offset);
-  default:
-    fprintf(ferr, "Unknown opcode %d\n", instruction);
-    return offset + 1;
+    case OP_CONSTANT:
+      return constantInstruction(fout, "OP_CONSTANT", chunk, offset);
+    case OP_ADD: return simpleInstruction(fout, "OP_ADD", offset);
+    case OP_SUBTRACT:
+      return simpleInstruction(fout, "OP_SUBTRACT", offset);
+    case OP_MULTIPLY:
+      return simpleInstruction(fout, "OP_MULTIPLY", offset);
+    case OP_DIVIDE: return simpleInstruction(fout, "OP_DIVIDE", offset);
+    case OP_NEGATE: return simpleInstruction(fout, "OP_NEGATE", offset);
+    case OP_RETURN: return simpleInstruction(fout, "OP_RETURN", offset);
+    default:
+      fprintf(ferr, "Unknown opcode %d\n", instruction);
+      return offset + 1;
   }
 }
