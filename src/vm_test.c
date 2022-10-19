@@ -62,12 +62,17 @@ UTEST_F(VM, PushPop) {
   ASSERT_EQ(0, ufx->vm.stackTop - ufx->vm.stack);
 }
 
+UTEST_F(VM, InterpretOk) {
+  InterpretResult ires = interpret(ufx->out.fptr, "print 1 + 2;\n");
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+}
+
 UTEST_F(VM, OpConstantOpReturn) {
   writeConstant(&ufx->chunk, 2.5, 1);
   writeChunk(&ufx->chunk, OP_RETURN, 1);
 
-  InterpretResult ires =
-      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  InterpretResult ires = interpretChunk(
+      ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
 
   const char outMsg[] = "2.5\n";
@@ -82,8 +87,8 @@ UTEST_F(VM, OpAdd) {
   writeChunk(&ufx->chunk, OP_ADD, 1);
   writeChunk(&ufx->chunk, OP_RETURN, 1);
 
-  InterpretResult ires =
-      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  InterpretResult ires = interpretChunk(
+      ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
 
   fflush(ufx->out.fptr);
@@ -98,8 +103,8 @@ UTEST_F(VM, OpSubtract) {
   writeChunk(&ufx->chunk, OP_SUBTRACT, 1);
   writeChunk(&ufx->chunk, OP_RETURN, 1);
 
-  InterpretResult ires =
-      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  InterpretResult ires = interpretChunk(
+      ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
 
   fflush(ufx->out.fptr);
@@ -114,8 +119,8 @@ UTEST_F(VM, OpMultiply) {
   writeChunk(&ufx->chunk, OP_MULTIPLY, 1);
   writeChunk(&ufx->chunk, OP_RETURN, 1);
 
-  InterpretResult ires =
-      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  InterpretResult ires = interpretChunk(
+      ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
 
   fflush(ufx->out.fptr);
@@ -130,8 +135,8 @@ UTEST_F(VM, OpDivide) {
   writeChunk(&ufx->chunk, OP_DIVIDE, 1);
   writeChunk(&ufx->chunk, OP_RETURN, 1);
 
-  InterpretResult ires =
-      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  InterpretResult ires = interpretChunk(
+      ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
 
   fflush(ufx->out.fptr);
@@ -145,8 +150,8 @@ UTEST_F(VM, OpNegate) {
   writeChunk(&ufx->chunk, OP_NEGATE, 1);
   writeChunk(&ufx->chunk, OP_RETURN, 1);
 
-  InterpretResult ires =
-      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  InterpretResult ires = interpretChunk(
+      ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
 
   fflush(ufx->out.fptr);
@@ -158,8 +163,8 @@ UTEST_F(VM, OpNegate) {
 UTEST_F(VM, UnknownOp) {
   writeChunk(&ufx->chunk, 255, 1);
 
-  InterpretResult ires =
-      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  InterpretResult ires = interpretChunk(
+      ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
 
   fflush(ufx->err.fptr);
@@ -169,8 +174,8 @@ UTEST_F(VM, UnknownOp) {
 }
 
 UTEST_F(VM, InterpretEmpty) {
-  InterpretResult ires =
-      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  InterpretResult ires = interpretChunk(
+      ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
 
   fflush(ufx->err.fptr);

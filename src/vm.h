@@ -26,6 +26,8 @@ void initVM(VM* vm);
 void freeVM(VM* vm);
 void push(VM* vm, Value value);
 Value pop(VM* vm);
-InterpretResult interpret(FILE* fout, FILE* ferr, VM* vm, Chunk* chunk);
+InterpretResult interpretChunk(
+    FILE* fout, FILE* ferr, VM* vm, Chunk* chunk);
+InterpretResult interpret(FILE* fout, const char* source);
 
 #endif

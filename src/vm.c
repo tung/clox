@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "common.h"
+#include "compiler.h"
 #include "debug.h"
 
 static void resetStack(VM* vm) {
@@ -86,9 +87,14 @@ static InterpretResult run(FILE* fout, FILE* ferr, VM* vm) {
 #undef BINARY_OP
 }
 
-InterpretResult interpret(
+InterpretResult interpretChunk(
     FILE* fout, FILE* ferr, VM* vm, Chunk* chunk) {
   vm->chunk = chunk;
   vm->ip = vm->chunk->code;
   return run(fout, ferr, vm);
+}
+
+InterpretResult interpret(FILE* fout, const char* source) {
+  compile(fout, source);
+  return INTERPRET_OK;
 }
