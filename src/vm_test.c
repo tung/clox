@@ -63,8 +63,15 @@ UTEST_F(VM, PushPop) {
 }
 
 UTEST_F(VM, InterpretOk) {
-  InterpretResult ires = interpret(ufx->out.fptr, "print 1 + 2;\n");
+  InterpretResult ires =
+      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, "1 + 2\n");
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+}
+
+UTEST_F(VM, InterpretCompileError) {
+  InterpretResult ires =
+      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, "#");
+  EXPECT_EQ((InterpretResult)INTERPRET_COMPILE_ERROR, ires);
 }
 
 UTEST_F(VM, OpConstantOpReturn) {

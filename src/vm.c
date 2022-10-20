@@ -94,7 +94,20 @@ InterpretResult interpretChunk(
   return run(fout, ferr, vm);
 }
 
-InterpretResult interpret(FILE* fout, const char* source) {
-  compile(fout, source);
-  return INTERPRET_OK;
+InterpretResult interpret(
+    FILE* fout, FILE* ferr, VM* vm, const char* source) {
+  Chunk chunk;
+  initChunk(&chunk);
+
+  if (!compile(fout, ferr, source, &chunk)) {
+    freeChunk(&chunk);
+    return INTERPRET_COMPILE_ERROR;
+  }
+
+  InterpretResult result = interpretChunk(fout, ferr, vm, &chunk);
+
+  vm->chunk = NULL;
+  vm->ip = NULL;
+  freeChunk(&chunk);
+  return result;
 }

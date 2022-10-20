@@ -8,16 +8,20 @@
 #include "vm.h"
 
 static void repl(void) {
+  VM vm;
+  initVM(&vm);
+
   char line[1024];
   for (;;) {
     printf("> ");
 
     if (!fgets(line, sizeof(line), stdin)) {
       printf("\n");
+      freeVM(&vm);
       break;
     }
 
-    interpret(stdout, line);
+    interpret(stdout, stderr, &vm, line);
   }
 }
 
@@ -51,9 +55,12 @@ static char* readFile(const char* path) {
 }
 
 static void runFile(const char* path) {
+  VM vm;
+  initVM(&vm);
   char* source = readFile(path);
-  InterpretResult result = interpret(stdout, source);
+  InterpretResult result = interpret(stdout, stderr, &vm, source);
   free(source);
+  freeVM(&vm);
 
   if (result == INTERPRET_COMPILE_ERROR) {
     exit(65);

@@ -4,6 +4,9 @@
 
 #include <stdio.h>
 
-void compile(FILE* fout, const char* source);
+#include "chunk.h"
+#include "common.h"
+
+bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk);
 
 #endif
