@@ -5,6 +5,9 @@
 
 #include "utest.h"
 
+#include "debug.h"
+#include "list.h"
+
 #define ufx utest_fixture
 
 typedef struct {
@@ -16,7 +19,9 @@ typedef struct {
 typedef struct {
   const char* src;
   bool result;
+  int codeSize;
   uint8_t* code;
+  int valueSize;
   Value* values;
 } SourceToChunk;
 
@@ -36,44 +41,66 @@ UTEST_I_SETUP(CompileExpr) {
 }
 
 UTEST_I_TEARDOWN(CompileExpr) {
-  bool result = compile(ufx->out.fptr, ufx->err.fptr,
-      ufx->cases[utest_index].src, &ufx->chunk);
-  EXPECT_EQ(ufx->cases[utest_index].result, result);
+  SourceToChunk* expected = &ufx->cases[utest_index];
 
-  // Compare expected and actual code.
-  if (ufx->cases[utest_index].code) {
-    int count = 0;
-    uint8_t* o = ufx->cases[utest_index].code;
-    while (*o != 255 && count < ufx->chunk.count) {
-      if (*utest_result == UTEST_TEST_FAILURE) {
-        break;
-      }
-      EXPECT_EQ(*o, ufx->chunk.code[count]);
-      count++;
-      o++;
+  // Prepare expected/actual out/err memstreams.
+  MemBuf xOut, xErr, aOut, aErr;
+  xOut.fptr = open_memstream(&xOut.buf, &xOut.size);
+  xErr.fptr = open_memstream(&xErr.buf, &xErr.size);
+  aOut.fptr = open_memstream(&aOut.buf, &aOut.size);
+  aErr.fptr = open_memstream(&aErr.buf, &aErr.size);
+
+  // If success is expected, assemble, dump and free our expected chunk.
+  if (expected->result) {
+    Chunk expectChunk;
+    initChunk(&expectChunk);
+    for (int i = 0; i < expected->codeSize; ++i) {
+      writeChunk(&expectChunk, expected->code[i], 1);
     }
-    if (*utest_result == UTEST_TEST_PASSED) {
-      EXPECT_EQ(count, ufx->chunk.count);
+    for (int i = 0; i < expected->valueSize; ++i) {
+      addConstant(&expectChunk, expected->values[i]);
     }
+    disassembleChunk(xOut.fptr, xErr.fptr, &expectChunk, "CompileExpr");
+    freeChunk(&expectChunk);
   }
 
-  // Compare expected and actual values.
-  if (ufx->cases[utest_index].values) {
-    int count = 0;
-    Value* v = ufx->cases[utest_index].values;
-    while (*v != 255.0 && count < ufx->chunk.constants.count) {
-      if (*utest_result == UTEST_TEST_FAILURE) {
-        break;
-      }
-      EXPECT_EQ(*v, ufx->chunk.constants.values[count]);
-      count++;
-      v++;
-    }
-    if (*utest_result == UTEST_TEST_PASSED) {
-      EXPECT_EQ(count, ufx->chunk.constants.count);
-    }
+  bool result =
+      compile(ufx->out.fptr, ufx->err.fptr, expected->src, &ufx->chunk);
+
+  EXPECT_EQ(expected->result, result);
+
+  // If success was expected but not achieved, print any compile errors.
+  if (expected->result && !result) {
+    fflush(ufx->err.fptr);
+    EXPECT_STREQ("", ufx->err.buf);
   }
 
+  // If compile succeeded, dump the actual chunk.
+  if (result) {
+    disassembleChunk(aOut.fptr, aErr.fptr, &ufx->chunk, "CompileExpr");
+  }
+
+  // Compare out memstreams.
+  fflush(xOut.fptr);
+  fflush(aOut.fptr);
+  EXPECT_STREQ(xOut.buf, aOut.buf);
+
+  // Compare err memstreams.
+  fflush(xErr.fptr);
+  fflush(aErr.fptr);
+  EXPECT_STREQ(xErr.buf, aErr.buf);
+
+  // Clean up memstreams.
+  fclose(xOut.fptr);
+  fclose(xErr.fptr);
+  fclose(aOut.fptr);
+  fclose(aErr.fptr);
+  free(xOut.buf);
+  free(xErr.buf);
+  free(aOut.buf);
+  free(aErr.buf);
+
+  // Fixture teardown.
   freeChunk(&ufx->chunk);
   fclose(ufx->out.fptr);
   fclose(ufx->err.fptr);
@@ -89,90 +116,84 @@ UTEST_I_TEARDOWN(CompileExpr) {
   }
 
 SourceToChunk exprErrors[] = {
-  { "", false, NULL, NULL },
-  { "#", false, NULL, NULL },
-  { "1 1", false, NULL, NULL },
+  { "", false, LIST(uint8_t), LIST(Value) },
+  { "#", false, LIST(uint8_t), LIST(Value) },
+  { "1 1", false, LIST(uint8_t), LIST(Value) },
 };
 
 COMPILE_EXPRS(Errors, exprErrors, 3);
 
 SourceToChunk exprNumber[] = {
-  { "123", true, (uint8_t[]){ OP_CONSTANT, 0, OP_RETURN, 255 },
-      (Value[]){ 123.0, 255.0 } },
+  { "123", true, LIST(uint8_t, OP_CONSTANT, 0, OP_RETURN),
+      LIST(Value, 123.0) },
 };
 
 COMPILE_EXPRS(Number, exprNumber, 1);
 
 SourceToChunk exprUnary[] = {
-  { "-1", true,
-      (uint8_t[]){ OP_CONSTANT, 0, OP_NEGATE, OP_RETURN, 255 },
-      (Value[]){ 1.0, 255.0 } },
+  { "-1", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_RETURN),
+      LIST(Value, 1.0) },
   { "--1", true,
-      (uint8_t[]){
-          OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE, OP_RETURN, 255 },
-      (Value[]){ 1.0, 255.0 } },
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE, OP_RETURN),
+      LIST(Value, 1.0) },
 };
 
 COMPILE_EXPRS(Unary, exprUnary, 2);
 
 SourceToChunk exprGrouping[] = {
-  { "(", false, NULL, NULL },
-  { "(1)", true, (uint8_t[]){ OP_CONSTANT, 0, OP_RETURN, 255 },
-      (Value[]){ 1.0, 255.0 } },
-  { "(-1)", true,
-      (uint8_t[]){ OP_CONSTANT, 0, OP_NEGATE, OP_RETURN, 255 },
-      (Value[]){ 1.0, 255.0 } },
-  { "-(1)", true,
-      (uint8_t[]){ OP_CONSTANT, 0, OP_NEGATE, OP_RETURN, 255 },
-      (Value[]){ 1.0, 255.0 } },
+  { "(", false, LIST(uint8_t), LIST(Value) },
+  { "(1)", true, LIST(uint8_t, OP_CONSTANT, 0, OP_RETURN),
+      LIST(Value, 1.0) },
+  { "(-1)", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_RETURN),
+      LIST(Value, 1.0) },
+  { "-(1)", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_RETURN),
+      LIST(Value, 1.0) },
   { "-(-1)", true,
-      (uint8_t[]){
-          OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE, OP_RETURN, 255 },
-      (Value[]){ 1.0, 255.0 } },
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE, OP_RETURN),
+      LIST(Value, 1.0) },
 };
 
 COMPILE_EXPRS(Grouping, exprGrouping, 5);
 
 SourceToChunk exprBinary[] = {
   { "3 + 2", true,
-      (uint8_t[]){
-          OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN, 255 },
-      (Value[]){ 3.0, 2.0, 255.0 } },
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN),
+      LIST(Value, 3.0, 2.0) },
   { "3 - 2", true,
-      (uint8_t[]){
-          OP_CONSTANT, 0, OP_CONSTANT, 1, OP_SUBTRACT, OP_RETURN, 255 },
-      (Value[]){ 3.0, 2.0, 255.0 } },
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_SUBTRACT,
+          OP_RETURN),
+      LIST(Value, 3.0, 2.0) },
   { "3 * 2", true,
-      (uint8_t[]){
-          OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY, OP_RETURN, 255 },
-      (Value[]){ 3.0, 2.0, 255.0 } },
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY,
+          OP_RETURN),
+      LIST(Value, 3.0, 2.0) },
   { "3 / 2", true,
-      (uint8_t[]){
-          OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE, OP_RETURN, 255 },
-      (Value[]){ 3.0, 2.0, 255.0 } },
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE,
+          OP_RETURN),
+      LIST(Value, 3.0, 2.0) },
   { "4 + 3 - 2 + 1 - 0", true,
-      (uint8_t[]){ OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
           2, OP_SUBTRACT, OP_CONSTANT, 3, OP_ADD, OP_CONSTANT, 4,
-          OP_SUBTRACT, OP_RETURN, 255 },
-      (Value[]){ 4.0, 3.0, 2.0, 1.0, 0.0, 255.0 } },
+          OP_SUBTRACT, OP_RETURN),
+      LIST(Value, 4.0, 3.0, 2.0, 1.0, 0.0) },
   { "4 / 3 * 2 / 1 * 0", true,
-      (uint8_t[]){ OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE,
           OP_CONSTANT, 2, OP_MULTIPLY, OP_CONSTANT, 3, OP_DIVIDE,
-          OP_CONSTANT, 4, OP_MULTIPLY, OP_RETURN, 255 },
-      (Value[]){ 4.0, 3.0, 2.0, 1.0, 0.0, 255.0 } },
+          OP_CONSTANT, 4, OP_MULTIPLY, OP_RETURN),
+      LIST(Value, 4.0, 3.0, 2.0, 1.0, 0.0) },
   { "3 * 2 + 1", true,
-      (uint8_t[]){ OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY,
-          OP_CONSTANT, 2, OP_ADD, OP_RETURN, 255 },
-      (Value[]){ 3.0, 2.0, 1.0, 255.0 } },
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY,
+          OP_CONSTANT, 2, OP_ADD, OP_RETURN),
+      LIST(Value, 3.0, 2.0, 1.0) },
   { "3 + 2 * 1", true,
-      (uint8_t[]){ OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
-          OP_MULTIPLY, OP_ADD, OP_RETURN, 255 },
-      (Value[]){ 3.0, 2.0, 1.0, 255.0 } },
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
+          OP_MULTIPLY, OP_ADD, OP_RETURN),
+      LIST(Value, 3.0, 2.0, 1.0) },
   { "(-1 + 2) * 3 - -4", true,
-      (uint8_t[]){ OP_CONSTANT, 0, OP_NEGATE, OP_CONSTANT, 1, OP_ADD,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_CONSTANT, 1, OP_ADD,
           OP_CONSTANT, 2, OP_MULTIPLY, OP_CONSTANT, 3, OP_NEGATE,
-          OP_SUBTRACT, OP_RETURN, 255 },
-      (Value[]){ 1.0, 2.0, 3.0, 4.0, 255.0 } },
+          OP_SUBTRACT, OP_RETURN),
+      LIST(Value, 1.0, 2.0, 3.0, 4.0) },
 };
 
 COMPILE_EXPRS(Binary, exprBinary, 9);
