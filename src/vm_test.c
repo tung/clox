@@ -5,6 +5,7 @@
 #include "utest.h"
 
 #include "chunk.h"
+#include "membuf.h"
 #include "value.h"
 
 #define memBufSuffix(mb, constStr) \
@@ -16,12 +17,6 @@
     writeChunk((chunk), addConstant((chunk), (value)), (line)); \
   } while (0)
 
-typedef struct {
-  char* buf;
-  size_t size;
-  FILE* fptr;
-} MemBuf;
-
 struct VM {
   VM vm;
   Chunk chunk;
@@ -32,18 +27,16 @@ struct VM {
 UTEST_F_SETUP(VM) {
   initVM(&ufx->vm);
   initChunk(&ufx->chunk);
-  ufx->out.fptr = open_memstream(&ufx->out.buf, &ufx->out.size);
-  ufx->err.fptr = open_memstream(&ufx->err.buf, &ufx->err.size);
+  initMemBuf(&ufx->out);
+  initMemBuf(&ufx->err);
   ASSERT_TRUE(1);
 }
 
 UTEST_F_TEARDOWN(VM) {
   freeVM(&ufx->vm);
   freeChunk(&ufx->chunk);
-  fclose(ufx->out.fptr);
-  fclose(ufx->err.fptr);
-  free(ufx->out.buf);
-  free(ufx->err.buf);
+  freeMemBuf(&ufx->out);
+  freeMemBuf(&ufx->err);
   ASSERT_TRUE(1);
 }
 

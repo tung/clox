@@ -7,14 +7,9 @@
 
 #include "debug.h"
 #include "list.h"
+#include "membuf.h"
 
 #define ufx utest_fixture
-
-typedef struct {
-  char* buf;
-  size_t size;
-  FILE* fptr;
-} MemBuf;
 
 typedef struct {
   const char* src;
@@ -35,8 +30,8 @@ struct CompileExpr {
 UTEST_I_SETUP(CompileExpr) {
   (void)utest_index;
   initChunk(&ufx->chunk);
-  ufx->out.fptr = open_memstream(&ufx->out.buf, &ufx->out.size);
-  ufx->err.fptr = open_memstream(&ufx->err.buf, &ufx->err.size);
+  initMemBuf(&ufx->out);
+  initMemBuf(&ufx->err);
   ASSERT_TRUE(1);
 }
 
@@ -45,10 +40,10 @@ UTEST_I_TEARDOWN(CompileExpr) {
 
   // Prepare expected/actual out/err memstreams.
   MemBuf xOut, xErr, aOut, aErr;
-  xOut.fptr = open_memstream(&xOut.buf, &xOut.size);
-  xErr.fptr = open_memstream(&xErr.buf, &xErr.size);
-  aOut.fptr = open_memstream(&aOut.buf, &aOut.size);
-  aErr.fptr = open_memstream(&aErr.buf, &aErr.size);
+  initMemBuf(&xOut);
+  initMemBuf(&xErr);
+  initMemBuf(&aOut);
+  initMemBuf(&aErr);
 
   // If success is expected, assemble, dump and free our expected chunk.
   if (expected->result) {
@@ -91,21 +86,15 @@ UTEST_I_TEARDOWN(CompileExpr) {
   EXPECT_STREQ(xErr.buf, aErr.buf);
 
   // Clean up memstreams.
-  fclose(xOut.fptr);
-  fclose(xErr.fptr);
-  fclose(aOut.fptr);
-  fclose(aErr.fptr);
-  free(xOut.buf);
-  free(xErr.buf);
-  free(aOut.buf);
-  free(aErr.buf);
+  freeMemBuf(&xOut);
+  freeMemBuf(&xErr);
+  freeMemBuf(&aOut);
+  freeMemBuf(&aErr);
 
   // Fixture teardown.
   freeChunk(&ufx->chunk);
-  fclose(ufx->out.fptr);
-  fclose(ufx->err.fptr);
-  free(ufx->out.buf);
-  free(ufx->err.buf);
+  freeMemBuf(&ufx->out);
+  freeMemBuf(&ufx->err);
 }
 
 #define COMPILE_EXPRS(name, data, count) \

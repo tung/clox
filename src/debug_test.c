@@ -5,14 +5,9 @@
 #include "utest.h"
 
 #include "chunk.h"
+#include "membuf.h"
 
 #define ufx utest_fixture
-
-typedef struct {
-  char* buf;
-  size_t size;
-  FILE* fptr;
-} MemBuf;
 
 struct DisassembleChunk {
   Chunk chunk;
@@ -22,17 +17,15 @@ struct DisassembleChunk {
 
 UTEST_F_SETUP(DisassembleChunk) {
   initChunk(&ufx->chunk);
-  ufx->out.fptr = open_memstream(&ufx->out.buf, &ufx->out.size);
-  ufx->err.fptr = open_memstream(&ufx->err.buf, &ufx->err.size);
+  initMemBuf(&ufx->out);
+  initMemBuf(&ufx->err);
   ASSERT_TRUE(1);
 }
 
 UTEST_F_TEARDOWN(DisassembleChunk) {
   freeChunk(&ufx->chunk);
-  fclose(ufx->out.fptr);
-  fclose(ufx->err.fptr);
-  free(ufx->out.buf);
-  free(ufx->err.buf);
+  freeMemBuf(&ufx->out);
+  freeMemBuf(&ufx->err);
   ASSERT_TRUE(1);
 }
 

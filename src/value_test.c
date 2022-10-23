@@ -2,12 +2,9 @@
 
 #include "utest.h"
 
-#define ufx utest_fixture
+#include "membuf.h"
 
-typedef struct {
-  char* buf;
-  size_t size;
-} MemBuf;
+#define ufx utest_fixture
 
 struct ValueArray {
   ValueArray va;
@@ -56,12 +53,14 @@ UTEST_F(ValueArray, WriteLots) {
 
 UTEST(Value, PrintValue) {
   MemBuf out;
-  FILE* fout = open_memstream(&out.buf, &out.size);
-  printValue(fout, (Value)2.5);
-  fclose(fout);
+  initMemBuf(&out);
+
+  printValue(out.fptr, (Value)2.5);
+  fflush(out.fptr);
   ASSERT_GT(out.size, 0ul);
   EXPECT_STREQ("2.5", out.buf);
-  free(out.buf);
+
+  freeMemBuf(&out);
 }
 
 UTEST_MAIN();
