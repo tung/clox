@@ -187,4 +187,33 @@ SourceToChunk exprBinary[] = {
 
 COMPILE_EXPRS(Binary, exprBinary, 9);
 
+SourceToChunk exprConditional[] = {
+  { "1 ? 2 : 3", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
+          2, OP_ADD, OP_RETURN),
+      LIST(Value, 1.0, 2.0, 3.0) },
+  { "1 ? 2 : 3 ? 4 : 5", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
+          2, OP_CONSTANT, 3, OP_ADD, OP_CONSTANT, 4, OP_ADD, OP_ADD,
+          OP_RETURN),
+      LIST(Value, 1.0, 2.0, 3.0, 4.0, 5.0) },
+  { "(1 ? 2 : 3) ? 4 : 5", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
+          2, OP_ADD, OP_CONSTANT, 3, OP_ADD, OP_CONSTANT, 4, OP_ADD,
+          OP_RETURN),
+      LIST(Value, 1.0, 2.0, 3.0, 4.0, 5.0) },
+  { "1 ? 2 ? 3 : 4 : 5", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
+          OP_ADD, OP_CONSTANT, 3, OP_ADD, OP_ADD, OP_CONSTANT, 4,
+          OP_ADD, OP_RETURN),
+      LIST(Value, 1.0, 2.0, 3.0, 4.0, 5.0) },
+  { "1 - 2 ? 3 * 4 : 5 / 6", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_SUBTRACT,
+          OP_CONSTANT, 2, OP_CONSTANT, 3, OP_MULTIPLY, OP_ADD,
+          OP_CONSTANT, 4, OP_CONSTANT, 5, OP_DIVIDE, OP_ADD, OP_RETURN),
+      LIST(Value, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0) },
+};
+
+COMPILE_EXPRS(Conditional, exprConditional, 5);
+
 UTEST_MAIN();

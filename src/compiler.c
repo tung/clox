@@ -25,6 +25,7 @@ typedef struct {
 typedef enum {
   PREC_NONE,
   PREC_ASSIGNMENT, // =
+  PREC_CONDITIONAL,// ?:
   PREC_OR,         // or
   PREC_AND,        // and
   PREC_EQUALITY,   // == !=
@@ -154,6 +155,15 @@ static void binary(Parser* parser) {
   }
 }
 
+static void conditional(Parser* parser) {
+  ParseRule* rule = getRule(TOKEN_QUESTION);
+  parsePrecedence(parser, rule->precedence);
+  emitByte(parser, OP_ADD);
+  consume(parser, TOKEN_COLON, "Expect ':' as part of '?' expression.");
+  parsePrecedence(parser, rule->precedence);
+  emitByte(parser, OP_ADD);
+}
+
 static void grouping(Parser* parser) {
   expression(parser);
   consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
@@ -183,10 +193,12 @@ ParseRule rules[] = {
   [TOKEN_RIGHT_PAREN]   = { NULL,     NULL,   PREC_NONE },
   [TOKEN_LEFT_BRACE]    = { NULL,     NULL,   PREC_NONE },
   [TOKEN_RIGHT_BRACE]   = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_COLON]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_COMMA]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_DOT]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_MINUS]         = { unary,    binary, PREC_TERM },
   [TOKEN_PLUS]          = { NULL,     binary, PREC_TERM },
+  [TOKEN_QUESTION]      = { NULL,     conditional, PREC_CONDITIONAL },
   [TOKEN_SEMICOLON]     = { NULL,     NULL,   PREC_NONE },
   [TOKEN_SLASH]         = { NULL,     binary, PREC_FACTOR },
   [TOKEN_STAR]          = { NULL,     binary, PREC_FACTOR },

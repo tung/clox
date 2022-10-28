@@ -206,10 +206,12 @@ Token scanToken(Scanner* scanner) {
     case '{': return makeToken(scanner, TOKEN_LEFT_BRACE);
     case '}': return makeToken(scanner, TOKEN_RIGHT_BRACE);
     case ';': return makeToken(scanner, TOKEN_SEMICOLON);
+    case ':': return makeToken(scanner, TOKEN_COLON);
     case ',': return makeToken(scanner, TOKEN_COMMA);
     case '.': return makeToken(scanner, TOKEN_DOT);
     case '-': return makeToken(scanner, TOKEN_MINUS);
     case '+': return makeToken(scanner, TOKEN_PLUS);
+    case '?': return makeToken(scanner, TOKEN_QUESTION);
     case '/': return makeToken(scanner, TOKEN_SLASH);
     case '*': return makeToken(scanner, TOKEN_STAR);
     case '!':
