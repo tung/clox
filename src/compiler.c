@@ -114,10 +114,12 @@ static void emitReturn(Parser* parser) {
 
 static uint8_t makeConstant(Parser* parser, Value value) {
   int constant = addConstant(currentChunk(parser), value);
+  // GCOV_EXCL_START
   if (constant > UINT8_MAX) {
     error(parser, "Too many constants in one chunk.");
     return 0;
   }
+  // GCOV_EXCL_STOP
 
   return (uint8_t)constant;
 }
@@ -146,11 +148,26 @@ static void binary(Parser* parser) {
   parsePrecedence(parser, (Precedence)(rule->precedence + 1));
 
   switch (operatorType) {
+    case TOKEN_BANG_EQUAL: emitBytes(parser, OP_EQUAL, OP_NOT); break;
+    case TOKEN_EQUAL_EQUAL: emitByte(parser, OP_EQUAL); break;
+    case TOKEN_GREATER: emitByte(parser, OP_GREATER); break;
+    case TOKEN_GREATER_EQUAL: emitBytes(parser, OP_LESS, OP_NOT); break;
+    case TOKEN_LESS: emitByte(parser, OP_LESS); break;
+    case TOKEN_LESS_EQUAL: emitBytes(parser, OP_GREATER, OP_NOT); break;
     case TOKEN_PLUS: emitByte(parser, OP_ADD); break;
     case TOKEN_MINUS: emitByte(parser, OP_SUBTRACT); break;
     case TOKEN_STAR: emitByte(parser, OP_MULTIPLY); break;
     case TOKEN_SLASH: emitByte(parser, OP_DIVIDE); break;
-    default: return; // Unreachable.
+    default: return; // GCOV_EXCL_LINE: Unreachable.
+  }
+}
+
+static void literal(Parser* parser) {
+  switch (parser->previous.type) {
+    case TOKEN_FALSE: emitByte(parser, OP_FALSE); break;
+    case TOKEN_NIL: emitByte(parser, OP_NIL); break;
+    case TOKEN_TRUE: emitByte(parser, OP_TRUE); break;
+    default: return; // GCOV_EXCL_LINE: Unreachable.
   }
 }
 
@@ -161,7 +178,7 @@ static void grouping(Parser* parser) {
 
 static void number(Parser* parser) {
   double value = strtod(parser->previous.start, NULL);
-  emitConstant(parser, value);
+  emitConstant(parser, NUMBER_VAL(value));
 }
 
 static void unary(Parser* parser) {
@@ -172,8 +189,9 @@ static void unary(Parser* parser) {
 
   // Emit the operator instruction.
   switch (operatorType) {
+    case TOKEN_BANG: emitByte(parser, OP_NOT); break;
     case TOKEN_MINUS: emitByte(parser, OP_NEGATE); break;
-    default: return; // Unreachable.
+    default: return; // GCOV_EXCL_LINE: Unreachable.
   }
 }
 
@@ -190,31 +208,31 @@ ParseRule rules[] = {
   [TOKEN_SEMICOLON]     = { NULL,     NULL,   PREC_NONE },
   [TOKEN_SLASH]         = { NULL,     binary, PREC_FACTOR },
   [TOKEN_STAR]          = { NULL,     binary, PREC_FACTOR },
-  [TOKEN_BANG]          = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_BANG_EQUAL]    = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_BANG]          = { unary,    NULL,   PREC_NONE },
+  [TOKEN_BANG_EQUAL]    = { NULL,     binary, PREC_EQUALITY },
   [TOKEN_EQUAL]         = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_EQUAL_EQUAL]   = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_GREATER]       = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_GREATER_EQUAL] = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_LESS]          = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_LESS_EQUAL]    = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_EQUAL_EQUAL]   = { NULL,     binary, PREC_EQUALITY },
+  [TOKEN_GREATER]       = { NULL,     binary, PREC_COMPARISON },
+  [TOKEN_GREATER_EQUAL] = { NULL,     binary, PREC_COMPARISON },
+  [TOKEN_LESS]          = { NULL,     binary, PREC_COMPARISON },
+  [TOKEN_LESS_EQUAL]    = { NULL,     binary, PREC_COMPARISON },
   [TOKEN_IDENTIFIER]    = { NULL,     NULL,   PREC_NONE },
   [TOKEN_STRING]        = { NULL,     NULL,   PREC_NONE },
   [TOKEN_NUMBER]        = { number,   NULL,   PREC_NONE },
   [TOKEN_AND]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_CLASS]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_ELSE]          = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_FALSE]         = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_FALSE]         = { literal,  NULL,   PREC_NONE },
   [TOKEN_FOR]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_FUN]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_IF]            = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_NIL]           = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_NIL]           = { literal,  NULL,   PREC_NONE },
   [TOKEN_OR]            = { NULL,     NULL,   PREC_NONE },
   [TOKEN_PRINT]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_RETURN]        = { NULL,     NULL,   PREC_NONE },
   [TOKEN_SUPER]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_THIS]          = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_TRUE]          = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_TRUE]          = { literal,  NULL,   PREC_NONE },
   [TOKEN_VAR]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_WHILE]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_ERROR]         = { NULL,     NULL,   PREC_NONE },

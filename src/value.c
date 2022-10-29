@@ -28,5 +28,23 @@ void freeValueArray(ValueArray* array) {
 }
 
 void printValue(FILE* fout, Value value) {
-  fprintf(fout, "%g", value);
+  switch (value.type) {
+    case VAL_BOOL:
+      fprintf(fout, AS_BOOL(value) ? "true" : "false");
+      break;
+    case VAL_NIL: fprintf(fout, "nil"); break;
+    case VAL_NUMBER: fprintf(fout, "%g", AS_NUMBER(value)); break;
+  }
+}
+
+bool valuesEqual(Value a, Value b) {
+  if (a.type != b.type) {
+    return false;
+  }
+  switch (a.type) {
+    case VAL_BOOL: return AS_BOOL(a) == AS_BOOL(b);
+    case VAL_NIL: return true;
+    case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b);
+    default: return false; // GCOV_EXCL_LINE: Unreachable.
+  }
 }

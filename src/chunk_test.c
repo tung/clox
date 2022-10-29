@@ -33,13 +33,13 @@ UTEST_F(Chunk, Write) {
 }
 
 UTEST_F(Chunk, AddConstant) {
-  addConstant(&ufx->chunk, 2.0);
-  addConstant(&ufx->chunk, 2.0);
-  addConstant(&ufx->chunk, 2.0);
+  addConstant(&ufx->chunk, NUMBER_VAL(2.0));
+  addConstant(&ufx->chunk, NUMBER_VAL(2.0));
+  addConstant(&ufx->chunk, NUMBER_VAL(2.0));
   ASSERT_EQ(3, ufx->chunk.constants.count);
-  EXPECT_EQ(2.0, ufx->chunk.constants.values[0]);
-  EXPECT_EQ(2.0, ufx->chunk.constants.values[1]);
-  EXPECT_EQ(2.0, ufx->chunk.constants.values[2]);
+  EXPECT_VALEQ(NUMBER_VAL(2.0), ufx->chunk.constants.values[0]);
+  EXPECT_VALEQ(NUMBER_VAL(2.0), ufx->chunk.constants.values[1]);
+  EXPECT_VALEQ(NUMBER_VAL(2.0), ufx->chunk.constants.values[2]);
 }
 
 UTEST_F(Chunk, Lines) {
@@ -62,14 +62,14 @@ UTEST_F(Chunk, Lines) {
 
 UTEST_F(Chunk, OpConstant) {
   writeChunk(&ufx->chunk, OP_CONSTANT, 1);
-  Value value = 1.5;
+  Value value = NUMBER_VAL(1.5);
   int constIndex = addConstant(&ufx->chunk, value);
   writeChunk(&ufx->chunk, constIndex, 1);
   ASSERT_EQ(2, ufx->chunk.count);
   EXPECT_EQ(OP_CONSTANT, ufx->chunk.code[0]);
   EXPECT_EQ(constIndex, ufx->chunk.code[1]);
   ASSERT_EQ(1, ufx->chunk.constants.count);
-  EXPECT_EQ(value, ufx->chunk.constants.values[0]);
+  EXPECT_VALEQ(value, ufx->chunk.constants.values[0]);
 }
 
 UTEST_MAIN();
