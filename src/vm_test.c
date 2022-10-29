@@ -19,25 +19,25 @@
 #define N NUMBER_LIT
 
 struct VM {
-  VM vm;
-  Chunk chunk;
   MemBuf out;
   MemBuf err;
+  VM vm;
+  Chunk chunk;
 };
 
 UTEST_F_SETUP(VM) {
-  initVM(&ufx->vm);
-  initChunk(&ufx->chunk);
   initMemBuf(&ufx->out);
   initMemBuf(&ufx->err);
+  initVM(&ufx->vm, ufx->out.fptr, ufx->err.fptr);
+  initChunk(&ufx->chunk);
   ASSERT_TRUE(1);
 }
 
 UTEST_F_TEARDOWN(VM) {
-  freeVM(&ufx->vm);
-  freeChunk(&ufx->chunk);
   freeMemBuf(&ufx->out);
   freeMemBuf(&ufx->err);
+  freeVM(&ufx->vm);
+  freeChunk(&ufx->chunk);
   ASSERT_TRUE(1);
 }
 
@@ -57,22 +57,19 @@ UTEST_F(VM, PushPop) {
 }
 
 UTEST_F(VM, InterpretOk) {
-  InterpretResult ires =
-      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, "1 + 2\n");
+  InterpretResult ires = interpret(&ufx->vm, "1 + 2\n");
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
 }
 
 UTEST_F(VM, InterpretCompileError) {
-  InterpretResult ires =
-      interpret(ufx->out.fptr, ufx->err.fptr, &ufx->vm, "#");
+  InterpretResult ires = interpret(&ufx->vm, "#");
   EXPECT_EQ((InterpretResult)INTERPRET_COMPILE_ERROR, ires);
 }
 
 UTEST_F(VM, UnknownOp) {
   writeChunk(&ufx->chunk, 255, 1);
 
-  InterpretResult ires = interpretChunk(
-      ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  InterpretResult ires = interpretChunk(&ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
 
   fflush(ufx->err.fptr);
@@ -81,8 +78,7 @@ UTEST_F(VM, UnknownOp) {
 }
 
 UTEST_F(VM, InterpretEmpty) {
-  InterpretResult ires = interpretChunk(
-      ufx->out.fptr, ufx->err.fptr, &ufx->vm, &ufx->chunk);
+  InterpretResult ires = interpretChunk(&ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
 
   fflush(ufx->err.fptr);
@@ -112,13 +108,13 @@ UTEST_I_SETUP(VMInterpret) {
 UTEST_I_TEARDOWN(VMInterpret) {
   ResultFromChunk* expected = &ufx->cases[utest_index];
 
+  MemBuf out, err;
   VM vm;
   Chunk chunk;
-  MemBuf out, err;
-  initVM(&vm);
-  initChunk(&chunk);
   initMemBuf(&out);
   initMemBuf(&err);
+  initVM(&vm, out.fptr, err.fptr);
+  initChunk(&chunk);
 
   // Prepare the chunk.
   for (int i = 0; i < expected->codeSize; ++i) {
@@ -129,8 +125,7 @@ UTEST_I_TEARDOWN(VMInterpret) {
   }
 
   // Interpret the chunk.
-  InterpretResult ires =
-      interpretChunk(out.fptr, err.fptr, &vm, &chunk);
+  InterpretResult ires = interpretChunk(&vm, &chunk);
   EXPECT_EQ(expected->ires, ires);
 
   fflush(out.fptr);
@@ -150,10 +145,10 @@ UTEST_I_TEARDOWN(VMInterpret) {
     EXPECT_STREQ("", err.buf);
   }
 
-  freeVM(&vm);
-  freeChunk(&chunk);
   freeMemBuf(&out);
   freeMemBuf(&err);
+  freeVM(&vm);
+  freeChunk(&chunk);
 }
 
 #define VM_INTERPRET(name, data, count) \

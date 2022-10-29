@@ -12,20 +12,22 @@ static void resetStack(VM* vm) {
   vm->stackTop = vm->stack;
 }
 
-static void runtimeError(FILE* ferr, VM* vm, const char* format, ...) {
+static void runtimeError(VM* vm, const char* format, ...) {
   va_list args;
   va_start(args, format);
-  vfprintf(ferr, format, args);
+  vfprintf(vm->ferr, format, args);
   va_end(args);
-  fputs("\n", ferr);
+  fputs("\n", vm->ferr);
 
   size_t instruction = vm->ip - vm->chunk->code - 1;
   int line = vm->chunk->lines[instruction];
-  fprintf(ferr, "[line %d] in script\n", line);
+  fprintf(vm->ferr, "[line %d] in script\n", line);
   resetStack(vm);
 }
 
-void initVM(VM* vm) {
+void initVM(VM* vm, FILE* fout, FILE* ferr) {
+  vm->fout = fout;
+  vm->ferr = ferr;
   resetStack(vm);
 }
 
@@ -54,13 +56,13 @@ static bool isFalsey(Value value) {
   return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
-static InterpretResult run(FILE* fout, FILE* ferr, VM* vm) {
+static InterpretResult run(VM* vm) {
 #define READ_BYTE() (*vm->ip++)
 #define READ_CONSTANT() (vm->chunk->constants.values[READ_BYTE()])
 #define BINARY_OP(valueType, op) \
   do { \
     if (!IS_NUMBER(peek(vm, 0)) || !IS_NUMBER(peek(vm, 1))) { \
-      runtimeError(ferr, vm, "Operands must be numbers."); \
+      runtimeError(vm, "Operands must be numbers."); \
       return INTERPRET_RUNTIME_ERROR; \
     } \
     double b = AS_NUMBER(pop(vm)); \
@@ -71,15 +73,15 @@ static InterpretResult run(FILE* fout, FILE* ferr, VM* vm) {
   const uint8_t* codeEnd = &vm->chunk->code[vm->chunk->count];
   while (vm->ip < codeEnd) {
 #ifdef DEBUG_TRACE_EXECUTION
-    fprintf(fout, "          ");
+    fprintf(vm->fout, "          ");
     for (Value* slot = vm->stack; slot < vm->stackTop; slot++) {
-      fprintf(fout, "[ ");
-      printValue(fout, *slot);
-      fprintf(fout, " ]");
+      fprintf(vm->fout, "[ ");
+      printValue(vm->fout, *slot);
+      fprintf(vm->fout, " ]");
     }
-    fprintf(fout, "\n");
+    fprintf(vm->fout, "\n");
     disassembleInstruction(
-        fout, ferr, vm->chunk, (int)(vm->ip - vm->chunk->code));
+        vm->fout, vm->ferr, vm->chunk, (int)(vm->ip - vm->chunk->code));
 #endif
 
     uint8_t instruction;
@@ -107,24 +109,24 @@ static InterpretResult run(FILE* fout, FILE* ferr, VM* vm) {
       case OP_NOT: push(vm, BOOL_VAL(isFalsey(pop(vm)))); break;
       case OP_NEGATE:
         if (!IS_NUMBER(peek(vm, 0))) {
-          runtimeError(ferr, vm, "Operand must be a number.");
+          runtimeError(vm, "Operand must be a number.");
           return INTERPRET_RUNTIME_ERROR;
         }
         push(vm, NUMBER_VAL(-AS_NUMBER(pop(vm))));
         break;
       case OP_RETURN: {
-        printValue(fout, pop(vm));
-        fprintf(fout, "\n");
+        printValue(vm->fout, pop(vm));
+        fprintf(vm->fout, "\n");
         return INTERPRET_OK;
       }
       default: {
-        fprintf(ferr, "Unknown opcode %d\n", instruction);
+        fprintf(vm->ferr, "Unknown opcode %d\n", instruction);
         return INTERPRET_RUNTIME_ERROR;
       }
     }
   }
 
-  fprintf(ferr, "missing OP_RETURN\n");
+  fprintf(vm->ferr, "missing OP_RETURN\n");
   return INTERPRET_RUNTIME_ERROR;
 
 #undef READ_BYTE
@@ -132,24 +134,22 @@ static InterpretResult run(FILE* fout, FILE* ferr, VM* vm) {
 #undef BINARY_OP
 }
 
-InterpretResult interpretChunk(
-    FILE* fout, FILE* ferr, VM* vm, Chunk* chunk) {
+InterpretResult interpretChunk(VM* vm, Chunk* chunk) {
   vm->chunk = chunk;
   vm->ip = vm->chunk->code;
-  return run(fout, ferr, vm);
+  return run(vm);
 }
 
-InterpretResult interpret(
-    FILE* fout, FILE* ferr, VM* vm, const char* source) {
+InterpretResult interpret(VM* vm, const char* source) {
   Chunk chunk;
   initChunk(&chunk);
 
-  if (!compile(fout, ferr, source, &chunk)) {
+  if (!compile(vm->fout, vm->ferr, source, &chunk)) {
     freeChunk(&chunk);
     return INTERPRET_COMPILE_ERROR;
   }
 
-  InterpretResult result = interpretChunk(fout, ferr, vm, &chunk);
+  InterpretResult result = interpretChunk(vm, &chunk);
 
   vm->chunk = NULL;
   vm->ip = NULL;

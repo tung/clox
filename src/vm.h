@@ -10,6 +10,8 @@
 #define STACK_MAX 256
 
 typedef struct {
+  FILE* fout;
+  FILE* ferr;
   Chunk* chunk;
   uint8_t* ip;
   Value stack[STACK_MAX];
@@ -22,13 +24,11 @@ typedef enum {
   INTERPRET_RUNTIME_ERROR
 } InterpretResult;
 
-void initVM(VM* vm);
+void initVM(VM* vm, FILE* fout, FILE* ferr);
 void freeVM(VM* vm);
 void push(VM* vm, Value value);
 Value pop(VM* vm);
-InterpretResult interpretChunk(
-    FILE* fout, FILE* ferr, VM* vm, Chunk* chunk);
-InterpretResult interpret(
-    FILE* fout, FILE* ferr, VM* vm, const char* source);
+InterpretResult interpretChunk(VM* vm, Chunk* chunk);
+InterpretResult interpret(VM* vm, const char* source);
 
 #endif

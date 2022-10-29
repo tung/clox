@@ -9,7 +9,7 @@
 
 static void repl(void) {
   VM vm;
-  initVM(&vm);
+  initVM(&vm, stdout, stderr);
 
   char line[1024];
   for (;;) {
@@ -21,7 +21,7 @@ static void repl(void) {
       break;
     }
 
-    interpret(stdout, stderr, &vm, line);
+    interpret(&vm, line);
   }
 }
 
@@ -56,9 +56,9 @@ static char* readFile(const char* path) {
 
 static void runFile(const char* path) {
   VM vm;
-  initVM(&vm);
+  initVM(&vm, stdout, stderr);
   char* source = readFile(path);
-  InterpretResult result = interpret(stdout, stderr, &vm, source);
+  InterpretResult result = interpret(&vm, source);
   free(source);
   freeVM(&vm);
 
@@ -71,9 +71,6 @@ static void runFile(const char* path) {
 }
 
 int main(int argc, char* argv[]) {
-  VM vm;
-  initVM(&vm);
-
   if (argc == 1) {
     repl();
   } else if (argc == 2) {
@@ -82,6 +79,5 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Usage: clox [path]\n");
   }
 
-  freeVM(&vm);
   return 0;
 }
