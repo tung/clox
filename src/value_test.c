@@ -3,6 +3,8 @@
 #include "utest.h"
 
 #include "membuf.h"
+#include "memory.h"
+#include "object.h"
 
 #define ufx utest_fixture
 
@@ -97,6 +99,61 @@ UTEST(Value, PrintNumberValue) {
   EXPECT_STREQ("2.5", out.buf);
 
   freeMemBuf(&out);
+}
+
+UTEST(Value, BoolsEqual) {
+  EXPECT_VALEQ(BOOL_VAL(false), BOOL_VAL(false));
+  EXPECT_VALEQ(BOOL_VAL(true), BOOL_VAL(true));
+}
+
+UTEST(Value, BoolsUnequal) {
+  EXPECT_VALNE(BOOL_VAL(false), BOOL_VAL(true));
+  EXPECT_VALNE(BOOL_VAL(true), BOOL_VAL(false));
+}
+
+UTEST(Value, NilsEqual) {
+  EXPECT_VALEQ(NIL_VAL, NIL_VAL);
+}
+
+UTEST(Value, NumbersEqual) {
+  EXPECT_VALEQ(NUMBER_VAL(0.0), NUMBER_VAL(0.0));
+  EXPECT_VALEQ(NUMBER_VAL(1.0), NUMBER_VAL(1.0));
+  EXPECT_VALEQ(NUMBER_VAL(-1.0), NUMBER_VAL(-1.0));
+}
+
+UTEST(Value, NumbersUnequal) {
+  EXPECT_VALNE(NUMBER_VAL(0.0), NUMBER_VAL(1.0));
+  EXPECT_VALNE(NUMBER_VAL(-1.0), NUMBER_VAL(1.0));
+}
+
+UTEST(Value, StringsEqual) {
+  Obj* objects = NULL;
+  ObjString* empty = copyString(&objects, "", 0);
+  ObjString* foo = copyString(&objects, "foo", 3);
+  ObjString* bar = copyString(&objects, "bar", 3);
+  ObjString* blah = copyString(&objects, "blah", 4);
+
+  EXPECT_VALEQ(OBJ_VAL(empty), OBJ_VAL(empty));
+  EXPECT_VALEQ(OBJ_VAL(foo), OBJ_VAL(foo));
+  EXPECT_VALEQ(OBJ_VAL(bar), OBJ_VAL(bar));
+  EXPECT_VALEQ(OBJ_VAL(blah), OBJ_VAL(blah));
+
+  freeObjects(objects);
+}
+
+UTEST(Value, StringsUnequal) {
+  Obj* objects = NULL;
+  ObjString* empty = copyString(&objects, "", 0);
+  ObjString* foo = copyString(&objects, "foo", 3);
+  ObjString* bar = copyString(&objects, "bar", 3);
+  ObjString* blah = copyString(&objects, "blah", 4);
+
+  EXPECT_VALNE(OBJ_VAL(empty), OBJ_VAL(foo));
+  EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(empty));
+  EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(bar));
+  EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(blah));
+
+  freeObjects(objects);
 }
 
 UTEST_MAIN();

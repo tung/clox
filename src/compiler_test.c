@@ -8,10 +8,25 @@
 #include "debug.h"
 #include "list.h"
 #include "membuf.h"
+#include "memory.h"
 
 #define ufx utest_fixture
 
 #define N NUMBER_LIT
+
+// We need enough of ObjString here to work with printObject in
+// object.c.  We don't need to set .obj.next since it's only needed for
+// the VM.
+// clang-format off
+#define S(str) { \
+    .type = VAL_OBJ, \
+    .as.obj = (Obj*)&(ObjString){ \
+      .obj = { .type = OBJ_STRING, .next = NULL }, \
+      .length = sizeof(str) / sizeof(str[0]) - 1, \
+      .chars = str, \
+    } \
+  }
+// clang-format on
 
 typedef struct {
   const char* src;
@@ -24,6 +39,7 @@ typedef struct {
 
 struct CompileExpr {
   Chunk chunk;
+  Obj* objects;
   MemBuf out;
   MemBuf err;
   SourceToChunk* cases;
@@ -32,6 +48,7 @@ struct CompileExpr {
 UTEST_I_SETUP(CompileExpr) {
   (void)utest_index;
   initChunk(&ufx->chunk);
+  ufx->objects = NULL;
   initMemBuf(&ufx->out);
   initMemBuf(&ufx->err);
   ASSERT_TRUE(1);
@@ -61,8 +78,8 @@ UTEST_I_TEARDOWN(CompileExpr) {
     freeChunk(&expectChunk);
   }
 
-  bool result =
-      compile(ufx->out.fptr, ufx->err.fptr, expected->src, &ufx->chunk);
+  bool result = compile(ufx->out.fptr, ufx->err.fptr, expected->src,
+      &ufx->chunk, &ufx->objects);
 
   EXPECT_EQ(expected->result, result);
 
@@ -95,6 +112,7 @@ UTEST_I_TEARDOWN(CompileExpr) {
 
   // Fixture teardown.
   freeChunk(&ufx->chunk);
+  freeObjects(ufx->objects);
   freeMemBuf(&ufx->out);
   freeMemBuf(&ufx->err);
 }
@@ -158,7 +176,7 @@ SourceToChunk exprGrouping[] = {
 
 COMPILE_EXPRS(Grouping, exprGrouping, 5);
 
-SourceToChunk exprBinary[] = {
+SourceToChunk exprBinaryNums[] = {
   { "3 + 2", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN),
       LIST(Value, N(3.0), N(2.0)) },
@@ -199,7 +217,7 @@ SourceToChunk exprBinary[] = {
       LIST(Value, N(1.0), N(2.0), N(3.0), N(4.0)) },
 };
 
-COMPILE_EXPRS(Binary, exprBinary, 9);
+COMPILE_EXPRS(BinaryNums, exprBinaryNums, 9);
 
 SourceToChunk exprBinaryCompare[] = {
   { "true != true", true,
@@ -226,5 +244,20 @@ SourceToChunk exprBinaryCompare[] = {
 };
 
 COMPILE_EXPRS(BinaryCompare, exprBinaryCompare, 6);
+
+SourceToChunk exprConcatStrings[] = {
+  { "\"\" + \"\"", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN),
+      LIST(Value, S(""), S("")) },
+  { "\"foo\" + \"bar\"", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN),
+      LIST(Value, S("foo"), S("bar")) },
+  { "\"foo\" + \"bar\" + \"baz\"", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
+          2, OP_ADD, OP_RETURN),
+      LIST(Value, S("foo"), S("bar"), S("baz")) },
+};
+
+COMPILE_EXPRS(ConcatStrings, exprConcatStrings, 3);
 
 UTEST_MAIN();

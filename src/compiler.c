@@ -13,6 +13,7 @@
 typedef struct {
   FILE* fout;
   FILE* ferr;
+  Obj* objects;
   Scanner scanner;
   Chunk* compilingChunk;
   Token current;
@@ -181,6 +182,12 @@ static void number(Parser* parser) {
   emitConstant(parser, NUMBER_VAL(value));
 }
 
+static void string(Parser* parser) {
+  emitConstant(parser,
+      OBJ_VAL(copyString(&parser->objects, parser->previous.start + 1,
+          parser->previous.length - 2)));
+}
+
 static void unary(Parser* parser) {
   TokenType operatorType = parser->previous.type;
 
@@ -217,7 +224,7 @@ ParseRule rules[] = {
   [TOKEN_LESS]          = { NULL,     binary, PREC_COMPARISON },
   [TOKEN_LESS_EQUAL]    = { NULL,     binary, PREC_COMPARISON },
   [TOKEN_IDENTIFIER]    = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_STRING]        = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_STRING]        = { string,   NULL,   PREC_NONE },
   [TOKEN_NUMBER]        = { number,   NULL,   PREC_NONE },
   [TOKEN_AND]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_CLASS]         = { NULL,     NULL,   PREC_NONE },
@@ -265,10 +272,12 @@ static void expression(Parser* parser) {
   parsePrecedence(parser, PREC_ASSIGNMENT);
 }
 
-bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk) {
+bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk,
+    Obj** objects) {
   Parser parser;
   parser.fout = fout;
   parser.ferr = ferr;
+  parser.objects = NULL;
   parser.compilingChunk = chunk;
   parser.hadError = false;
   parser.panicMode = false;
@@ -278,5 +287,6 @@ bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk) {
   expression(&parser);
   consume(&parser, TOKEN_EOF, "Expect end of expression.");
   endCompiler(&parser);
+  *objects = parser.objects;
   return !parser.hadError;
 }

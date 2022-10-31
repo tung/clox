@@ -8,6 +8,7 @@
 #include "chunk.h"
 #include "list.h"
 #include "membuf.h"
+#include "object.h"
 #include "value.h"
 
 #define memBufSuffix(mb, constStr) \
@@ -17,6 +18,20 @@
 #define NIL NIL_LIT
 #define B BOOL_LIT
 #define N NUMBER_LIT
+
+// We need enough of ObjString here for the VM to process them.
+// We don't need to set .obj.next since no memory management occurs
+// during interpretation for now.
+// clang-format off
+#define S(str) { \
+    .type = VAL_OBJ, \
+    .as.obj = (Obj*)&(ObjString){ \
+      .obj = { .type = OBJ_STRING, .next = NULL }, \
+      .length = sizeof(str) / sizeof(str[0]) - 1, \
+      .chars = str, \
+    } \
+  }
+// clang-format on
 
 struct VM {
   MemBuf out;
@@ -57,7 +72,15 @@ UTEST_F(VM, PushPop) {
 }
 
 UTEST_F(VM, InterpretOk) {
-  InterpretResult ires = interpret(&ufx->vm, "1 + 2\n");
+  InterpretResult ires;
+
+  ires = interpret(&ufx->vm, "1 + 2\n");
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  ires = interpret(&ufx->vm, "\"foo\" + \"bar\" + \"baz\"");
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  ires = interpret(&ufx->vm, "1 + 2\n");
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
 }
 
@@ -251,12 +274,41 @@ VM_INTERPRET(OpLess, opLess, 4);
 ResultFromChunk opAdd[] = {
   { "", INTERPRET_RUNTIME_ERROR,
       LIST(uint8_t, OP_NIL, OP_NIL, OP_ADD, OP_RETURN), LIST(Value) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_ADD, OP_RETURN),
+      LIST(Value, N(0.0)) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_ADD, OP_RETURN),
+      LIST(Value, N(0.0)) },
   { "5\n", INTERPRET_OK,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN),
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpAdd, opAdd, 2);
+VM_INTERPRET(OpAdd, opAdd, 4);
+
+ResultFromChunk opAddConcat[] = {
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_ADD, OP_RETURN),
+      LIST(Value, S("")) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_ADD, OP_RETURN),
+      LIST(Value, S("")) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN),
+      LIST(Value, N(0.0), S("")) },
+  { "foo\n", INTERPRET_OK,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN),
+      LIST(Value, S("foo"), S("")) },
+  { "foo\n", INTERPRET_OK,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN),
+      LIST(Value, S(""), S("foo")) },
+  { "foobar\n", INTERPRET_OK,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN),
+      LIST(Value, S("foo"), S("bar")) },
+};
+
+VM_INTERPRET(OpAddConcat, opAddConcat, 6);
 
 ResultFromChunk opSubtract[] = {
   { "", INTERPRET_RUNTIME_ERROR,

@@ -5,8 +5,9 @@
 #include <stdio.h>
 
 #include "chunk.h"
-#include "common.h"
+#include "object.h"
 
-bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk);
+bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk,
+    Obj** objects);
 
 #endif
