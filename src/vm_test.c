@@ -239,6 +239,9 @@ ResultFromChunk opGreater[] = {
   { "", INTERPRET_RUNTIME_ERROR,
       LIST(uint8_t, OP_NIL, OP_NIL, OP_GREATER, OP_RETURN),
       LIST(Value) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_GREATER, OP_RETURN),
+      LIST(Value, N(0.0)) },
   { "false\n", INTERPRET_OK,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER,
           OP_RETURN),
@@ -253,11 +256,14 @@ ResultFromChunk opGreater[] = {
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpGreater, opGreater, 4);
+VM_INTERPRET(OpGreater, opGreater, 5);
 
 ResultFromChunk opLess[] = {
   { "", INTERPRET_RUNTIME_ERROR,
       LIST(uint8_t, OP_NIL, OP_NIL, OP_LESS, OP_RETURN), LIST(Value) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_LESS, OP_RETURN),
+      LIST(Value, N(0.0)) },
   { "true\n", INTERPRET_OK,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_RETURN),
       LIST(Value, N(1.0), N(2.0)) },
@@ -269,11 +275,14 @@ ResultFromChunk opLess[] = {
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpLess, opLess, 4);
+VM_INTERPRET(OpLess, opLess, 5);
 
 ResultFromChunk opAdd[] = {
   { "", INTERPRET_RUNTIME_ERROR,
       LIST(uint8_t, OP_NIL, OP_NIL, OP_ADD, OP_RETURN), LIST(Value) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_ADD, OP_RETURN),
+      LIST(Value, N(0.0)) },
   { "", INTERPRET_RUNTIME_ERROR,
       LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_ADD, OP_RETURN),
       LIST(Value, N(0.0)) },
@@ -285,7 +294,7 @@ ResultFromChunk opAdd[] = {
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpAdd, opAdd, 4);
+VM_INTERPRET(OpAdd, opAdd, 5);
 
 ResultFromChunk opAddConcat[] = {
   { "", INTERPRET_RUNTIME_ERROR,
@@ -314,37 +323,46 @@ ResultFromChunk opSubtract[] = {
   { "", INTERPRET_RUNTIME_ERROR,
       LIST(uint8_t, OP_NIL, OP_NIL, OP_SUBTRACT, OP_RETURN),
       LIST(Value) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_SUBTRACT, OP_RETURN),
+      LIST(Value, N(0.0)) },
   { "1\n", INTERPRET_OK,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_SUBTRACT,
           OP_RETURN),
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpSubtract, opSubtract, 2);
+VM_INTERPRET(OpSubtract, opSubtract, 3);
 
 ResultFromChunk opMultiply[] = {
   { "", INTERPRET_RUNTIME_ERROR,
       LIST(uint8_t, OP_NIL, OP_NIL, OP_MULTIPLY, OP_RETURN),
       LIST(Value) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_MULTIPLY, OP_RETURN),
+      LIST(Value, N(0.0)) },
   { "6\n", INTERPRET_OK,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY,
           OP_RETURN),
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpMultiply, opMultiply, 2);
+VM_INTERPRET(OpMultiply, opMultiply, 3);
 
 ResultFromChunk opDivide[] = {
   { "", INTERPRET_RUNTIME_ERROR,
       LIST(uint8_t, OP_NIL, OP_NIL, OP_DIVIDE, OP_RETURN),
       LIST(Value) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_DIVIDE, OP_RETURN),
+      LIST(Value, N(0.0)) },
   { "1.5\n", INTERPRET_OK,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE,
           OP_RETURN),
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpDivide, opDivide, 2);
+VM_INTERPRET(OpDivide, opDivide, 3);
 
 ResultFromChunk opNot[] = {
   { "true\n", INTERPRET_OK, LIST(uint8_t, OP_NIL, OP_NOT, OP_RETURN),
