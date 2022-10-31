@@ -67,8 +67,8 @@ static void concatenate(VM* vm) {
 
   int length = a->length + b->length;
   char* chars = ALLOCATE(char, length + 1);
-  memcpy(chars, a->chars, a->length);
-  memcpy(chars + a->length, b->chars, b->length);
+  memcpy(chars, a->chars.ro, a->length);
+  memcpy(chars + a->length, b->chars.ro, b->length);
   chars[length] = '\0';
 
   ObjString* result = takeString(&vm->objects, chars, length);

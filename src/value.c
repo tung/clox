@@ -52,7 +52,7 @@ bool valuesEqual(Value a, Value b) {
       ObjString* aString = AS_STRING(a);
       ObjString* bString = AS_STRING(b);
       return aString->length == bString->length &&
-          memcmp(aString->chars, bString->chars, aString->length) == 0;
+          memcmp(AS_CSTRING(a), AS_CSTRING(b), aString->length) == 0;
     }
     default: return false; // GCOV_EXCL_LINE: Unreachable.
   }

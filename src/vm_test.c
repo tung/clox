@@ -28,7 +28,8 @@
     .as.obj = (Obj*)&(ObjString){ \
       .obj = { .type = OBJ_STRING, .next = NULL }, \
       .length = sizeof(str) / sizeof(str[0]) - 1, \
-      .chars = str, \
+      .chars.ro = str, \
+      .borrowed = true, \
     } \
   }
 // clang-format on

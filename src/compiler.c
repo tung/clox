@@ -184,7 +184,7 @@ static void number(Parser* parser) {
 
 static void string(Parser* parser) {
   emitConstant(parser,
-      OBJ_VAL(copyString(&parser->objects, parser->previous.start + 1,
+      OBJ_VAL(borrowString(&parser->objects, parser->previous.start + 1,
           parser->previous.length - 2)));
 }
 

@@ -13,7 +13,7 @@
 #define IS_STRING(value)       isObjType(value, OBJ_STRING)
 
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
-#define AS_CSTRING(value)      (((ObjString*)AS_OBJ(value))->chars)
+#define AS_CSTRING(value)      (((ObjString*)AS_OBJ(value))->chars.ro)
 // clang-format on
 
 typedef enum {
@@ -28,11 +28,16 @@ struct Obj {
 struct ObjString {
   Obj obj;
   int length;
-  char* chars;
+  union {
+    char* rw;
+    const char* ro;
+  } chars;
+  bool borrowed;
 };
 
 ObjString* takeString(Obj** objects, char* chars, int length);
 ObjString* copyString(Obj** objects, const char* chars, int length);
+ObjString* borrowString(Obj** objects, const char* chars, int length);
 void printObject(FILE* fout, Value value);
 
 static inline bool isObjType(Value value, ObjType type) {

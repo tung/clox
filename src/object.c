@@ -24,7 +24,8 @@ static ObjString* allocateString(
     Obj** objects, char* chars, int length) {
   ObjString* string = ALLOCATE_OBJ(objects, ObjString, OBJ_STRING);
   string->length = length;
-  string->chars = chars;
+  string->chars.rw = chars;
+  string->borrowed = false;
   return string;
 }
 
@@ -39,8 +40,18 @@ ObjString* copyString(Obj** objects, const char* chars, int length) {
   return allocateString(objects, heapChars, length);
 }
 
+ObjString* borrowString(Obj** objects, const char* chars, int length) {
+  ObjString* string = allocateString(objects, NULL, length);
+  string->chars.ro = chars;
+  string->borrowed = true;
+  return string;
+}
+
 void printObject(FILE* fout, Value value) {
   switch (OBJ_TYPE(value)) {
-    case OBJ_STRING: fprintf(fout, "%s", AS_CSTRING(value)); break;
+    case OBJ_STRING:
+      fprintf(
+          fout, "%.*s", AS_STRING(value)->length, AS_CSTRING(value));
+      break;
   }
 }
