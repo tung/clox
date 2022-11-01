@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "common.h"
+#include "table.h"
 #include "value.h"
 
 // clang-format off
@@ -29,10 +30,13 @@ struct ObjString {
   Obj obj;
   int length;
   char* chars;
+  uint32_t hash;
 };
 
-ObjString* takeString(Obj** objects, char* chars, int length);
-ObjString* copyString(Obj** objects, const char* chars, int length);
+ObjString* takeString(
+    Obj** objects, Table* strings, char* chars, int length);
+ObjString* copyString(
+    Obj** objects, Table* strings, const char* chars, int length);
 void printObject(FILE* fout, Value value);
 
 static inline bool isObjType(Value value, ObjType type) {

@@ -6,8 +6,9 @@
 
 #include "chunk.h"
 #include "object.h"
+#include "table.h"
 
 bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk,
-    Obj** objects);
+    Obj** objects, Table* strings);
 
 #endif

@@ -128,31 +128,37 @@ UTEST(Value, NumbersUnequal) {
 
 UTEST(Value, StringsEqual) {
   Obj* objects = NULL;
-  ObjString* empty = copyString(&objects, "", 0);
-  ObjString* foo = copyString(&objects, "foo", 3);
-  ObjString* bar = copyString(&objects, "bar", 3);
-  ObjString* blah = copyString(&objects, "blah", 4);
+  Table strings;
+  initTable(&strings, 0.75);
+  ObjString* empty = copyString(&objects, &strings, "", 0);
+  ObjString* foo = copyString(&objects, &strings, "foo", 3);
+  ObjString* bar = copyString(&objects, &strings, "bar", 3);
+  ObjString* blah = copyString(&objects, &strings, "blah", 4);
 
   EXPECT_VALEQ(OBJ_VAL(empty), OBJ_VAL(empty));
   EXPECT_VALEQ(OBJ_VAL(foo), OBJ_VAL(foo));
   EXPECT_VALEQ(OBJ_VAL(bar), OBJ_VAL(bar));
   EXPECT_VALEQ(OBJ_VAL(blah), OBJ_VAL(blah));
 
+  freeTable(&strings);
   freeObjects(objects);
 }
 
 UTEST(Value, StringsUnequal) {
   Obj* objects = NULL;
-  ObjString* empty = copyString(&objects, "", 0);
-  ObjString* foo = copyString(&objects, "foo", 3);
-  ObjString* bar = copyString(&objects, "bar", 3);
-  ObjString* blah = copyString(&objects, "blah", 4);
+  Table strings;
+  initTable(&strings, 0.75);
+  ObjString* empty = copyString(&objects, &strings, "", 0);
+  ObjString* foo = copyString(&objects, &strings, "foo", 3);
+  ObjString* bar = copyString(&objects, &strings, "bar", 3);
+  ObjString* blah = copyString(&objects, &strings, "blah", 4);
 
   EXPECT_VALNE(OBJ_VAL(empty), OBJ_VAL(foo));
   EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(empty));
   EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(bar));
   EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(blah));
 
+  freeTable(&strings);
   freeObjects(objects);
 }
 

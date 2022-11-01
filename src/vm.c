@@ -33,9 +33,11 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   vm->ferr = ferr;
   resetStack(vm);
   vm->objects = NULL;
+  initTable(&vm->strings, 0.75);
 }
 
 void freeVM(VM* vm) {
+  freeTable(&vm->strings);
   freeObjects(vm->objects);
   vm->objects = NULL;
 }
@@ -71,7 +73,8 @@ static void concatenate(VM* vm) {
   memcpy(chars + a->length, b->chars, b->length);
   chars[length] = '\0';
 
-  ObjString* result = takeString(&vm->objects, chars, length);
+  ObjString* result =
+      takeString(&vm->objects, &vm->strings, chars, length);
   push(vm, OBJ_VAL(result));
 }
 
@@ -177,7 +180,8 @@ InterpretResult interpret(VM* vm, const char* source) {
   initChunk(&chunk);
 
   Obj* objects = NULL;
-  if (!compile(vm->fout, vm->ferr, source, &chunk, &objects)) {
+  if (!compile(
+          vm->fout, vm->ferr, source, &chunk, &objects, &vm->strings)) {
     freeChunk(&chunk);
     freeObjects(objects);
     return INTERPRET_COMPILE_ERROR;

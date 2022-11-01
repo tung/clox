@@ -40,6 +40,7 @@ typedef struct {
 struct CompileExpr {
   Chunk chunk;
   Obj* objects;
+  Table strings;
   MemBuf out;
   MemBuf err;
   SourceToChunk* cases;
@@ -49,6 +50,7 @@ UTEST_I_SETUP(CompileExpr) {
   (void)utest_index;
   initChunk(&ufx->chunk);
   ufx->objects = NULL;
+  initTable(&ufx->strings, 0.75);
   initMemBuf(&ufx->out);
   initMemBuf(&ufx->err);
   ASSERT_TRUE(1);
@@ -79,7 +81,7 @@ UTEST_I_TEARDOWN(CompileExpr) {
   }
 
   bool result = compile(ufx->out.fptr, ufx->err.fptr, expected->src,
-      &ufx->chunk, &ufx->objects);
+      &ufx->chunk, &ufx->objects, &ufx->strings);
 
   EXPECT_EQ(expected->result, result);
 
@@ -112,6 +114,7 @@ UTEST_I_TEARDOWN(CompileExpr) {
 
   // Fixture teardown.
   freeChunk(&ufx->chunk);
+  freeTable(&ufx->strings);
   freeObjects(ufx->objects);
   freeMemBuf(&ufx->out);
   freeMemBuf(&ufx->err);

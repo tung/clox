@@ -315,9 +315,13 @@ ResultFromChunk opAddConcat[] = {
   { "foobar\n", INTERPRET_OK,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_RETURN),
       LIST(Value, S("foo"), S("bar")) },
+  { "foobarfoobar\n", INTERPRET_OK,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
+          2, OP_CONSTANT, 3, OP_ADD, OP_ADD, OP_RETURN),
+      LIST(Value, S("foo"), S("bar"), S("foo"), S("bar")) },
 };
 
-VM_INTERPRET(OpAddConcat, opAddConcat, 6);
+VM_INTERPRET(OpAddConcat, opAddConcat, 7);
 
 ResultFromChunk opSubtract[] = {
   { "", INTERPRET_RUNTIME_ERROR,

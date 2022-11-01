@@ -14,6 +14,7 @@ typedef struct {
   FILE* fout;
   FILE* ferr;
   Obj* objects;
+  Table* strings;
   Scanner scanner;
   Chunk* compilingChunk;
   Token current;
@@ -184,8 +185,8 @@ static void number(Parser* parser) {
 
 static void string(Parser* parser) {
   emitConstant(parser,
-      OBJ_VAL(copyString(&parser->objects, parser->previous.start + 1,
-          parser->previous.length - 2)));
+      OBJ_VAL(copyString(&parser->objects, parser->strings,
+          parser->previous.start + 1, parser->previous.length - 2)));
 }
 
 static void unary(Parser* parser) {
@@ -273,11 +274,12 @@ static void expression(Parser* parser) {
 }
 
 bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk,
-    Obj** objects) {
+    Obj** objects, Table* strings) {
   Parser parser;
   parser.fout = fout;
   parser.ferr = ferr;
   parser.objects = NULL;
+  parser.strings = strings;
   parser.compilingChunk = chunk;
   parser.hadError = false;
   parser.panicMode = false;
