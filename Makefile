@@ -81,7 +81,7 @@ else ifeq ($(MODE),coverage)
   LDFLAGS    = -g -fsanitize=address --coverage
   LDLIBS     =
   TESTLDLIBS =
-  GCOVR      = gcovr -e "$(src_dir)utest.h"
+  GCOVR      = gcovr -e "$(header_dir)utest.h" -e "$(header_dir)ubench.h"
   report_dir = $(mode_dir)gcovr/
   report_loc = $(report_dir)report.html
 
@@ -103,11 +103,16 @@ main_target = $(mode_dir)$(main_name)
 test_srcs = $(wildcard $(src_dir)*_test.c)
 tests     = $(sort $(test_srcs:$(src_dir)%.c=$(mode_dir)%))
 
+# Benchmarks configuration.
+bench_srcs = $(wildcard $(src_dir)*_bench.c)
+benches    = $(sort $(bench_srcs:$(src_dir)%.c=$(mode_dir)%))
+
 # All C source files.
 c_srcs = $(wildcard $(src_dir)*.c)
 
 # Source files to apply automatic formatting to.
-format_srcs = $(sort $(c_srcs) $(filter-out $(header_dir)utest.h,$(wildcard $(header_dir)*.h)))
+no_format_srcs = $(header_dir)utest.h $(header_dir)ubench.h
+format_srcs    = $(sort $(c_srcs) $(filter-out $(no_format_srcs),$(wildcard $(header_dir)*.h)))
 
 # Output sub-directories for the current mode's build directory.
 objs_dir = $(mode_dir)objs/
@@ -118,11 +123,13 @@ c_objs         = $(c_srcs:$(src_dir)%.c=$(objs_dir)%.o)
 c_deps         = $(c_srcs:$(src_dir)%.c=$(deps_dir)%.d)
 main_link_dep  = $(main_src:$(src_dir)%.c=$(deps_dir)%.link.d)
 test_link_deps = $(test_srcs:$(src_dir)%.c=$(deps_dir)%.link.d)
+bench_link_deps = $(bench_srcs:$(src_dir)%.c=$(deps_dir)%.link.d)
+all_deps        = $(c_deps) $(main_link_dep) $(test_link_deps) $(bench_link_deps)
 
 # Files associated with missing source files (moved or deleted).
 # Auto-deleted by auto-run 'cleanmissing' rule.
 missing_objs = $(filter-out $(c_objs),$(wildcard $(objs_dir)*.o))
-missing_deps = $(filter-out $(c_deps) $(main_link_dep) $(test_link_deps),$(wildcard $(deps_dir)*.d))
+missing_deps = $(filter-out $(all_deps),$(wildcard $(deps_dir)*.d))
 
 ###############
 ### Helpers ###
@@ -149,8 +156,8 @@ run_path = "$(if $(filter / ./ ../,$(firstword $(subst /,/ ,$(1)))),,./)$(1)"
 # Run 'all' target if no specific target was requested.
 .DEFAULT_GOAL = all
 
-# Build main target and all tests by default.
-all: build buildtests
+# Build main target, all tests and all benchmarks by default.
+all: build buildtests buildbenches
 
 # Run main target.
 .PHONY: run
@@ -162,6 +169,11 @@ run: build
 test: buildtests
 	"$(makefile_prefix)runtests.bash" $(foreach t,$(tests),$(call run_path,$(t)))
 
+# Run all benchmarks.
+.PHONY: bench
+bench: buildbenches
+	"$(makefile_prefix)runtests.bash" $(foreach b,$(benches),$(call run_path,$(b)))
+
 # Build main target.
 .PHONY: build
 build: $(main_target)
@@ -170,10 +182,14 @@ build: $(main_target)
 .PHONY: buildtests
 buildtests: $(tests)
 
+# Build all benchmarks.
+.PHONY: buildbenches
+buildbenches: $(benches)
+
 # Delete build outputs and dependency files for the current mode.
 .PHONY: clean
 clean: cleandeps
-	$(RM) "$(main_target)" $(tests:%="%") "$(mode_mk)" "$(objs_dir)"*.o
+	$(RM) "$(main_target)" $(tests:%="%") $(benches:%="%") "$(mode_mk)" "$(objs_dir)"*.o
 
 # Delete dependency files for the current mode.
 .PHONY: cleandeps
@@ -232,10 +248,15 @@ $(main_target):
 $(tests): %:
 	$(CC) $(LDFLAGS) -o $@ $^ $(TESTLDLIBS)
 
+# Link benchmark binaries.
+# The %^ dependency lists are in the auto-generated $(bench_link_deps) files.
+$(benches): %:
+	$(CC) $(LDFLAGS) -o $@ $^ -lm
+
 # Ensure build directories exist for targets, objs and deps.
 $(main_target) $(tests): | $(mode_dir)
 $(c_objs): | $(objs_dir)
-$(c_deps) $(main_link_dep) $(test_link_deps): | $(deps_dir)
+$(all_deps): | $(deps_dir)
 $(mode_dir) $(objs_dir) $(deps_dir):
 	mkdir -p $@
 
@@ -253,9 +274,9 @@ $(c_deps): $(deps_dir)%.d: $(src_dir)%.c
 $(main_link_dep): | $(c_deps)
 	"$(makefile_prefix)linkrule.bash" "$@" "$(main_target)" "$(@:.link.d=.d)" "$(header_dir)"
 
-# Auto-generate dependency rules for $(tests).
-# This scans the dependency files for *.o files to be linked into each test.
-$(test_link_deps): %.link.d: | $(c_deps)
+# Auto-generate dependency rules for $(tests) and $(benches).
+# This scans the dependency files for *.o files to be linked into each test/benchmark.
+$(test_link_deps) $(bench_link_deps): %.link.d: | $(c_deps)
 	"$(makefile_prefix)linkrule.bash" "$@" "$(*:$(deps_dir)%=$(mode_dir)%)" "$(@:.link.d=.d)" "$(header_dir)"
 
 # Avoid remaking dependency files if we're just cleaning up.
@@ -266,6 +287,7 @@ ifneq ($(should_make_deps),)
   # The link dependencies list *.o files that each target should be relinked for.
   -include $(main_link_dep)
   -include $(test_link_deps)
+  -include $(bench_link_deps)
 endif
 
 #########################################################################
