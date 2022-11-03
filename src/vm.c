@@ -223,22 +223,10 @@ InterpretResult interpret(VM* vm, const char* source) {
   Chunk chunk;
   initChunk(&chunk);
 
-  Obj* objects = NULL;
-  if (!compile(
-          vm->fout, vm->ferr, source, &chunk, &objects, &vm->strings)) {
+  if (!compile(vm->fout, vm->ferr, source, &chunk, &vm->objects,
+          &vm->strings)) {
     freeChunk(&chunk);
-    freeObjects(objects);
     return INTERPRET_COMPILE_ERROR;
-  }
-
-  if (objects != NULL) {
-    // Prepend objects to vm->objects.
-    Obj* lastObject = objects;
-    while (lastObject->next != NULL) {
-      lastObject = lastObject->next;
-    }
-    lastObject->next = vm->objects;
-    vm->objects = objects;
   }
 
   InterpretResult result = interpretChunk(vm, &chunk);

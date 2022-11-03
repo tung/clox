@@ -164,6 +164,7 @@ StringToTokenTypes numbers[] = {
 SCAN_TOKEN_TYPES(Numbers, numbers, 4);
 
 StringToTokenTypes identifiers[] = {
+  { "ccc", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "f", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "fee", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "foe", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
@@ -177,11 +178,12 @@ StringToTokenTypes identifiers[] = {
   { "_0123456789", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
 };
 
-SCAN_TOKEN_TYPES(Identifiers, identifiers, 9);
+SCAN_TOKEN_TYPES(Identifiers, identifiers, 10);
 
 StringToTokenTypes keywords[] = {
   { "and", (TokenType[]){ TOKEN_AND, TOKEN_EOF } },
   { "class", (TokenType[]){ TOKEN_CLASS, TOKEN_EOF } },
+  { "const", (TokenType[]){ TOKEN_CONST, TOKEN_EOF } },
   { "else", (TokenType[]){ TOKEN_ELSE, TOKEN_EOF } },
   { "false", (TokenType[]){ TOKEN_FALSE, TOKEN_EOF } },
   { "for", (TokenType[]){ TOKEN_FOR, TOKEN_EOF } },
@@ -198,6 +200,6 @@ StringToTokenTypes keywords[] = {
   { "while", (TokenType[]){ TOKEN_WHILE, TOKEN_EOF } },
 };
 
-SCAN_TOKEN_TYPES(Keywords, keywords, 16);
+SCAN_TOKEN_TYPES(Keywords, keywords, 17);
 
 UTEST_MAIN();

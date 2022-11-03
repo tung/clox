@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "memory.h"
 #include "scanner.h"
 
 #ifdef DEBUG_PRINT_CODE
@@ -14,9 +15,11 @@
 typedef struct {
   Token name;
   int depth;
+  bool constant;
 } Local;
 
 typedef struct {
+  Table globals;
   Local locals[UINT8_COUNT];
   int localCount;
   int scopeDepth;
@@ -156,6 +159,7 @@ static void emitConstant(Parser* parser, Value value) {
 }
 
 static void initCompiler(Parser* parser, Compiler* compiler) {
+  initTable(&compiler->globals, 0.75);
   compiler->localCount = 0;
   compiler->scopeDepth = 0;
   parser->currentCompiler = compiler;
@@ -168,6 +172,7 @@ static void endCompiler(Parser* parser) {
     disassembleChunk(parser->ferr, currentChunk(parser), "code");
   }
 #endif
+  freeTable(&parser->currentCompiler->globals);
 }
 
 static void beginScope(Parser* parser) {
@@ -221,7 +226,7 @@ static int resolveLocal(
   return -1;
 }
 
-static void addLocal(Parser* parser, Token name) {
+static void addLocal(Parser* parser, Token name, bool constant) {
   // GCOV_EXCL_START
   if (parser->currentCompiler->localCount == UINT8_COUNT) {
     error(parser, "Too many local variables in function.");
@@ -233,9 +238,10 @@ static void addLocal(Parser* parser, Token name) {
                       ->locals[parser->currentCompiler->localCount++];
   local->name = name;
   local->depth = -1;
+  local->constant = constant;
 }
 
-static void declareVariable(Parser* parser) {
+static void declareVariable(Parser* parser, bool constant) {
   if (parser->currentCompiler->scopeDepth == 0) {
     return;
   }
@@ -253,15 +259,32 @@ static void declareVariable(Parser* parser) {
     }
   }
 
-  addLocal(parser, *name);
+  addLocal(parser, *name, constant);
 }
 
-static uint8_t parseVariable(Parser* parser, const char* errorMessage) {
+static uint8_t parseVariable(
+    Parser* parser, bool constant, const char* errorMessage) {
   consume(parser, TOKEN_IDENTIFIER, errorMessage);
 
-  declareVariable(parser);
+  declareVariable(parser, constant);
   if (parser->currentCompiler->scopeDepth > 0) {
     return 0;
+  }
+
+  ObjString* globalOStr = copyString(&parser->objects, parser->strings,
+      parser->previous.start, parser->previous.length);
+  Value value;
+  if (tableGet(&parser->currentCompiler->globals, globalOStr, &value)) {
+    if (valuesEqual(value, BOOL_VAL(true))) {
+      error(parser,
+          constant ? "Can't redefine constant."
+                   : "Can't redefine constant as variable.");
+    } else if (constant) {
+      error(parser, "Can't redefine variable as constant.");
+    }
+  } else {
+    tableSet(&parser->currentCompiler->globals, globalOStr,
+        BOOL_VAL(constant));
   }
 
   return identifierConstant(parser, &parser->previous);
@@ -350,6 +373,29 @@ static void namedVariable(Parser* parser, Token name, bool canAssign) {
   }
 
   if (canAssign && match(parser, TOKEN_EQUAL)) {
+    if (setOp == OP_SET_LOCAL) {
+      for (int i = parser->currentCompiler->localCount - 1; i >= 0;
+           i--) {
+        Local* local = &parser->currentCompiler->locals[i];
+        if (identifiersEqual(&name, &local->name) && local->constant) {
+          error(parser, "Can't assign to a constant.");
+        }
+      }
+    } else {
+      ObjString* globalOStr = copyString(
+          &parser->objects, parser->strings, name.start, name.length);
+      Value value;
+      if (tableGet(
+              &parser->currentCompiler->globals, globalOStr, &value)) {
+        if (valuesEqual(value, BOOL_VAL(true))) {
+          error(parser, "Can't assign to a constant.");
+        }
+      } else {
+        tableSet(&parser->currentCompiler->globals, globalOStr,
+            BOOL_VAL(false));
+      }
+    }
+
     expression(parser);
     emitBytes(parser, setOp, (uint8_t)arg);
   } else {
@@ -403,6 +449,7 @@ ParseRule rules[] = {
   [TOKEN_NUMBER]        = { number,   NULL,   PREC_NONE },
   [TOKEN_AND]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_CLASS]         = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_CONST]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_ELSE]          = { NULL,     NULL,   PREC_NONE },
   [TOKEN_FALSE]         = { literal,  NULL,   PREC_NONE },
   [TOKEN_FOR]           = { NULL,     NULL,   PREC_NONE },
@@ -462,12 +509,18 @@ static void block(Parser* parser) {
 }
 
 static void varDeclaration(Parser* parser) {
-  uint8_t global = parseVariable(parser, "Expect variable name.");
+  bool constant = parser->previous.type == TOKEN_CONST;
+  uint8_t global = parseVariable(parser, constant,
+      constant ? "Expect constant name." : "Expect variable name.");
 
   if (match(parser, TOKEN_EQUAL)) {
     expression(parser);
   } else {
-    emitByte(parser, OP_NIL);
+    if (constant) {
+      error(parser, "Expect '=' after constant name.");
+    } else {
+      emitByte(parser, OP_NIL);
+    }
   }
   consume(parser, TOKEN_SEMICOLON,
       "Expect ';' after variable declaration.");
@@ -496,6 +549,7 @@ static void synchronize(Parser* parser) {
     }
     switch (parser->current.type) {
       case TOKEN_CLASS:
+      case TOKEN_CONST:
       case TOKEN_FUN:
       case TOKEN_VAR:
       case TOKEN_FOR:
@@ -512,7 +566,7 @@ static void synchronize(Parser* parser) {
 }
 
 static void declaration(Parser* parser) {
-  if (match(parser, TOKEN_VAR)) {
+  if (match(parser, TOKEN_VAR) || match(parser, TOKEN_CONST)) {
     varDeclaration(parser);
   } else {
     statement(parser);
@@ -556,6 +610,6 @@ bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk,
   }
 
   endCompiler(&parser);
-  *objects = parser.objects;
+  prependObjects(parser.objects, objects);
   return !parser.hadError;
 }

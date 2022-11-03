@@ -388,6 +388,10 @@ SourceToChunk stmtVarDecl[] = {
   { "var foo = 0;", true,
       LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_RETURN),
       LIST(Value, S("foo"), N(0.0)) },
+  { "var foo; foo = 0;", true,
+      LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0, OP_CONSTANT, 2,
+          OP_SET_GLOBAL, 1, OP_POP, OP_RETURN),
+      LIST(Value, S("foo"), S("foo"), N(0.0)) },
   { "{ var foo; }", true, LIST(uint8_t, OP_NIL, OP_POP, OP_RETURN),
       LIST(Value) },
   { "{ var foo = 0; }", true,
@@ -395,12 +399,16 @@ SourceToChunk stmtVarDecl[] = {
       LIST(Value, N(0.0)) },
 };
 
-COMPILE_STMTS(VarDecl, stmtVarDecl, 4);
+COMPILE_STMTS(VarDecl, stmtVarDecl, 5);
 
 SourceToChunk stmtLocalVars[] = {
   { "{ var foo = 123; print foo; }", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 0, OP_PRINT, OP_POP,
           OP_RETURN),
+      LIST(Value, N(123.0)) },
+  { "{ var foo; foo = 123; print foo; }", true,
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_SET_LOCAL, 0, OP_POP,
+          OP_GET_LOCAL, 0, OP_PRINT, OP_POP, OP_RETURN),
       LIST(Value, N(123.0)) },
   { "{ var a = 1; var foo = 2; print a + foo; }", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_LOCAL, 0,
@@ -420,9 +428,26 @@ SourceToChunk stmtLocalVars[] = {
       LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
           OP_GET_LOCAL, 0, OP_POP, OP_POP, OP_RETURN),
       LIST(Value, S("a"), S("a")) },
+  { "{ var a; var b; a = 1; print a; }", true,
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_CONSTANT, 0, OP_SET_LOCAL, 0,
+          OP_POP, OP_GET_LOCAL, 0, OP_PRINT, OP_POP, OP_POP, OP_RETURN),
+      LIST(Value, N(1.0)) },
 };
 
-COMPILE_STMTS(LocalVars, stmtLocalVars, 5);
+COMPILE_STMTS(LocalVars, stmtLocalVars, 7);
+
+SourceToChunk stmtConstants[] = {
+  { "const foo = 1; print foo;", true,
+      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL,
+          2, OP_PRINT, OP_RETURN),
+      LIST(Value, S("foo"), N(1.0), S("foo")) },
+  { "{ const foo = 1; print foo; }", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 0, OP_PRINT, OP_POP,
+          OP_RETURN),
+      LIST(Value, N(1.0)) },
+};
+
+COMPILE_STMTS(Constants, stmtConstants, 2);
 
 struct Compile {
   Chunk chunk;
@@ -517,6 +542,70 @@ UTEST_F(Compile, VarDeclErrorLocalDuplicate) {
   EXPECT_STREQ(
       "[line 1] Error at 'x': "
       "Already a variable with this name in this scope.\n",
+      ufx->err.buf);
+}
+
+UTEST_F(Compile, ConstDeclErrorNoName) {
+  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "const 0",
+      &ufx->chunk, &ufx->objects, &ufx->strings));
+  fflush(ufx->err.fptr);
+  EXPECT_STREQ(
+      "[line 1] Error at '0': Expect constant name.\n", ufx->err.buf);
+}
+
+UTEST_F(Compile, ConstDeclErrorNoEquals) {
+  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "const x;",
+      &ufx->chunk, &ufx->objects, &ufx->strings));
+  fflush(ufx->err.fptr);
+  EXPECT_STREQ(
+      "[line 1] Error at 'x': Expect '=' after constant name.\n",
+      ufx->err.buf);
+}
+
+UTEST_F(Compile, ConstErrorGlobalRedefineConst) {
+  EXPECT_FALSE(
+      compile(ufx->out.fptr, ufx->err.fptr, "const x = 1; const x = 2;",
+          &ufx->chunk, &ufx->objects, &ufx->strings));
+  fflush(ufx->err.fptr);
+  EXPECT_STREQ("[line 1] Error at 'x': Can't redefine constant.\n",
+      ufx->err.buf);
+}
+
+UTEST_F(Compile, ConstErrorGlobalRedefineConstAsVar) {
+  EXPECT_FALSE(
+      compile(ufx->out.fptr, ufx->err.fptr, "const x = 1; var x = 2;",
+          &ufx->chunk, &ufx->objects, &ufx->strings));
+  fflush(ufx->err.fptr);
+  EXPECT_STREQ(
+      "[line 1] Error at 'x': Can't redefine constant as variable.\n",
+      ufx->err.buf);
+}
+
+UTEST_F(Compile, ConstErrorGlobalRedefineVarAsConst) {
+  EXPECT_FALSE(
+      compile(ufx->out.fptr, ufx->err.fptr, "var x = 1; const x = 2;",
+          &ufx->chunk, &ufx->objects, &ufx->strings));
+  fflush(ufx->err.fptr);
+  EXPECT_STREQ(
+      "[line 1] Error at 'x': Can't redefine variable as constant.\n",
+      ufx->err.buf);
+}
+
+UTEST_F(Compile, ConstErrorGlobalAssign) {
+  EXPECT_FALSE(
+      compile(ufx->out.fptr, ufx->err.fptr, "const x = 1; x = 2;",
+          &ufx->chunk, &ufx->objects, &ufx->strings));
+  fflush(ufx->err.fptr);
+  EXPECT_STREQ("[line 1] Error at '=': Can't assign to a constant.\n",
+      ufx->err.buf);
+}
+
+UTEST_F(Compile, ConstErrorLocalAssign) {
+  EXPECT_FALSE(
+      compile(ufx->out.fptr, ufx->err.fptr, "{ const x = 1; x = 2; }",
+          &ufx->chunk, &ufx->objects, &ufx->strings));
+  fflush(ufx->err.fptr);
+  EXPECT_STREQ("[line 1] Error at '=': Can't assign to a constant.\n",
       ufx->err.buf);
 }
 

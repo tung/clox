@@ -21,5 +21,6 @@
 
 void* reallocate(void* pointer, size_t oldSize, size_t newSize);
 void freeObjects(Obj* objects);
+void prependObjects(Obj* from, Obj** to);
 
 #endif
