@@ -161,9 +161,18 @@ COMPILE_EXPRS(String, exprString, 2);
 SourceToChunk exprVarGet[] = {
   { "foo", true, LIST(uint8_t, OP_GET_GLOBAL, 0, OP_PRINT, OP_RETURN),
       LIST(Value, S("foo")) },
+  { "foo + foo", true,
+      LIST(uint8_t, OP_GET_GLOBAL, 0, OP_GET_GLOBAL, 0, OP_ADD,
+          OP_PRINT, OP_RETURN),
+      LIST(Value, S("foo")) },
+  { "foo + bar + foo + bar", true,
+      LIST(uint8_t, OP_GET_GLOBAL, 0, OP_GET_GLOBAL, 1, OP_ADD,
+          OP_GET_GLOBAL, 0, OP_ADD, OP_GET_GLOBAL, 1, OP_ADD, OP_PRINT,
+          OP_RETURN),
+      LIST(Value, S("foo"), S("bar")) },
 };
 
-COMPILE_EXPRS(VarGet, exprVarGet, 1);
+COMPILE_EXPRS(VarGet, exprVarGet, 3);
 
 SourceToChunk exprVarSet[] = {
   { "foo = 0", true,
@@ -285,9 +294,9 @@ COMPILE_EXPRS(BinaryCompare, exprBinaryCompare, 6);
 
 SourceToChunk exprConcatStrings[] = {
   { "\"\" + \"\"", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 0, OP_ADD, OP_PRINT,
           OP_RETURN),
-      LIST(Value, S(""), S("")) },
+      LIST(Value, S("")) },
   { "\"foo\" + \"bar\"", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT,
           OP_RETURN),
@@ -296,9 +305,13 @@ SourceToChunk exprConcatStrings[] = {
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
           2, OP_ADD, OP_PRINT, OP_RETURN),
       LIST(Value, S("foo"), S("bar"), S("baz")) },
+  { "\"foo\" + \"bar\" + \"foo\" + \"bar\"", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
+          0, OP_ADD, OP_CONSTANT, 1, OP_ADD, OP_PRINT, OP_RETURN),
+      LIST(Value, S("foo"), S("bar")) },
 };
 
-COMPILE_EXPRS(ConcatStrings, exprConcatStrings, 3);
+COMPILE_EXPRS(ConcatStrings, exprConcatStrings, 4);
 
 struct CompileStmt {
   Chunk chunk;

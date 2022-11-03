@@ -67,6 +67,19 @@ UTEST_F(ValueArray, WriteNil) {
   EXPECT_VALEQ(NIL_VAL, ufx->va.values[0]);
 }
 
+UTEST_F(ValueArray, FindValueArray) {
+  writeValueArray(&ufx->va, NUMBER_VAL(1.0));
+  writeValueArray(&ufx->va, NUMBER_VAL(2.0));
+
+  EXPECT_EQ(-1, findValueArray(&ufx->va, NUMBER_VAL(0.0)));
+  EXPECT_EQ(0, findValueArray(&ufx->va, NUMBER_VAL(1.0)));
+  EXPECT_EQ(1, findValueArray(&ufx->va, NUMBER_VAL(2.0)));
+  EXPECT_EQ(-1, findValueArray(&ufx->va, NUMBER_VAL(3.0)));
+  EXPECT_EQ(-1, findValueArray(&ufx->va, NIL_VAL));
+  EXPECT_EQ(-1, findValueArray(&ufx->va, BOOL_VAL(false)));
+  EXPECT_EQ(-1, findValueArray(&ufx->va, BOOL_VAL(true)));
+}
+
 UTEST(Value, PrintBoolValues) {
   MemBuf out;
   initMemBuf(&out);

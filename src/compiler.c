@@ -138,8 +138,17 @@ static uint8_t makeConstant(Parser* parser, Value value) {
   return (uint8_t)constant;
 }
 
+static int ensureConstant(Parser* parser, Value value) {
+  int constant = findConstant(currentChunk(parser), value);
+  if (constant >= 0 && constant < UINT8_MAX) {
+    return constant;
+  }
+
+  return makeConstant(parser, value);
+}
+
 static void emitConstant(Parser* parser, Value value) {
-  emitBytes(parser, OP_CONSTANT, makeConstant(parser, value));
+  emitBytes(parser, OP_CONSTANT, ensureConstant(parser, value));
 }
 
 static void endCompiler(Parser* parser) {
@@ -158,7 +167,7 @@ static void declaration(Parser* parser);
 static void statement(Parser* parser);
 
 static uint8_t identifierConstant(Parser* parser, Token* name) {
-  return makeConstant(parser,
+  return ensureConstant(parser,
       OBJ_VAL(copyString(&parser->objects, parser->strings, name->start,
           name->length)));
 }

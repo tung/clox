@@ -38,3 +38,7 @@ int addConstant(Chunk* chunk, Value value) {
   writeValueArray(&chunk->constants, value);
   return chunk->constants.count - 1;
 }
+
+int findConstant(Chunk* chunk, Value value) {
+  return findValueArray(&chunk->constants, value);
+}

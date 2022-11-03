@@ -42,6 +42,19 @@ UTEST_F(Chunk, AddConstant) {
   EXPECT_VALEQ(NUMBER_VAL(2.0), ufx->chunk.constants.values[2]);
 }
 
+UTEST_F(Chunk, FindConstant) {
+  addConstant(&ufx->chunk, NUMBER_VAL(1.0));
+  addConstant(&ufx->chunk, NUMBER_VAL(2.0));
+
+  EXPECT_EQ(-1, findConstant(&ufx->chunk, NUMBER_VAL(0.0)));
+  EXPECT_EQ(0, findConstant(&ufx->chunk, NUMBER_VAL(1.0)));
+  EXPECT_EQ(1, findConstant(&ufx->chunk, NUMBER_VAL(2.0)));
+  EXPECT_EQ(-1, findConstant(&ufx->chunk, NUMBER_VAL(3.0)));
+  EXPECT_EQ(-1, findConstant(&ufx->chunk, NIL_VAL));
+  EXPECT_EQ(-1, findConstant(&ufx->chunk, BOOL_VAL(false)));
+  EXPECT_EQ(-1, findConstant(&ufx->chunk, BOOL_VAL(true)));
+}
+
 UTEST_F(Chunk, Lines) {
   writeChunk(&ufx->chunk, OP_RETURN, 1);
   writeChunk(&ufx->chunk, OP_RETURN, 2);
