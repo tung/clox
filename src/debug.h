@@ -6,9 +6,7 @@
 
 #include "chunk.h"
 
-void disassembleChunk(
-    FILE* fout, FILE* ferr, Chunk* chunk, const char* name);
-int disassembleInstruction(
-    FILE* fout, FILE* ferr, Chunk* chunk, int offset);
+void disassembleChunk(FILE* ferr, Chunk* chunk, const char* name);
+int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset);
 
 #endif
