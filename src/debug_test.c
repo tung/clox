@@ -41,6 +41,26 @@ UTEST_F(DisassembleChunk, OpConstant) {
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 
+UTEST_F(DisassembleChunk, OpGetLocal) {
+  writeChunk(&ufx->chunk, OP_GET_LOCAL, 123);
+  writeChunk(&ufx->chunk, 0, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_GET_LOCAL        0\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
+UTEST_F(DisassembleChunk, OpSetLocal) {
+  writeChunk(&ufx->chunk, OP_SET_LOCAL, 123);
+  writeChunk(&ufx->chunk, 0, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_SET_LOCAL        0\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
 UTEST_F(DisassembleChunk, OpGetGlobal) {
   Obj* objects = NULL;
   Table strings;

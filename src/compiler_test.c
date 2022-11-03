@@ -388,9 +388,41 @@ SourceToChunk stmtVarDecl[] = {
   { "var foo = 0;", true,
       LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_RETURN),
       LIST(Value, S("foo"), N(0.0)) },
+  { "{ var foo; }", true, LIST(uint8_t, OP_NIL, OP_POP, OP_RETURN),
+      LIST(Value) },
+  { "{ var foo = 0; }", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_POP, OP_RETURN),
+      LIST(Value, N(0.0)) },
 };
 
-COMPILE_STMTS(VarDecl, stmtVarDecl, 2);
+COMPILE_STMTS(VarDecl, stmtVarDecl, 4);
+
+SourceToChunk stmtLocalVars[] = {
+  { "{ var foo = 123; print foo; }", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 0, OP_PRINT, OP_POP,
+          OP_RETURN),
+      LIST(Value, N(123.0)) },
+  { "{ var a = 1; var foo = 2; print a + foo; }", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_LOCAL, 0,
+          OP_GET_LOCAL, 1, OP_ADD, OP_PRINT, OP_POP, OP_POP, OP_RETURN),
+      LIST(Value, N(1.0), N(2.0)) },
+  { "var a = 1; { var a = 2; print a; } print a;", true,
+      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_CONSTANT, 2,
+          OP_GET_LOCAL, 0, OP_PRINT, OP_POP, OP_GET_GLOBAL, 3, OP_PRINT,
+          OP_RETURN),
+      LIST(Value, S("a"), N(1.0), N(2.0), S("a")) },
+  { "{ var a = 1; { var a = 2; print a; } print a; }", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_LOCAL, 1,
+          OP_PRINT, OP_POP, OP_GET_LOCAL, 0, OP_PRINT, OP_POP,
+          OP_RETURN),
+      LIST(Value, N(1.0), N(2.0)) },
+  { "var a; { var b = a; var c = b; }", true,
+      LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
+          OP_GET_LOCAL, 0, OP_POP, OP_POP, OP_RETURN),
+      LIST(Value, S("a"), S("a")) },
+};
+
+COMPILE_STMTS(LocalVars, stmtLocalVars, 5);
 
 struct Compile {
   Chunk chunk;
@@ -466,6 +498,34 @@ UTEST_F(Compile, VarDeclErrorNoSemicolon) {
   EXPECT_STREQ(
       "[line 1] Error at end: Expect ';' after variable declaration.\n",
       ufx->err.buf);
+}
+
+UTEST_F(Compile, VarDeclErrorLocalInitSelf) {
+  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "{ var x = x; }",
+      &ufx->chunk, &ufx->objects, &ufx->strings));
+  fflush(ufx->err.fptr);
+  EXPECT_STREQ(
+      "[line 1] Error at 'x': "
+      "Can't read local variable in its own initializer.\n",
+      ufx->err.buf);
+}
+
+UTEST_F(Compile, VarDeclErrorLocalDuplicate) {
+  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr,
+      "{ var x; var x; }", &ufx->chunk, &ufx->objects, &ufx->strings));
+  fflush(ufx->err.fptr);
+  EXPECT_STREQ(
+      "[line 1] Error at 'x': "
+      "Already a variable with this name in this scope.\n",
+      ufx->err.buf);
+}
+
+UTEST_F(Compile, BlockErrorNoRightBrace) {
+  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "{", &ufx->chunk,
+      &ufx->objects, &ufx->strings));
+  fflush(ufx->err.fptr);
+  EXPECT_STREQ(
+      "[line 1] Error at end: Expect '}' after block.\n", ufx->err.buf);
 }
 
 UTEST_MAIN();

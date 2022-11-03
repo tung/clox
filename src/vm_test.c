@@ -218,6 +218,19 @@ ResultFromChunk opPop[] = {
 
 VM_INTERPRET(OpPop, opPop, 1);
 
+ResultFromChunk opLocals[] = {
+  { "false\ntrue\nfalse\ntrue\n", INTERPRET_OK,
+      LIST(uint8_t, OP_TRUE, OP_FALSE, OP_GET_LOCAL, 0, OP_GET_LOCAL, 1,
+          OP_PRINT, OP_PRINT, OP_PRINT, OP_PRINT, OP_RETURN),
+      LIST(Value) },
+  { "true\ntrue\n", INTERPRET_OK,
+      LIST(uint8_t, OP_FALSE, OP_TRUE, OP_SET_LOCAL, 0, OP_PRINT,
+          OP_PRINT, OP_RETURN),
+      LIST(Value) },
+};
+
+VM_INTERPRET(OpLocals, opLocals, 2);
+
 ResultFromChunk opGlobals[] = {
   { "", INTERPRET_RUNTIME_ERROR, LIST(uint8_t, OP_GET_GLOBAL, 0),
       LIST(Value, S("foo")) },
