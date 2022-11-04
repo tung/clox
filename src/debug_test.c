@@ -121,6 +121,40 @@ UTEST_F(DisassembleChunk, OpSetGlobal) {
   freeObjects(objects);
 }
 
+UTEST_F(DisassembleChunk, OpJump) {
+  writeChunk(&ufx->chunk, OP_JUMP, 123);
+  writeChunk(&ufx->chunk, 1, 123);
+  writeChunk(&ufx->chunk, 1, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_JUMP             0 -> 260\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
+UTEST_F(DisassembleChunk, OpJumpIfFalse) {
+  writeChunk(&ufx->chunk, OP_JUMP_IF_FALSE, 123);
+  writeChunk(&ufx->chunk, 1, 123);
+  writeChunk(&ufx->chunk, 1, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_JUMP_IF_FALSE    0 -> 260\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
+UTEST_F(DisassembleChunk, OpLoop) {
+  writeChunk(&ufx->chunk, OP_NIL, 123);
+  writeChunk(&ufx->chunk, OP_LOOP, 123);
+  writeChunk(&ufx->chunk, 0, 123);
+  writeChunk(&ufx->chunk, 4, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 1);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0001    | OP_LOOP             1 -> 0\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
 UTEST_F(DisassembleChunk, Chapter14Sample1) {
   writeChunk(&ufx->chunk, OP_RETURN, 123);
   disassembleChunk(ufx->err.fptr, &ufx->chunk, "test chunk");

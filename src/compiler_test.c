@@ -279,9 +279,18 @@ SourceToChunk exprBinaryCompare[] = {
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER, OP_NOT,
           OP_PRINT, OP_RETURN),
       LIST(Value, N(0.0), N(1.0)) },
+  { "0 + 1 < 2 == true", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
+          2, OP_LESS, OP_TRUE, OP_EQUAL, OP_PRINT, OP_RETURN),
+      LIST(Value, N(0.0), N(1.0), N(2.0)) },
+  { "true == 0 < 1 + 2", true,
+      LIST(uint8_t, OP_TRUE, OP_CONSTANT, 0, OP_CONSTANT, 1,
+          OP_CONSTANT, 2, OP_ADD, OP_LESS, OP_EQUAL, OP_PRINT,
+          OP_RETURN),
+      LIST(Value, N(0.0), N(1.0), N(2.0)) },
 };
 
-COMPILE_EXPRS(BinaryCompare, exprBinaryCompare, 6);
+COMPILE_EXPRS(BinaryCompare, exprBinaryCompare, 8);
 
 SourceToChunk exprConcatStrings[] = {
   { "\"\" + \"\"", true,
@@ -299,6 +308,31 @@ SourceToChunk exprConcatStrings[] = {
 };
 
 COMPILE_EXPRS(ConcatStrings, exprConcatStrings, 3);
+
+SourceToChunk exprLogical[] = {
+  { "true and false", true,
+      LIST(uint8_t, OP_TRUE, OP_JUMP_IF_FALSE, 0, 2, OP_POP, OP_FALSE,
+          OP_PRINT, OP_RETURN),
+      LIST(Value) },
+  { "false or true", true,
+      LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 3, OP_JUMP, 0, 2,
+          OP_POP, OP_TRUE, OP_PRINT, OP_RETURN),
+      LIST(Value) },
+  { "0 == 1 and 2 or 3", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_EQUAL,
+          OP_JUMP_IF_FALSE, 0, 3, OP_POP, OP_CONSTANT, 2,
+          OP_JUMP_IF_FALSE, 0, 3, OP_JUMP, 0, 3, OP_POP, OP_CONSTANT, 3,
+          OP_PRINT, OP_RETURN),
+      LIST(Value, N(0.0), N(1.0), N(2.0), N(3.0)) },
+  { "0 or 1 and 2 == 3", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_JUMP_IF_FALSE, 0, 3, OP_JUMP, 0,
+          12, OP_POP, OP_CONSTANT, 1, OP_JUMP_IF_FALSE, 0, 6, OP_POP,
+          OP_CONSTANT, 2, OP_CONSTANT, 3, OP_EQUAL, OP_PRINT,
+          OP_RETURN),
+      LIST(Value, N(0.0), N(1.0), N(2.0), N(3.0)) },
+};
+
+COMPILE_EXPRS(Logical, exprLogical, 4);
 
 struct CompileStmt {
   Chunk chunk;
@@ -423,6 +457,60 @@ SourceToChunk stmtLocalVars[] = {
 };
 
 COMPILE_STMTS(LocalVars, stmtLocalVars, 5);
+
+SourceToChunk stmtFor[] = {
+  { "for (;;) 0;", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 6, OP_RETURN),
+      LIST(Value, N(0.0)) },
+  { "for (var a = 0;;) 1;", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_POP, OP_LOOP, 0,
+          6, OP_POP, OP_RETURN),
+      LIST(Value, N(0.0), N(1.0)) },
+  { "for (0;;) 1;", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_POP, OP_CONSTANT, 1, OP_POP,
+          OP_LOOP, 0, 6, OP_RETURN),
+      LIST(Value, N(0.0), N(1.0)) },
+  { "for (; false;) 0;", true,
+      LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
+          OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 11, OP_POP, OP_RETURN),
+      LIST(Value, N(0.0)) },
+  { "for (;; 0) 1;", true,
+      LIST(uint8_t, OP_JUMP, 0, 6, OP_CONSTANT, 0, OP_POP, OP_LOOP, 0,
+          9, OP_CONSTANT, 1, OP_POP, OP_LOOP, 0, 12, OP_RETURN),
+      LIST(Value, N(0.0), N(1.0)) },
+  { "for (var i = 0; i < 5; i = i + 1) print i;", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 0, OP_CONSTANT, 1,
+          OP_LESS, OP_JUMP_IF_FALSE, 0, 21, OP_POP, OP_JUMP, 0, 11,
+          OP_GET_LOCAL, 0, OP_CONSTANT, 2, OP_ADD, OP_SET_LOCAL, 0,
+          OP_POP, OP_LOOP, 0, 23, OP_GET_LOCAL, 0, OP_PRINT, OP_LOOP, 0,
+          17, OP_POP, OP_POP, OP_RETURN),
+      LIST(Value, N(0.0), N(5.0), N(1.0)) },
+};
+
+COMPILE_STMTS(For, stmtFor, 6);
+
+SourceToChunk stmtIf[] = {
+  { "if (true) 0;", true,
+      LIST(uint8_t, OP_TRUE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
+          OP_CONSTANT, 0, OP_POP, OP_JUMP, 0, 1, OP_POP, OP_RETURN),
+      LIST(Value, N(0.0)) },
+  { "if (false) 0; else 1;", true,
+      LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
+          OP_CONSTANT, 0, OP_POP, OP_JUMP, 0, 4, OP_POP, OP_CONSTANT, 1,
+          OP_POP, OP_RETURN),
+      LIST(Value, N(0.0), N(1.0)) },
+};
+
+COMPILE_STMTS(If, stmtIf, 2);
+
+SourceToChunk stmtWhile[] = {
+  { "while (false) 0;", true,
+      LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
+          OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 11, OP_POP, OP_RETURN),
+      LIST(Value, N(0.0)) },
+};
+
+COMPILE_STMTS(While, stmtWhile, 1);
 
 struct Compile {
   Chunk chunk;

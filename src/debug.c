@@ -33,6 +33,15 @@ static int byteInstruction(
   return offset + 2;
 }
 
+static int jumpInstruction(
+    FILE* ferr, const char* name, int sign, Chunk* chunk, int offset) {
+  uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
+  jump |= chunk->code[offset + 2];
+  fprintf(ferr, "%-16s %4d -> %d\n", name, offset,
+      offset + 3 + sign * jump);
+  return offset + 3;
+}
+
 int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
   fprintf(ferr, "%04d ", offset);
   if (offset > 0 && chunk->lines[offset] == chunk->lines[offset - 1]) {
@@ -73,6 +82,13 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
     case OP_NOT: return simpleInstruction(ferr, "OP_NOT", offset);
     case OP_NEGATE: return simpleInstruction(ferr, "OP_NEGATE", offset);
     case OP_PRINT: return simpleInstruction(ferr, "OP_PRINT", offset);
+    case OP_JUMP:
+      return jumpInstruction(ferr, "OP_JUMP", 1, chunk, offset);
+    case OP_JUMP_IF_FALSE:
+      return jumpInstruction(
+          ferr, "OP_JUMP_IF_FALSE", 1, chunk, offset);
+    case OP_LOOP:
+      return jumpInstruction(ferr, "OP_LOOP", -1, chunk, offset);
     case OP_RETURN: return simpleInstruction(ferr, "OP_RETURN", offset);
     default:
       fprintf(ferr, "Unknown opcode %d\n", instruction);

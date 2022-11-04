@@ -474,4 +474,44 @@ ResultFromChunk opNegate[] = {
 
 VM_INTERPRET(OpNegate, opNegate, 3);
 
+ResultFromChunk opJump[] = {
+  { "true\n", INTERPRET_OK,
+      LIST(uint8_t, OP_JUMP, 0, 2, OP_NIL, OP_PRINT, OP_TRUE, OP_PRINT,
+          OP_RETURN),
+      LIST(Value) },
+};
+
+VM_INTERPRET(OpJump, opJump, 1);
+
+ResultFromChunk opJumpIfFalse[] = {
+  { "0\n2\n", INTERPRET_OK,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_JUMP_IF_FALSE,
+          0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT, 2, OP_PRINT,
+          OP_RETURN),
+      LIST(Value, N(0.0), N(1.0), N(2.0)) },
+  { "0\n2\n", INTERPRET_OK,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_FALSE,
+          OP_JUMP_IF_FALSE, 0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT,
+          2, OP_PRINT, OP_RETURN),
+      LIST(Value, N(0.0), N(1.0), N(2.0)) },
+  { "0\n1\n2\n", INTERPRET_OK,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_TRUE, OP_JUMP_IF_FALSE,
+          0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT, 2, OP_PRINT,
+          OP_RETURN),
+      LIST(Value, N(0.0), N(1.0), N(2.0)) },
+};
+
+VM_INTERPRET(OpJumpIfFalse, opJumpIfFalse, 3);
+
+ResultFromChunk opLoop[] = {
+  { "0\n1\n2\n3\n4\n", INTERPRET_OK,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 0, OP_CONSTANT, 1,
+          OP_LESS, OP_JUMP_IF_FALSE, 0, 15, OP_POP, OP_GET_LOCAL, 0,
+          OP_PRINT, OP_GET_LOCAL, 0, OP_CONSTANT, 2, OP_ADD,
+          OP_SET_LOCAL, 0, OP_POP, OP_LOOP, 0, 23, OP_POP, OP_RETURN),
+      LIST(Value, N(0.0), N(5.0), N(1.0)) },
+};
+
+VM_INTERPRET(OpLoop, opLoop, 1);
+
 UTEST_MAIN();

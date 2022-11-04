@@ -136,6 +136,27 @@ static void emitBytes(Parser* parser, uint8_t byte1, uint8_t byte2) {
   emitByte(parser, byte2);
 }
 
+static void emitLoop(Parser* parser, int loopStart) {
+  emitByte(parser, OP_LOOP);
+
+  int offset = currentChunk(parser)->count - loopStart + 2;
+  // GCOV_EXCL_START
+  if (offset > UINT16_MAX) {
+    error(parser, "Loop body too large.");
+  }
+  // GCOV_EXCL_STOP
+
+  emitByte(parser, (offset >> 8) & 0xff);
+  emitByte(parser, offset & 0xff);
+}
+
+static int emitJump(Parser* parser, uint8_t instruction) {
+  emitByte(parser, instruction);
+  emitByte(parser, 0xff);
+  emitByte(parser, 0xff);
+  return currentChunk(parser)->count - 2;
+}
+
 static void emitReturn(Parser* parser) {
   emitByte(parser, OP_RETURN);
 }
@@ -154,6 +175,20 @@ static uint8_t makeConstant(Parser* parser, Value value) {
 
 static void emitConstant(Parser* parser, Value value) {
   emitBytes(parser, OP_CONSTANT, makeConstant(parser, value));
+}
+
+static void patchJump(Parser* parser, int offset) {
+  // -2 to adjust for the bytecode for the jump offset itself.
+  int jump = currentChunk(parser)->count - offset - 2;
+
+  // GCOV_EXCL_START
+  if (jump > UINT16_MAX) {
+    error(parser, "Too much code to jump over.");
+  }
+  // GCOV_EXCL_STOP
+
+  currentChunk(parser)->code[offset] = (jump >> 8) & 0xff;
+  currentChunk(parser)->code[offset + 1] = jump & 0xff;
 }
 
 static void initCompiler(Parser* parser, Compiler* compiler) {
@@ -283,6 +318,17 @@ static void defineVariable(Parser* parser, uint8_t global) {
   emitBytes(parser, OP_DEFINE_GLOBAL, global);
 }
 
+static void and_(Parser* parser, bool canAssign) {
+  (void)canAssign;
+
+  int endJump = emitJump(parser, OP_JUMP_IF_FALSE);
+
+  emitByte(parser, OP_POP);
+  parsePrecedence(parser, PREC_AND);
+
+  patchJump(parser, endJump);
+}
+
 static void binary(Parser* parser, bool canAssign) {
   (void)canAssign;
 
@@ -328,6 +374,19 @@ static void number(Parser* parser, bool canAssign) {
 
   double value = strtod(parser->previous.start, NULL);
   emitConstant(parser, NUMBER_VAL(value));
+}
+
+static void or_(Parser* parser, bool canAssign) {
+  (void)canAssign;
+
+  int elseJump = emitJump(parser, OP_JUMP_IF_FALSE);
+  int endJump = emitJump(parser, OP_JUMP);
+
+  patchJump(parser, elseJump);
+  emitByte(parser, OP_POP);
+
+  parsePrecedence(parser, PREC_OR);
+  patchJump(parser, endJump);
 }
 
 static void string(Parser* parser, bool canAssign) {
@@ -402,7 +461,7 @@ ParseRule rules[] = {
   [TOKEN_IDENTIFIER]    = { variable, NULL,   PREC_NONE },
   [TOKEN_STRING]        = { string,   NULL,   PREC_NONE },
   [TOKEN_NUMBER]        = { number,   NULL,   PREC_NONE },
-  [TOKEN_AND]           = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_AND]           = { NULL,     and_,   PREC_AND },
   [TOKEN_CLASS]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_ELSE]          = { NULL,     NULL,   PREC_NONE },
   [TOKEN_FALSE]         = { literal,  NULL,   PREC_NONE },
@@ -410,7 +469,7 @@ ParseRule rules[] = {
   [TOKEN_FUN]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_IF]            = { NULL,     NULL,   PREC_NONE },
   [TOKEN_NIL]           = { literal,  NULL,   PREC_NONE },
-  [TOKEN_OR]            = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_OR]            = { NULL,     or_,    PREC_OR },
   [TOKEN_PRINT]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_RETURN]        = { NULL,     NULL,   PREC_NONE },
   [TOKEN_SUPER]         = { NULL,     NULL,   PREC_NONE },
@@ -482,10 +541,91 @@ static void expressionStatement(Parser* parser) {
   emitByte(parser, OP_POP);
 }
 
+static void forStatement(Parser* parser) {
+  beginScope(parser);
+  consume(parser, TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
+  if (match(parser, TOKEN_SEMICOLON)) {
+    // No initializer.
+  } else if (match(parser, TOKEN_VAR)) {
+    varDeclaration(parser);
+  } else {
+    expressionStatement(parser);
+  }
+
+  int loopStart = currentChunk(parser)->count;
+  int exitJump = -1;
+  if (!match(parser, TOKEN_SEMICOLON)) {
+    expression(parser);
+    consume(
+        parser, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+
+    // Jump out of the loop if the condition is false.
+    exitJump = emitJump(parser, OP_JUMP_IF_FALSE);
+    emitByte(parser, OP_POP); // Condition.
+  }
+
+  if (!match(parser, TOKEN_RIGHT_PAREN)) {
+    int bodyJump = emitJump(parser, OP_JUMP);
+    int incrementStart = currentChunk(parser)->count;
+    expression(parser);
+    emitByte(parser, OP_POP);
+    consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+
+    emitLoop(parser, loopStart);
+    loopStart = incrementStart;
+    patchJump(parser, bodyJump);
+  }
+
+  statement(parser);
+  emitLoop(parser, loopStart);
+
+  if (exitJump != -1) {
+    patchJump(parser, exitJump);
+    emitByte(parser, OP_POP); // Condition.
+  }
+
+  endScope(parser);
+}
+
+static void ifStatement(Parser* parser) {
+  consume(parser, TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
+  expression(parser);
+  consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+
+  int thenJump = emitJump(parser, OP_JUMP_IF_FALSE);
+  emitByte(parser, OP_POP);
+  statement(parser);
+
+  int elseJump = emitJump(parser, OP_JUMP);
+
+  patchJump(parser, thenJump);
+  emitByte(parser, OP_POP);
+
+  if (match(parser, TOKEN_ELSE)) {
+    statement(parser);
+  }
+  patchJump(parser, elseJump);
+}
+
 static void printStatement(Parser* parser) {
   expression(parser);
   consume(parser, TOKEN_SEMICOLON, "Expect ';' after value.");
   emitByte(parser, OP_PRINT);
+}
+
+static void whileStatement(Parser* parser) {
+  int loopStart = currentChunk(parser)->count;
+  consume(parser, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+  expression(parser);
+  consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+
+  int exitJump = emitJump(parser, OP_JUMP_IF_FALSE);
+  emitByte(parser, OP_POP);
+  statement(parser);
+  emitLoop(parser, loopStart);
+
+  patchJump(parser, exitJump);
+  emitByte(parser, OP_POP);
 }
 
 static void synchronize(Parser* parser) {
@@ -527,6 +667,12 @@ static void declaration(Parser* parser) {
 static void statement(Parser* parser) {
   if (match(parser, TOKEN_PRINT)) {
     printStatement(parser);
+  } else if (match(parser, TOKEN_FOR)) {
+    forStatement(parser);
+  } else if (match(parser, TOKEN_IF)) {
+    ifStatement(parser);
+  } else if (match(parser, TOKEN_WHILE)) {
+    whileStatement(parser);
   } else if (match(parser, TOKEN_LEFT_BRACE)) {
     beginScope(parser);
     block(parser);
