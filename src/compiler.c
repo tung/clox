@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "memory.h"
 #include "scanner.h"
 
 #ifdef DEBUG_PRINT_CODE
@@ -556,6 +557,6 @@ bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk,
   }
 
   endCompiler(&parser);
-  *objects = parser.objects;
+  prependObjects(objects, parser.objects);
   return !parser.hadError;
 }

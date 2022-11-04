@@ -37,3 +37,14 @@ void freeObjects(Obj* objects) {
     object = next;
   }
 }
+
+void prependObjects(Obj** to, Obj* from) {
+  if (from != NULL) {
+    Obj* last = from;
+    while (last->next != NULL) {
+      last = last->next;
+    }
+    last->next = *to;
+    *to = from;
+  }
+}

@@ -84,6 +84,16 @@ UTEST_F(VM, InterpretOk) {
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
 }
 
+UTEST_F(VM, InterpretErrorOk) {
+  InterpretResult ires;
+
+  ires = interpret(&ufx->vm, "var x = 1");
+  EXPECT_EQ((InterpretResult)INTERPRET_COMPILE_ERROR, ires);
+
+  ires = interpret(&ufx->vm, "var x = 1;");
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+}
+
 UTEST_F(VM, InterpretCompileError) {
   InterpretResult ires = interpret(&ufx->vm, "#");
   EXPECT_EQ((InterpretResult)INTERPRET_COMPILE_ERROR, ires);
