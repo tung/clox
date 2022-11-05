@@ -613,6 +613,72 @@ static void printStatement(Parser* parser) {
   emitByte(parser, OP_PRINT);
 }
 
+static void switchStatement(Parser* parser) {
+  beginScope(parser);
+
+  consume(parser, TOKEN_LEFT_PAREN, "Expect '(' after 'switch'.");
+  expression(parser);
+  consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
+
+  int switchExpr = parser->currentCompiler->localCount;
+  Token exprToken = (Token){
+    .type = TOKEN_IDENTIFIER,
+    .start = "",
+    .length = 0,
+    .line = parser->current.line,
+  };
+  addLocal(parser, exprToken);
+  markInitialized(parser);
+
+  consume(parser, TOKEN_LEFT_BRACE, "Expect '{' for switch body.");
+
+  int endJumps[UINT8_COUNT];
+  int endJumpsCount = 0;
+
+  while (match(parser, TOKEN_CASE)) {
+    emitBytes(parser, OP_GET_LOCAL, switchExpr);
+    expression(parser);
+    consume(parser, TOKEN_COLON, "Expect ':' after case expression.");
+    emitByte(parser, OP_EQUAL);
+
+    int skipJump = emitJump(parser, OP_JUMP_IF_FALSE);
+    emitByte(parser, OP_POP);
+
+    while (!check(parser, TOKEN_CASE) &&
+        !check(parser, TOKEN_DEFAULT) &&
+        !check(parser, TOKEN_RIGHT_BRACE)) {
+      statement(parser);
+    }
+
+    // GCOV_EXCL_START
+    if (endJumpsCount == ARRAY_SIZE(endJumps)) {
+      error(parser, "Too many cases in one switch.");
+    } else {
+      // GCOV_EXCL_STOP
+      endJumps[endJumpsCount] = emitJump(parser, OP_JUMP);
+      endJumpsCount++;
+    }
+
+    patchJump(parser, skipJump);
+    emitByte(parser, OP_POP);
+  }
+
+  if (match(parser, TOKEN_DEFAULT)) {
+    consume(parser, TOKEN_COLON, "Expect ':' after 'default'.");
+    while (!check(parser, TOKEN_RIGHT_BRACE)) {
+      statement(parser);
+    }
+  }
+
+  for (int i = 0; i < endJumpsCount; i++) {
+    patchJump(parser, endJumps[i]);
+  }
+
+  consume(parser, TOKEN_RIGHT_BRACE, "Expect '}' after switch body.");
+
+  endScope(parser);
+}
+
 static void whileStatement(Parser* parser) {
   int loopStart = currentChunk(parser)->count;
   consume(parser, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
@@ -671,6 +737,8 @@ static void statement(Parser* parser) {
     forStatement(parser);
   } else if (match(parser, TOKEN_IF)) {
     ifStatement(parser);
+  } else if (match(parser, TOKEN_SWITCH)) {
+    switchStatement(parser);
   } else if (match(parser, TOKEN_WHILE)) {
     whileStatement(parser);
   } else if (match(parser, TOKEN_LEFT_BRACE)) {

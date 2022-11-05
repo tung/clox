@@ -503,6 +503,42 @@ SourceToChunk stmtIf[] = {
 
 COMPILE_STMTS(If, stmtIf, 2);
 
+SourceToChunk stmtSwitch[] = {
+  { "switch (nil) {}", true, LIST(uint8_t, OP_NIL, OP_POP, OP_RETURN),
+      LIST(Value) },
+  { "switch (false) { case true: }", true,
+      LIST(uint8_t, OP_FALSE, OP_GET_LOCAL, 0, OP_TRUE, OP_EQUAL,
+          OP_JUMP_IF_FALSE, 0, 4, OP_POP, OP_JUMP, 0, 1, OP_POP, OP_POP,
+          OP_RETURN),
+      LIST(Value) },
+  { "switch (0) { case 1: 2; }", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 0, OP_CONSTANT, 1,
+          OP_EQUAL, OP_JUMP_IF_FALSE, 0, 7, OP_POP, OP_CONSTANT, 2,
+          OP_POP, OP_JUMP, 0, 1, OP_POP, OP_POP, OP_RETURN),
+      LIST(Value, N(0.0), N(1.0), N(2.0)) },
+  { "switch (true) { default: }", true,
+      LIST(uint8_t, OP_TRUE, OP_POP, OP_RETURN), LIST(Value) },
+  { "switch (0) { default: 1; }", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_POP, OP_POP,
+          OP_RETURN),
+      LIST(Value, N(0.0), N(1.0)) },
+  { "switch (0) { case 1: 2; case 3: 4; }", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 0, OP_CONSTANT, 1,
+          OP_EQUAL, OP_JUMP_IF_FALSE, 0, 7, OP_POP, OP_CONSTANT, 2,
+          OP_POP, OP_JUMP, 0, 17, OP_POP, OP_GET_LOCAL, 0, OP_CONSTANT,
+          3, OP_EQUAL, OP_JUMP_IF_FALSE, 0, 7, OP_POP, OP_CONSTANT, 4,
+          OP_POP, OP_JUMP, 0, 1, OP_POP, OP_POP, OP_RETURN),
+      LIST(Value, N(0.0), N(1.0), N(2.0), N(3.0), N(4.0)) },
+  { "switch (0) { case 1: 2; default: 3; }", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 0, OP_CONSTANT, 1,
+          OP_EQUAL, OP_JUMP_IF_FALSE, 0, 7, OP_POP, OP_CONSTANT, 2,
+          OP_POP, OP_JUMP, 0, 4, OP_POP, OP_CONSTANT, 3, OP_POP, OP_POP,
+          OP_RETURN),
+      LIST(Value, N(0.0), N(1.0), N(2.0), N(3.0)) },
+};
+
+COMPILE_STMTS(Switch, stmtSwitch, 7);
+
 SourceToChunk stmtWhile[] = {
   { "while (false) 0;", true,
       LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
