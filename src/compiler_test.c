@@ -504,6 +504,8 @@ SourceToChunk stmtIf[] = {
 COMPILE_STMTS(If, stmtIf, 2);
 
 SourceToChunk stmtSwitch[] = {
+  { "switch (0) { case 0", false, LIST(uint8_t), LIST(Value) },
+  { "switch (0) { default", false, LIST(uint8_t), LIST(Value) },
   { "switch (nil) {}", true, LIST(uint8_t, OP_NIL, OP_POP, OP_RETURN),
       LIST(Value) },
   { "switch (false) { case true: }", true,
@@ -537,7 +539,7 @@ SourceToChunk stmtSwitch[] = {
       LIST(Value, N(0.0), N(1.0), N(2.0), N(3.0)) },
 };
 
-COMPILE_STMTS(Switch, stmtSwitch, 7);
+COMPILE_STMTS(Switch, stmtSwitch, 9);
 
 SourceToChunk stmtWhile[] = {
   { "while (false) 0;", true,

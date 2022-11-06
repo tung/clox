@@ -644,7 +644,7 @@ static void switchStatement(Parser* parser) {
     int skipJump = emitJump(parser, OP_JUMP_IF_FALSE);
     emitByte(parser, OP_POP);
 
-    while (!check(parser, TOKEN_CASE) &&
+    while (!check(parser, TOKEN_EOF) && !check(parser, TOKEN_CASE) &&
         !check(parser, TOKEN_DEFAULT) &&
         !check(parser, TOKEN_RIGHT_BRACE)) {
       statement(parser);
@@ -665,7 +665,8 @@ static void switchStatement(Parser* parser) {
 
   if (match(parser, TOKEN_DEFAULT)) {
     consume(parser, TOKEN_COLON, "Expect ':' after 'default'.");
-    while (!check(parser, TOKEN_RIGHT_BRACE)) {
+    while (!check(parser, TOKEN_EOF) &&
+        !check(parser, TOKEN_RIGHT_BRACE)) {
       statement(parser);
     }
   }

@@ -421,6 +421,46 @@ InterpretCase ifStmt[] = {
 
 INTERPRET(IfStmt, ifStmt, 11);
 
+InterpretCase switchStmt[] = {
+  { INTERPRET_COMPILE_ERROR, "Expect '(' after 'switch'.", "switch" },
+  { INTERPRET_COMPILE_ERROR, "Expect ')' after expression.",
+      "switch(0" },
+  { INTERPRET_COMPILE_ERROR, "Expect '{' for switch body.",
+      "switch(0)" },
+  { INTERPRET_COMPILE_ERROR, "Expect '}' after switch body.",
+      "switch(0){" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "switch(0){case" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "switch(0){case}" },
+  { INTERPRET_COMPILE_ERROR, "Expect ':' after case expression.",
+      "switch(0){case 0}" },
+  { INTERPRET_COMPILE_ERROR, "Expect ':' after 'default'.",
+      "switch(0){default" },
+  { INTERPRET_COMPILE_ERROR, "Expect ':' after 'default'.",
+      "switch(0){default}" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.",
+      "switch(0){default:case 0:}" },
+  { INTERPRET_OK, "", "switch(0){}" },
+  { INTERPRET_OK, "", "switch(0){case 0:}" },
+  { INTERPRET_OK, "", "switch(0){case nil:}" },
+  { INTERPRET_OK, "", "switch(0){case 0:case nil:}" },
+  { INTERPRET_OK, "", "switch(0){default:}" },
+  { INTERPRET_OK, "", "switch(0){case 0:default:}" },
+  { INTERPRET_OK, "a\n", "var x=0;switch(x){case 0:print \"a\";}" },
+  { INTERPRET_OK, "", "var x=1;switch(x){case 0:print \"a\";}" },
+  { INTERPRET_OK, "a\n",
+      "var x=0;switch(x){case 0:print \"a\";default:print \"z\";}" },
+  { INTERPRET_OK, "z\n",
+      "var x=1;switch(x){case 0:print \"a\";default:print \"z\";}" },
+  { INTERPRET_OK, "9\n9\n",
+      "switch(0){case 0:print 9;print 9;case 1:print 8;print 8;}" },
+  { INTERPRET_OK, "8\n8\n",
+      "switch(1){case 0:print 9;print 9;case 1:print 8;print 8;}" },
+  { INTERPRET_OK, "7\n7\n",
+      "switch(2){case 0:print 9;default:print 7;print 7;}" },
+};
+
+INTERPRET(SwitchStmt, switchStmt, 23);
+
 InterpretCase whileStmt[] = {
   { INTERPRET_COMPILE_ERROR, "Expect '(' after 'while'.", "while" },
   { INTERPRET_COMPILE_ERROR, "Expect expression.", "while(" },
