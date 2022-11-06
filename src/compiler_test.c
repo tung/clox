@@ -71,6 +71,8 @@ UTEST_I_TEARDOWN(CompileExpr) {
     for (int i = 0; i < expected->codeSize; ++i) {
       writeChunk(&expectChunk, expected->code[i], 1);
     }
+    writeChunk(&expectChunk, OP_PRINT, 1);
+    writeChunk(&expectChunk, OP_RETURN, 1);
     for (int i = 0; i < expected->valueSize; ++i) {
       addConstant(&expectChunk, expected->values[i]);
     }
@@ -132,43 +134,36 @@ SourceToChunk exprErrors[] = {
 COMPILE_EXPRS(Errors, exprErrors, 3);
 
 SourceToChunk exprLiteral[] = {
-  { "false", true, LIST(uint8_t, OP_FALSE, OP_PRINT, OP_RETURN),
-      LIST(Value) },
-  { "nil", true, LIST(uint8_t, OP_NIL, OP_PRINT, OP_RETURN),
-      LIST(Value) },
-  { "true", true, LIST(uint8_t, OP_TRUE, OP_PRINT, OP_RETURN),
-      LIST(Value) },
+  { "false", true, LIST(uint8_t, OP_FALSE), LIST(Value) },
+  { "nil", true, LIST(uint8_t, OP_NIL), LIST(Value) },
+  { "true", true, LIST(uint8_t, OP_TRUE), LIST(Value) },
 };
 
 COMPILE_EXPRS(Literal, exprLiteral, 3);
 
 SourceToChunk exprNumber[] = {
-  { "123", true, LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_RETURN),
-      LIST(Value, N(123.0)) },
+  { "123", true, LIST(uint8_t, OP_CONSTANT, 0), LIST(Value, N(123.0)) },
 };
 
 COMPILE_EXPRS(Number, exprNumber, 1);
 
 SourceToChunk exprString[] = {
-  { "\"\"", true, LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_RETURN),
-      LIST(Value, S("")) },
-  { "\"foo\"", true, LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_RETURN),
+  { "\"\"", true, LIST(uint8_t, OP_CONSTANT, 0), LIST(Value, S("")) },
+  { "\"foo\"", true, LIST(uint8_t, OP_CONSTANT, 0),
       LIST(Value, S("foo")) },
 };
 
 COMPILE_EXPRS(String, exprString, 2);
 
 SourceToChunk exprVarGet[] = {
-  { "foo", true, LIST(uint8_t, OP_GET_GLOBAL, 0, OP_PRINT, OP_RETURN),
+  { "foo", true, LIST(uint8_t, OP_GET_GLOBAL, 0),
       LIST(Value, S("foo")) },
 };
 
 COMPILE_EXPRS(VarGet, exprVarGet, 1);
 
 SourceToChunk exprVarSet[] = {
-  { "foo = 0", true,
-      LIST(uint8_t, OP_CONSTANT, 1, OP_SET_GLOBAL, 0, OP_PRINT,
-          OP_RETURN),
+  { "foo = 0", true, LIST(uint8_t, OP_CONSTANT, 1, OP_SET_GLOBAL, 0),
       LIST(Value, S("foo"), N(0.0)) },
   { "foo + bar = 0", false, LIST(uint8_t), LIST(Value) },
 };
@@ -176,18 +171,12 @@ SourceToChunk exprVarSet[] = {
 COMPILE_EXPRS(VarSet, exprVarSet, 2);
 
 SourceToChunk exprUnary[] = {
-  { "-1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_PRINT, OP_RETURN),
+  { "-1", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE),
       LIST(Value, N(1.0)) },
-  { "--1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE, OP_PRINT,
-          OP_RETURN),
+  { "--1", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE),
       LIST(Value, N(1.0)) },
-  { "!false", true,
-      LIST(uint8_t, OP_FALSE, OP_NOT, OP_PRINT, OP_RETURN),
-      LIST(Value) },
-  { "!!false", true,
-      LIST(uint8_t, OP_FALSE, OP_NOT, OP_NOT, OP_PRINT, OP_RETURN),
+  { "!false", true, LIST(uint8_t, OP_FALSE, OP_NOT), LIST(Value) },
+  { "!!false", true, LIST(uint8_t, OP_FALSE, OP_NOT, OP_NOT),
       LIST(Value) },
 };
 
@@ -195,17 +184,12 @@ COMPILE_EXPRS(Unary, exprUnary, 4);
 
 SourceToChunk exprGrouping[] = {
   { "(", false, LIST(uint8_t), LIST(Value) },
-  { "(1)", true, LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_RETURN),
+  { "(1)", true, LIST(uint8_t, OP_CONSTANT, 0), LIST(Value, N(1.0)) },
+  { "(-1)", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE),
       LIST(Value, N(1.0)) },
-  { "(-1)", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_PRINT, OP_RETURN),
+  { "-(1)", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE),
       LIST(Value, N(1.0)) },
-  { "-(1)", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_PRINT, OP_RETURN),
-      LIST(Value, N(1.0)) },
-  { "-(-1)", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE, OP_PRINT,
-          OP_RETURN),
+  { "-(-1)", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE),
       LIST(Value, N(1.0)) },
 };
 
@@ -213,43 +197,39 @@ COMPILE_EXPRS(Grouping, exprGrouping, 5);
 
 SourceToChunk exprBinaryNums[] = {
   { "3 + 2", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT,
-          OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD),
       LIST(Value, N(3.0), N(2.0)) },
   { "3 - 2", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_SUBTRACT,
-          OP_PRINT, OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_SUBTRACT),
       LIST(Value, N(3.0), N(2.0)) },
   { "3 * 2", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY,
-          OP_PRINT, OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY),
       LIST(Value, N(3.0), N(2.0)) },
   { "3 / 2", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE, OP_PRINT,
-          OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE),
       LIST(Value, N(3.0), N(2.0)) },
   { "4 + 3 - 2 + 1 - 0", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
           2, OP_SUBTRACT, OP_CONSTANT, 3, OP_ADD, OP_CONSTANT, 4,
-          OP_SUBTRACT, OP_PRINT, OP_RETURN),
+          OP_SUBTRACT),
       LIST(Value, N(4.0), N(3.0), N(2.0), N(1.0), N(0.0)) },
   { "4 / 3 * 2 / 1 * 0", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE,
           OP_CONSTANT, 2, OP_MULTIPLY, OP_CONSTANT, 3, OP_DIVIDE,
-          OP_CONSTANT, 4, OP_MULTIPLY, OP_PRINT, OP_RETURN),
+          OP_CONSTANT, 4, OP_MULTIPLY),
       LIST(Value, N(4.0), N(3.0), N(2.0), N(1.0), N(0.0)) },
   { "3 * 2 + 1", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY,
-          OP_CONSTANT, 2, OP_ADD, OP_PRINT, OP_RETURN),
+          OP_CONSTANT, 2, OP_ADD),
       LIST(Value, N(3.0), N(2.0), N(1.0)) },
   { "3 + 2 * 1", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
-          OP_MULTIPLY, OP_ADD, OP_PRINT, OP_RETURN),
+          OP_MULTIPLY, OP_ADD),
       LIST(Value, N(3.0), N(2.0), N(1.0)) },
   { "(-1 + 2) * 3 - -4", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_CONSTANT, 1, OP_ADD,
           OP_CONSTANT, 2, OP_MULTIPLY, OP_CONSTANT, 3, OP_NEGATE,
-          OP_SUBTRACT, OP_PRINT, OP_RETURN),
+          OP_SUBTRACT),
       LIST(Value, N(1.0), N(2.0), N(3.0), N(4.0)) },
 };
 
@@ -257,36 +237,28 @@ COMPILE_EXPRS(BinaryNums, exprBinaryNums, 9);
 
 SourceToChunk exprBinaryCompare[] = {
   { "true != true", true,
-      LIST(uint8_t, OP_TRUE, OP_TRUE, OP_EQUAL, OP_NOT, OP_PRINT,
-          OP_RETURN),
-      LIST(Value) },
-  { "true == true", true,
-      LIST(uint8_t, OP_TRUE, OP_TRUE, OP_EQUAL, OP_PRINT, OP_RETURN),
+      LIST(uint8_t, OP_TRUE, OP_TRUE, OP_EQUAL, OP_NOT), LIST(Value) },
+  { "true == true", true, LIST(uint8_t, OP_TRUE, OP_TRUE, OP_EQUAL),
       LIST(Value) },
   { "0 > 1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER,
-          OP_PRINT, OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER),
       LIST(Value, N(0.0), N(1.0)) },
   { "0 >= 1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_NOT,
-          OP_PRINT, OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_NOT),
       LIST(Value, N(0.0), N(1.0)) },
   { "0 < 1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_PRINT,
-          OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS),
       LIST(Value, N(0.0), N(1.0)) },
   { "0 <= 1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER, OP_NOT,
-          OP_PRINT, OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER, OP_NOT),
       LIST(Value, N(0.0), N(1.0)) },
   { "0 + 1 < 2 == true", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
-          2, OP_LESS, OP_TRUE, OP_EQUAL, OP_PRINT, OP_RETURN),
+          2, OP_LESS, OP_TRUE, OP_EQUAL),
       LIST(Value, N(0.0), N(1.0), N(2.0)) },
   { "true == 0 < 1 + 2", true,
       LIST(uint8_t, OP_TRUE, OP_CONSTANT, 0, OP_CONSTANT, 1,
-          OP_CONSTANT, 2, OP_ADD, OP_LESS, OP_EQUAL, OP_PRINT,
-          OP_RETURN),
+          OP_CONSTANT, 2, OP_ADD, OP_LESS, OP_EQUAL),
       LIST(Value, N(0.0), N(1.0), N(2.0)) },
 };
 
@@ -294,16 +266,14 @@ COMPILE_EXPRS(BinaryCompare, exprBinaryCompare, 8);
 
 SourceToChunk exprConcatStrings[] = {
   { "\"\" + \"\"", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT,
-          OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD),
       LIST(Value, S(""), S("")) },
   { "\"foo\" + \"bar\"", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT,
-          OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD),
       LIST(Value, S("foo"), S("bar")) },
   { "\"foo\" + \"bar\" + \"baz\"", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
-          2, OP_ADD, OP_PRINT, OP_RETURN),
+          2, OP_ADD),
       LIST(Value, S("foo"), S("bar"), S("baz")) },
 };
 
@@ -311,24 +281,22 @@ COMPILE_EXPRS(ConcatStrings, exprConcatStrings, 3);
 
 SourceToChunk exprLogical[] = {
   { "true and false", true,
-      LIST(uint8_t, OP_TRUE, OP_JUMP_IF_FALSE, 0, 2, OP_POP, OP_FALSE,
-          OP_PRINT, OP_RETURN),
+      LIST(uint8_t, OP_TRUE, OP_JUMP_IF_FALSE, 0, 2, OP_POP, OP_FALSE),
       LIST(Value) },
   { "false or true", true,
       LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 3, OP_JUMP, 0, 2,
-          OP_POP, OP_TRUE, OP_PRINT, OP_RETURN),
+          OP_POP, OP_TRUE),
       LIST(Value) },
   { "0 == 1 and 2 or 3", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_EQUAL,
           OP_JUMP_IF_FALSE, 0, 3, OP_POP, OP_CONSTANT, 2,
-          OP_JUMP_IF_FALSE, 0, 3, OP_JUMP, 0, 3, OP_POP, OP_CONSTANT, 3,
-          OP_PRINT, OP_RETURN),
+          OP_JUMP_IF_FALSE, 0, 3, OP_JUMP, 0, 3, OP_POP, OP_CONSTANT,
+          3),
       LIST(Value, N(0.0), N(1.0), N(2.0), N(3.0)) },
   { "0 or 1 and 2 == 3", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_JUMP_IF_FALSE, 0, 3, OP_JUMP, 0,
           12, OP_POP, OP_CONSTANT, 1, OP_JUMP_IF_FALSE, 0, 6, OP_POP,
-          OP_CONSTANT, 2, OP_CONSTANT, 3, OP_EQUAL, OP_PRINT,
-          OP_RETURN),
+          OP_CONSTANT, 2, OP_CONSTANT, 3, OP_EQUAL),
       LIST(Value, N(0.0), N(1.0), N(2.0), N(3.0)) },
 };
 
