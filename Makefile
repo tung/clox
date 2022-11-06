@@ -339,6 +339,22 @@ cleanstats:
 cleangcno:
 	$(RM) "$(objs_dir)"*.gcno
 
+# Extend the "cleanmissing" target in coverage mode to delete missing files.
+cleanmissing: cleanmissingcoverage
+
+# Delete coverage files associated with missing source files (moved or deleted).
+missing_gcno = $(filter-out $(c_objs:.o=.gcno),$(wildcard $(objs_dir)*.gcno))
+missing_gcda = $(filter-out $(c_objs:.o=.gcda),$(wildcard $(objs_dir)*.gcda))
+.PHONY: cleanmissingcoverage
+cleanmissingcoverage:
+ifneq ($(missing_gcno),)
+	$(RM) $(missing_gcno:%="%")
+endif
+ifneq ($(missing_gcda),)
+	$(RM) $(missing_gcda:%="%")
+endif
+	@exit
+
 endif # ifeq ($(MODE),coverage)
 
 ######################################################################
