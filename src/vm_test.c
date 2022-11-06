@@ -1,7 +1,6 @@
 #include "vm.h"
 
 #include <assert.h>
-#include <stdio.h>
 
 #include "utest.h"
 
@@ -33,14 +32,14 @@
   }
 // clang-format on
 
-struct VM {
+struct VMSimple {
   MemBuf out;
   MemBuf err;
   VM vm;
   Chunk chunk;
 };
 
-UTEST_F_SETUP(VM) {
+UTEST_F_SETUP(VMSimple) {
   initMemBuf(&ufx->out);
   initMemBuf(&ufx->err);
   initVM(&ufx->vm, ufx->out.fptr, ufx->err.fptr);
@@ -48,7 +47,7 @@ UTEST_F_SETUP(VM) {
   ASSERT_TRUE(1);
 }
 
-UTEST_F_TEARDOWN(VM) {
+UTEST_F_TEARDOWN(VMSimple) {
   freeMemBuf(&ufx->out);
   freeMemBuf(&ufx->err);
   freeVM(&ufx->vm);
@@ -56,11 +55,11 @@ UTEST_F_TEARDOWN(VM) {
   ASSERT_TRUE(1);
 }
 
-UTEST_F(VM, Empty) {
+UTEST_F(VMSimple, Empty) {
   ASSERT_EQ(0, ufx->vm.stackTop - ufx->vm.stack);
 }
 
-UTEST_F(VM, PushPop) {
+UTEST_F(VMSimple, PushPop) {
   push(&ufx->vm, NUMBER_VAL(1.2));
   push(&ufx->vm, NUMBER_VAL(3.4));
   push(&ufx->vm, NUMBER_VAL(5.6));
@@ -71,35 +70,7 @@ UTEST_F(VM, PushPop) {
   ASSERT_EQ(0, ufx->vm.stackTop - ufx->vm.stack);
 }
 
-UTEST_F(VM, InterpretOk) {
-  InterpretResult ires;
-
-  ires = interpret(&ufx->vm, "print 1 + 2;");
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-
-  ires = interpret(&ufx->vm, "print \"foo\" + \"bar\" + \"baz\";");
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-
-  ires = interpret(&ufx->vm, "print 1 + 2;");
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-}
-
-UTEST_F(VM, InterpretErrorOk) {
-  InterpretResult ires;
-
-  ires = interpret(&ufx->vm, "var x = 1");
-  EXPECT_EQ((InterpretResult)INTERPRET_COMPILE_ERROR, ires);
-
-  ires = interpret(&ufx->vm, "var x = 1;");
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-}
-
-UTEST_F(VM, InterpretCompileError) {
-  InterpretResult ires = interpret(&ufx->vm, "#");
-  EXPECT_EQ((InterpretResult)INTERPRET_COMPILE_ERROR, ires);
-}
-
-UTEST_F(VM, UnknownOp) {
+UTEST_F(VMSimple, UnknownOp) {
   writeChunk(&ufx->chunk, 255, 1);
 
   InterpretResult ires = interpretChunk(&ufx->vm, &ufx->chunk);
@@ -110,7 +81,7 @@ UTEST_F(VM, UnknownOp) {
   EXPECT_STREQ(errMsg, memBufSuffix(ufx->err, errMsg));
 }
 
-UTEST_F(VM, InterpretEmpty) {
+UTEST_F(VMSimple, InterpretEmpty) {
   InterpretResult ires = interpretChunk(&ufx->vm, &ufx->chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
 
@@ -128,17 +99,17 @@ typedef struct {
   Value* values;
 } ResultFromChunk;
 
-struct VMInterpret {
+struct VM {
   ResultFromChunk* cases;
 };
 
-UTEST_I_SETUP(VMInterpret) {
+UTEST_I_SETUP(VM) {
   (void)utest_index;
   (void)utest_fixture;
   ASSERT_TRUE(1);
 }
 
-UTEST_I_TEARDOWN(VMInterpret) {
+UTEST_I_TEARDOWN(VM) {
   ResultFromChunk* expected = &ufx->cases[utest_index];
 
   MemBuf out, err;
@@ -184,8 +155,8 @@ UTEST_I_TEARDOWN(VMInterpret) {
   freeChunk(&chunk);
 }
 
-#define VM_INTERPRET(name, data, count) \
-  UTEST_I(VMInterpret, name, count) { \
+#define VM_CASES(name, data, count) \
+  UTEST_I(VM, name, count) { \
     static_assert(sizeof(data) / sizeof(data[0]) == count, #name); \
     utest_fixture->cases = data; \
     ASSERT_TRUE(1); \
@@ -206,7 +177,7 @@ ResultFromChunk opConstant[] = {
       LIST(Value, N(2.5)) },
 };
 
-VM_INTERPRET(OpConstant, opConstant, 4);
+VM_CASES(OpConstant, opConstant, 4);
 
 ResultFromChunk opLiterals[] = {
   { "false\n", INTERPRET_OK,
@@ -217,7 +188,7 @@ ResultFromChunk opLiterals[] = {
       LIST(Value) },
 };
 
-VM_INTERPRET(OpLiterals, opLiterals, 3);
+VM_CASES(OpLiterals, opLiterals, 3);
 
 ResultFromChunk opPop[] = {
   { "0\n", INTERPRET_OK,
@@ -226,7 +197,7 @@ ResultFromChunk opPop[] = {
       LIST(Value, N(0.0), N(1.0)) },
 };
 
-VM_INTERPRET(OpPop, opPop, 1);
+VM_CASES(OpPop, opPop, 1);
 
 ResultFromChunk opLocals[] = {
   { "false\ntrue\nfalse\ntrue\n", INTERPRET_OK,
@@ -239,7 +210,7 @@ ResultFromChunk opLocals[] = {
       LIST(Value) },
 };
 
-VM_INTERPRET(OpLocals, opLocals, 2);
+VM_CASES(OpLocals, opLocals, 2);
 
 ResultFromChunk opGlobals[] = {
   { "", INTERPRET_RUNTIME_ERROR, LIST(uint8_t, OP_GET_GLOBAL, 0),
@@ -253,7 +224,7 @@ ResultFromChunk opGlobals[] = {
       LIST(Value, S("foo"), N(123.0), N(456.0)) },
 };
 
-VM_INTERPRET(OpGlobals, opGlobals, 3);
+VM_CASES(OpGlobals, opGlobals, 3);
 
 ResultFromChunk opEqual[] = {
   { "true\n", INTERPRET_OK,
@@ -285,7 +256,7 @@ ResultFromChunk opEqual[] = {
       LIST(Value, N(1.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpEqual, opEqual, 8);
+VM_CASES(OpEqual, opEqual, 8);
 
 ResultFromChunk opGreater[] = {
   { "", INTERPRET_RUNTIME_ERROR,
@@ -309,7 +280,7 @@ ResultFromChunk opGreater[] = {
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpGreater, opGreater, 5);
+VM_CASES(OpGreater, opGreater, 5);
 
 ResultFromChunk opLess[] = {
   { "", INTERPRET_RUNTIME_ERROR,
@@ -333,7 +304,7 @@ ResultFromChunk opLess[] = {
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpLess, opLess, 5);
+VM_CASES(OpLess, opLess, 5);
 
 ResultFromChunk opAdd[] = {
   { "", INTERPRET_RUNTIME_ERROR,
@@ -357,7 +328,7 @@ ResultFromChunk opAdd[] = {
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpAdd, opAdd, 5);
+VM_CASES(OpAdd, opAdd, 5);
 
 ResultFromChunk opAddConcat[] = {
   { "", INTERPRET_RUNTIME_ERROR,
@@ -390,7 +361,7 @@ ResultFromChunk opAddConcat[] = {
       LIST(Value, S("foo"), S("bar"), S("foo"), S("bar")) },
 };
 
-VM_INTERPRET(OpAddConcat, opAddConcat, 7);
+VM_CASES(OpAddConcat, opAddConcat, 7);
 
 ResultFromChunk opSubtract[] = {
   { "", INTERPRET_RUNTIME_ERROR,
@@ -406,7 +377,7 @@ ResultFromChunk opSubtract[] = {
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpSubtract, opSubtract, 3);
+VM_CASES(OpSubtract, opSubtract, 3);
 
 ResultFromChunk opMultiply[] = {
   { "", INTERPRET_RUNTIME_ERROR,
@@ -422,7 +393,7 @@ ResultFromChunk opMultiply[] = {
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpMultiply, opMultiply, 3);
+VM_CASES(OpMultiply, opMultiply, 3);
 
 ResultFromChunk opDivide[] = {
   { "", INTERPRET_RUNTIME_ERROR,
@@ -438,7 +409,7 @@ ResultFromChunk opDivide[] = {
       LIST(Value, N(3.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpDivide, opDivide, 3);
+VM_CASES(OpDivide, opDivide, 3);
 
 ResultFromChunk opNot[] = {
   { "true\n", INTERPRET_OK,
@@ -457,7 +428,7 @@ ResultFromChunk opNot[] = {
       LIST(Value) },
 };
 
-VM_INTERPRET(OpNot, opNot, 5);
+VM_CASES(OpNot, opNot, 5);
 
 ResultFromChunk opNegate[] = {
   { "", INTERPRET_RUNTIME_ERROR,
@@ -472,7 +443,7 @@ ResultFromChunk opNegate[] = {
       LIST(Value, N(1.0)) },
 };
 
-VM_INTERPRET(OpNegate, opNegate, 3);
+VM_CASES(OpNegate, opNegate, 3);
 
 ResultFromChunk opJump[] = {
   { "true\n", INTERPRET_OK,
@@ -481,7 +452,7 @@ ResultFromChunk opJump[] = {
       LIST(Value) },
 };
 
-VM_INTERPRET(OpJump, opJump, 1);
+VM_CASES(OpJump, opJump, 1);
 
 ResultFromChunk opJumpIfFalse[] = {
   { "0\n2\n", INTERPRET_OK,
@@ -501,7 +472,7 @@ ResultFromChunk opJumpIfFalse[] = {
       LIST(Value, N(0.0), N(1.0), N(2.0)) },
 };
 
-VM_INTERPRET(OpJumpIfFalse, opJumpIfFalse, 3);
+VM_CASES(OpJumpIfFalse, opJumpIfFalse, 3);
 
 ResultFromChunk opLoop[] = {
   { "0\n1\n2\n3\n4\n", INTERPRET_OK,
@@ -512,6 +483,6 @@ ResultFromChunk opLoop[] = {
       LIST(Value, N(0.0), N(5.0), N(1.0)) },
 };
 
-VM_INTERPRET(OpLoop, opLoop, 1);
+VM_CASES(OpLoop, opLoop, 1);
 
 UTEST_MAIN();
