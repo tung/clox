@@ -167,6 +167,7 @@ SCAN_TOKEN_TYPES(Numbers, numbers, 4);
 StringToTokenTypes identifiers[] = {
   { "c", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "cc", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
+  { "ccc", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "f", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "fee", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "foe", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
@@ -182,12 +183,13 @@ StringToTokenTypes identifiers[] = {
   { "_0123456789", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
 };
 
-SCAN_TOKEN_TYPES(Identifiers, identifiers, 13);
+SCAN_TOKEN_TYPES(Identifiers, identifiers, 14);
 
 StringToTokenTypes keywords[] = {
   { "and", (TokenType[]){ TOKEN_AND, TOKEN_EOF } },
   { "case", (TokenType[]){ TOKEN_CASE, TOKEN_EOF } },
   { "class", (TokenType[]){ TOKEN_CLASS, TOKEN_EOF } },
+  { "continue", (TokenType[]){ TOKEN_CONTINUE, TOKEN_EOF } },
   { "default", (TokenType[]){ TOKEN_DEFAULT, TOKEN_EOF } },
   { "else", (TokenType[]){ TOKEN_ELSE, TOKEN_EOF } },
   { "false", (TokenType[]){ TOKEN_FALSE, TOKEN_EOF } },
@@ -206,6 +208,6 @@ StringToTokenTypes keywords[] = {
   { "while", (TokenType[]){ TOKEN_WHILE, TOKEN_EOF } },
 };
 
-SCAN_TOKEN_TYPES(Keywords, keywords, 19);
+SCAN_TOKEN_TYPES(Keywords, keywords, 20);
 
 UTEST_MAIN();

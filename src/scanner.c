@@ -114,6 +114,9 @@ static TokenType identifierType(Scanner* scanner) {
             return checkKeyword(scanner, 2, 2, "se", TOKEN_CASE);
           case 'l':
             return checkKeyword(scanner, 2, 3, "ass", TOKEN_CLASS);
+          case 'o':
+            return checkKeyword(
+                scanner, 2, 6, "ntinue", TOKEN_CONTINUE);
         }
       }
       break;

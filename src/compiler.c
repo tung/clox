@@ -1,5 +1,6 @@
 #include "compiler.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,8 +19,15 @@ typedef struct {
 } Local;
 
 typedef struct {
+  int start;
+  int scopeDepth;
+} Loop;
+
+typedef struct {
   Local locals[UINT8_COUNT];
   int localCount;
+  Loop loops[UINT8_COUNT];
+  int loopCount;
   int scopeDepth;
 } Compiler;
 
@@ -193,6 +201,7 @@ static void patchJump(Parser* parser, int offset) {
 
 static void initCompiler(Parser* parser, Compiler* compiler) {
   compiler->localCount = 0;
+  compiler->loopCount = 0;
   compiler->scopeDepth = 0;
   parser->currentCompiler = compiler;
 }
@@ -220,6 +229,25 @@ static void endScope(Parser* parser) {
     emitByte(parser, OP_POP);
     parser->currentCompiler->localCount--;
   }
+}
+
+static void beginLoop(Parser* parser, int loopStart) {
+  // GCOV_EXCL_START
+  if (parser->currentCompiler->loopCount == UINT8_COUNT) {
+    error(parser, "Loops nested too deeply.");
+    return;
+  }
+  // GCOV_EXCL_STOP
+
+  Loop* loop = &parser->currentCompiler
+                    ->loops[parser->currentCompiler->loopCount++];
+  loop->start = loopStart;
+  loop->scopeDepth = parser->currentCompiler->scopeDepth;
+}
+
+static void endLoop(Parser* parser) {
+  assert(parser->currentCompiler->loopCount > 0); // GCOV_EXCL_LINE
+  parser->currentCompiler->loopCount--;
 }
 
 static void parsePrecedence(Parser* parser, Precedence precedence);
@@ -535,6 +563,28 @@ static void varDeclaration(Parser* parser) {
   defineVariable(parser, global);
 }
 
+static void continueStatement(Parser* parser) {
+  if (parser->currentCompiler->loopCount == 0) {
+    error(parser, "Cannot 'continue' outside of a loop.");
+    return;
+  }
+
+  consume(parser, TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
+
+  Loop* loop = &parser->currentCompiler
+                    ->loops[parser->currentCompiler->loopCount - 1];
+
+  for (int i = parser->currentCompiler->localCount - 1; i >= 0; i--) {
+    Local* local = &parser->currentCompiler->locals[i];
+    if (local->depth <= loop->scopeDepth) {
+      break;
+    }
+    emitByte(parser, OP_POP);
+  }
+
+  emitLoop(parser, loop->start);
+}
+
 static void expressionStatement(Parser* parser) {
   expression(parser);
   consume(parser, TOKEN_SEMICOLON, "Expect ';' after expression.");
@@ -576,6 +626,7 @@ static void forStatement(Parser* parser) {
     patchJump(parser, bodyJump);
   }
 
+  beginLoop(parser, loopStart);
   statement(parser);
   emitLoop(parser, loopStart);
 
@@ -584,6 +635,7 @@ static void forStatement(Parser* parser) {
     emitByte(parser, OP_POP); // Condition.
   }
 
+  endLoop(parser);
   endScope(parser);
 }
 
@@ -682,6 +734,7 @@ static void switchStatement(Parser* parser) {
 
 static void whileStatement(Parser* parser) {
   int loopStart = currentChunk(parser)->count;
+  beginLoop(parser, loopStart);
   consume(parser, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
   expression(parser);
   consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
@@ -693,6 +746,7 @@ static void whileStatement(Parser* parser) {
 
   patchJump(parser, exitJump);
   emitByte(parser, OP_POP);
+  endLoop(parser);
 }
 
 static void synchronize(Parser* parser) {
@@ -734,6 +788,8 @@ static void declaration(Parser* parser) {
 static void statement(Parser* parser) {
   if (match(parser, TOKEN_PRINT)) {
     printStatement(parser);
+  } else if (match(parser, TOKEN_CONTINUE)) {
+    continueStatement(parser);
   } else if (match(parser, TOKEN_FOR)) {
     forStatement(parser);
   } else if (match(parser, TOKEN_IF)) {

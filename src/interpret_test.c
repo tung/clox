@@ -379,6 +379,55 @@ InterpretCase andOr[] = {
 
 INTERPRET(AndOr, andOr, 6);
 
+InterpretCase continueStmt[] = {
+  { INTERPRET_COMPILE_ERROR, "Cannot 'continue' outside of a loop.",
+      "continue" },
+  { INTERPRET_COMPILE_ERROR, "Cannot 'continue' outside of a loop.",
+      "continue;" },
+  { INTERPRET_COMPILE_ERROR, "Cannot 'continue' outside of a loop.",
+      "while(nil)0;continue;" },
+  { INTERPRET_OK, "1\n3\n5\n",
+      "var x;for(var i=0;i<6;i=i+1){x=!x;if(x)continue;print i;}" },
+  { INTERPRET_OK, "1\n",
+      "var x=true;while(x){x=false;continue;print 0;}print 1;" },
+  { INTERPRET_OK, "1\n",
+      "var x=true;for(;x;){x=false;continue;print 0;}print 1;" },
+  { INTERPRET_OK, "1\n",
+      "for(var x=true;x;){x=false;continue;print 0;}print 1;" },
+  { INTERPRET_OK, "2\n4\n6\n",
+      "var i=0;var x;while(i<6){i=i+1;x=!x;if(x)continue;print i;}" },
+  { INTERPRET_OK, "2\n4\n6\n",
+      "var i=0;var x;for(;i<6;){i=i+1;x=!x;if(x)continue;print i;}" },
+  { INTERPRET_OK, "2\n4\n6\n",
+      "var x;for(var i=0;i<6;){i=i+1;x=!x;if(x)continue;print i;}" },
+  { INTERPRET_OK, "3\n4\n5\n",
+      "var i=0;while(i<6){var x=i;i=i+1;if(x<3)continue;print x;}" },
+  { INTERPRET_OK, "3\n4\n5\n",
+      "var i=0;for(;i<6;){var x=i;i=i+1;if(x<3)continue;print x;}" },
+  { INTERPRET_OK, "3\n4\n5\n",
+      "for(var i=0;i<6;){var x=i;i=i+1;if(x<3)continue;print x;}" },
+  { INTERPRET_OK, "3\n4\n5\n",
+      "var i=0;"
+      "while(i<6){var y;{var x=i;i=i+1;if(x<3)continue;print x;}}" },
+  { INTERPRET_OK, "3\n4\n5\n",
+      "var i=0;"
+      "for(;i<6;){var y;{var x=i;i=i+1;if(x<3)continue;print x;}}" },
+  { INTERPRET_OK, "3\n4\n5\n",
+      "for(var i=0;i<6;)"
+      "{var y;{var x=i;i=i+1;if(x<3)continue;print x;}}" },
+  { INTERPRET_OK, "3\n4\n5\n",
+      "var i=0;"
+      "{var y;while(i<6){var x=i;i=i+1;if(x<3)continue;print x;}}" },
+  { INTERPRET_OK, "3\n4\n5\n",
+      "var i=0;"
+      "{var y;for(;i<6;){var x=i;i=i+1;if(x<3)continue;print x;}}" },
+  { INTERPRET_OK, "3\n4\n5\n",
+      "{var y;"
+      "for(var i=0;i<6;){var x=i;i=i+1;if(x<3)continue;print x;}}" },
+};
+
+INTERPRET(ContinueStmt, continueStmt, 19);
+
 InterpretCase expressionStmt[] = {
   { INTERPRET_OK, "", "0;" },
   { INTERPRET_OK, "", "nil;" },
