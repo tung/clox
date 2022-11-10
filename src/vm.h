@@ -45,4 +45,6 @@ Value pop(VM* vm);
 InterpretResult interpretChunk(VM* vm, Chunk* chunk);
 InterpretResult interpret(VM* vm, const char* source);
 
+extern bool debugTraceExecution;
+
 #endif

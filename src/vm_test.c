@@ -100,6 +100,25 @@ UTEST_F(VMSimple, UnknownOp) {
   EXPECT_STREQ(errMsg, memBufSuffix(ufx->err, errMsg));
 }
 
+UTEST_F(VMSimple, PrintScript) {
+  Chunk script;
+  initChunk(&script);
+  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_LOCAL, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  fflush(ufx->out.fptr);
+  EXPECT_STREQ("<script>\n", ufx->out.buf);
+
+  if (ires != INTERPRET_OK) {
+    fflush(ufx->err.fptr);
+    EXPECT_STREQ("", ufx->err.buf);
+  }
+}
+
 UTEST_F(VMSimple, OpCall) {
   // fun b(n) { print n; return n + 1; }
   ObjFunction* bFun = newFunction(&ufx->vm.objects);

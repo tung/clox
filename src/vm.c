@@ -12,6 +12,8 @@
 #include "memory.h"
 #include "object.h"
 
+bool debugTraceExecution = false;
+
 static Value clockNative(int argCount, Value* args) {
   (void)argCount;
   (void)args;
@@ -174,17 +176,19 @@ static InterpretResult run(VM* vm) {
   } while (false)
 
   for (;;) {
-#ifdef DEBUG_TRACE_EXECUTION
-    fprintf(vm->ferr, "          ");
-    for (Value* slot = vm->stack; slot < vm->stackTop; slot++) {
-      fprintf(vm->ferr, "[ ");
-      printValue(vm->ferr, *slot);
-      fprintf(vm->ferr, " ]");
+    // GCOV_EXCL_START
+    if (debugTraceExecution) {
+      fprintf(vm->ferr, "          ");
+      for (Value* slot = vm->stack; slot < vm->stackTop; slot++) {
+        fprintf(vm->ferr, "[ ");
+        printValue(vm->ferr, *slot);
+        fprintf(vm->ferr, " ]");
+      }
+      fprintf(vm->ferr, "\n");
+      disassembleInstruction(vm->ferr, &frame->function->chunk,
+          (int)(frame->ip - frame->function->chunk.code));
     }
-    fprintf(vm->ferr, "\n");
-    disassembleInstruction(vm->ferr, &frame->function->chunk,
-        (int)(frame->ip - frame->function->chunk.code));
-#endif
+    // GCOV_EXCL_STOP
 
     uint8_t instruction;
     switch (instruction = READ_BYTE()) {

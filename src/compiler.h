@@ -11,4 +11,6 @@
 ObjFunction* compile(FILE* fout, FILE* ferr, const char* source,
     Obj** objects, Table* strings);
 
+extern bool debugPrintCode;
+
 #endif

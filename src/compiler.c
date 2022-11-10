@@ -5,12 +5,11 @@
 #include <string.h>
 
 #include "common.h"
+#include "debug.h"
 #include "memory.h"
 #include "scanner.h"
 
-#ifdef DEBUG_PRINT_CODE
-#include "debug.h"
-#endif
+bool debugPrintCode = false;
 
 typedef struct {
   Token name;
@@ -226,12 +225,12 @@ static ObjFunction* endCompiler(Parser* parser) {
   emitReturn(parser);
   ObjFunction* function = parser->currentCompiler->function;
 
-#ifdef DEBUG_PRINT_CODE
-  if (!parser->hadError) {
+  // GCOV_EXCL_START
+  if (debugPrintCode && !parser->hadError) {
     disassembleChunk(parser->ferr, currentChunk(parser),
         function->name != NULL ? function->name->chars : "<script>");
   }
-#endif
+  // GCOV_EXCL_STOP
 
   parser->currentCompiler = parser->currentCompiler->enclosing;
   return function;

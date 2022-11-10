@@ -4,6 +4,7 @@
 
 #include "chunk.h"
 #include "common.h"
+#include "compiler.h"
 #include "debug.h"
 #include "vm.h"
 
@@ -71,6 +72,18 @@ static void runFile(const char* path) {
 }
 
 int main(int argc, char* argv[]) {
+  while (argc > 1) {
+    if (strncmp("--dump", argv[1], sizeof("--dump")) == 0) {
+      debugPrintCode = true;
+    } else if (strncmp("--trace", argv[1], sizeof("--trace")) == 0) {
+      debugTraceExecution = true;
+    } else {
+      break;
+    }
+    argv++;
+    argc--;
+  }
+
   if (argc == 1) {
     repl();
   } else if (argc == 2) {
