@@ -164,9 +164,10 @@ INTERPRET(Empty, empty, 1);
 
 InterpretCase error[] = {
   { INTERPRET_COMPILE_ERROR, "Unexpected character", "#" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression", "print print print" },
 };
 
-INTERPRET(Error, error, 1);
+INTERPRET(Error, error, 2);
 
 InterpretCase grouping[] = {
   { INTERPRET_COMPILE_ERROR, "Expect expression.", "(" },
@@ -333,6 +334,45 @@ InterpretCase strings[] = {
 };
 
 INTERPRET(Strings, strings, 6);
+
+InterpretCase functions[] = {
+  { INTERPRET_COMPILE_ERROR, "Expect function name.", "fun" },
+  { INTERPRET_COMPILE_ERROR, "Expect '(' after function name.",
+      "fun a" },
+  { INTERPRET_COMPILE_ERROR, "Expect '{' before function body.",
+      "fun a()" },
+  { INTERPRET_COMPILE_ERROR, "Expect ')' after parameters.",
+      "fun a(x" },
+  { INTERPRET_COMPILE_ERROR, "Expect parameter name.", "fun a(x," },
+  { INTERPRET_COMPILE_ERROR, "Expect '}' after block.", "fun a(x,y){" },
+  { INTERPRET_COMPILE_ERROR, "Can't return from top-level code.",
+      "return" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "fun a(){return" },
+  { INTERPRET_COMPILE_ERROR, "Expect ';' after return value.",
+      "fun a(){return 0" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "a(" },
+  { INTERPRET_COMPILE_ERROR, "Expect ')' after arguments.", "a(0" },
+  { INTERPRET_RUNTIME_ERROR, "Can only call functions and classes.",
+      "nil();" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "fun a(){}a(0);" },
+  { INTERPRET_OK, "<native fn>\n", "print clock;" },
+  { INTERPRET_OK, "true\n", "print clock()>=0;" },
+  { INTERPRET_OK, "<fn a>\n", "fun a(){}print a;" },
+  { INTERPRET_OK, "0\n", "fun a(){print 0;return;print 1;}a();" },
+  { INTERPRET_OK, "1\n", "fun a(){return 1;}print a();" },
+  { INTERPRET_OK, "1\n", "fun a(x){print x;}a(1);" },
+  { INTERPRET_OK, "2\n", "fun a(x){return x+x;}print a(1);" },
+  { INTERPRET_OK, "4\n", "fun a(x){return x+x;}print a(a(1));" },
+  { INTERPRET_OK, "5\n", "fun a(x,y){print x+y;}a(3,2);" },
+  { INTERPRET_OK, "1\n2\n3\n",
+      "fun a(){print 2;}fun b(){print 1;a();print 3;}b();" },
+  { INTERPRET_OK, "1\n0\n2\n3\n0\n4\n",
+      "fun a(){print 1;b();print 2;}"
+      "fun b(){print 0;}fun c(){print 3;b();print 4;}a();c();" },
+};
+
+INTERPRET(Functions, functions, 24);
 
 InterpretCase globalVars[] = {
   { INTERPRET_COMPILE_ERROR, "Expect variable name.", "var 0;" },

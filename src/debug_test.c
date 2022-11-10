@@ -155,6 +155,16 @@ UTEST_F(DisassembleChunk, OpLoop) {
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 
+UTEST_F(DisassembleChunk, OpCall) {
+  writeChunk(&ufx->chunk, OP_CALL, 123);
+  writeChunk(&ufx->chunk, 45, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_CALL            45\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
 UTEST_F(DisassembleChunk, Chapter14Sample1) {
   writeChunk(&ufx->chunk, OP_RETURN, 123);
   disassembleChunk(ufx->err.fptr, &ufx->chunk, "test chunk");

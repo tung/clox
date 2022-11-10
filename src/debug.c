@@ -89,6 +89,8 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
           ferr, "OP_JUMP_IF_FALSE", 1, chunk, offset);
     case OP_LOOP:
       return jumpInstruction(ferr, "OP_LOOP", -1, chunk, offset);
+    case OP_CALL:
+      return byteInstruction(ferr, "OP_CALL", chunk, offset);
     case OP_RETURN: return simpleInstruction(ferr, "OP_RETURN", offset);
     default:
       fprintf(ferr, "Unknown opcode %d\n", instruction);

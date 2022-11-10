@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "common.h"
 #include "compiler.h"
@@ -11,8 +12,16 @@
 #include "memory.h"
 #include "object.h"
 
+static Value clockNative(int argCount, Value* args) {
+  (void)argCount;
+  (void)args;
+
+  return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+}
+
 static void resetStack(VM* vm) {
   vm->stackTop = vm->stack;
+  vm->frameCount = 0;
 }
 
 static void runtimeError(VM* vm, const char* format, ...) {
@@ -22,10 +31,30 @@ static void runtimeError(VM* vm, const char* format, ...) {
   va_end(args);
   fputs("\n", vm->ferr);
 
-  size_t instruction = vm->ip - vm->chunk->code - 1;
-  int line = vm->chunk->lines[instruction];
-  fprintf(vm->ferr, "[line %d] in script\n", line);
+  for (int i = vm->frameCount - 1; i >= 0; i--) {
+    CallFrame* frame = &vm->frames[i];
+    ObjFunction* function = frame->function;
+    size_t instruction = frame->ip - function->chunk.code - 1;
+    fprintf(
+        vm->ferr, "[line %d] in ", function->chunk.lines[instruction]);
+    if (function->name == NULL) {
+      fprintf(vm->ferr, "script\n");
+    } else {
+      fprintf(vm->ferr, "%s()\n", function->name->chars);
+    }
+  }
+
   resetStack(vm);
+}
+
+static void defineNative(VM* vm, const char* name, NativeFn function) {
+  push(vm,
+      OBJ_VAL(copyString(
+          &vm->objects, &vm->strings, name, (int)strlen(name))));
+  push(vm, OBJ_VAL(newNative(&vm->objects, function)));
+  tableSet(&vm->globals, AS_STRING(vm->stack[0]), vm->stack[1]);
+  pop(vm);
+  pop(vm);
 }
 
 void initVM(VM* vm, FILE* fout, FILE* ferr) {
@@ -35,6 +64,8 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   vm->objects = NULL;
   initTable(&vm->globals, 0.75);
   initTable(&vm->strings, 0.75);
+
+  defineNative(vm, "clock", clockNative);
 }
 
 void freeVM(VM* vm) {
@@ -61,6 +92,45 @@ static Value peek(VM* vm, int distance) {
   return vm->stackTop[-1 - distance];
 }
 
+static bool call(VM* vm, ObjFunction* function, int argCount) {
+  if (argCount != function->arity) {
+    runtimeError(vm, "Expected %d arguments but got %d.",
+        function->arity, argCount);
+    return false;
+  }
+
+  // GCOV_EXCL_START
+  if (vm->frameCount == FRAMES_MAX) {
+    runtimeError(vm, "Stack overflow.");
+    return false;
+  }
+  // GCOV_EXCL_STOP
+
+  CallFrame* frame = &vm->frames[vm->frameCount++];
+  frame->function = function;
+  frame->ip = function->chunk.code;
+  frame->slots = vm->stackTop - argCount - 1;
+  return true;
+}
+
+static bool callValue(VM* vm, Value callee, int argCount) {
+  if (IS_OBJ(callee)) {
+    switch (OBJ_TYPE(callee)) {
+      case OBJ_FUNCTION: return call(vm, AS_FUNCTION(callee), argCount);
+      case OBJ_NATIVE: {
+        NativeFn native = AS_NATIVE(callee);
+        Value result = native(argCount, vm->stackTop - argCount);
+        vm->stackTop -= argCount + 1;
+        push(vm, result);
+        return true;
+      }
+      default: break; // Non-callable object type.
+    }
+  }
+  runtimeError(vm, "Can only call functions and classes.");
+  return false;
+}
+
 static bool isFalsey(Value value) {
   return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
@@ -81,10 +151,16 @@ static void concatenate(VM* vm) {
 }
 
 static InterpretResult run(VM* vm) {
-#define READ_BYTE() (*vm->ip++)
-#define READ_CONSTANT() (vm->chunk->constants.values[READ_BYTE()])
+  CallFrame* frame = &vm->frames[vm->frameCount - 1];
+
+#define READ_BYTE() (*frame->ip++)
+
 #define READ_SHORT() \
-  (vm->ip += 2, (uint16_t)((vm->ip[-2] << 8) | vm->ip[-1]))
+  (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
+
+#define READ_CONSTANT() \
+  (frame->function->chunk.constants.values[READ_BYTE()])
+
 #define READ_STRING() AS_STRING(READ_CONSTANT())
 #define BINARY_OP(valueType, op) \
   do { \
@@ -97,8 +173,7 @@ static InterpretResult run(VM* vm) {
     push(vm, valueType(a op b)); \
   } while (false)
 
-  const uint8_t* codeEnd = &vm->chunk->code[vm->chunk->count];
-  while (vm->ip < codeEnd) {
+  for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
     fprintf(vm->ferr, "          ");
     for (Value* slot = vm->stack; slot < vm->stackTop; slot++) {
@@ -107,8 +182,8 @@ static InterpretResult run(VM* vm) {
       fprintf(vm->ferr, " ]");
     }
     fprintf(vm->ferr, "\n");
-    disassembleInstruction(
-        vm->ferr, vm->chunk, (int)(vm->ip - vm->chunk->code));
+    disassembleInstruction(vm->ferr, &frame->function->chunk,
+        (int)(frame->ip - frame->function->chunk.code));
 #endif
 
     uint8_t instruction;
@@ -124,12 +199,12 @@ static InterpretResult run(VM* vm) {
       case OP_POP: pop(vm); break;
       case OP_GET_LOCAL: {
         uint8_t slot = READ_BYTE();
-        push(vm, vm->stack[slot]);
+        push(vm, frame->slots[slot]);
         break;
       }
       case OP_SET_LOCAL: {
         uint8_t slot = READ_BYTE();
-        vm->stack[slot] = peek(vm, 0);
+        frame->slots[slot] = peek(vm, 0);
         break;
       }
       case OP_GET_GLOBAL: {
@@ -197,24 +272,41 @@ static InterpretResult run(VM* vm) {
       }
       case OP_JUMP: {
         uint16_t offset = READ_SHORT();
-        vm->ip += offset;
+        frame->ip += offset;
         break;
       }
       case OP_JUMP_IF_FALSE: {
         uint16_t offset = READ_SHORT();
         if (isFalsey(peek(vm, 0))) {
-          vm->ip += offset;
+          frame->ip += offset;
         }
         break;
       }
       case OP_LOOP: {
         uint16_t offset = READ_SHORT();
-        vm->ip -= offset;
+        frame->ip -= offset;
+        break;
+      }
+      case OP_CALL: {
+        int argCount = READ_BYTE();
+        if (!callValue(vm, peek(vm, argCount), argCount)) {
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        frame = &vm->frames[vm->frameCount - 1];
         break;
       }
       case OP_RETURN: {
-        // Exit interpreter.
-        return INTERPRET_OK;
+        Value result = pop(vm);
+        vm->frameCount--;
+        if (vm->frameCount == 0) {
+          pop(vm);
+          return INTERPRET_OK;
+        }
+
+        vm->stackTop = frame->slots;
+        push(vm, result);
+        frame = &vm->frames[vm->frameCount - 1];
+        break;
       }
       default: {
         fprintf(vm->ferr, "Unknown opcode %d\n", instruction);
@@ -222,9 +314,6 @@ static InterpretResult run(VM* vm) {
       }
     }
   }
-
-  fprintf(vm->ferr, "missing OP_RETURN\n");
-  return INTERPRET_RUNTIME_ERROR;
 
 #undef READ_BYTE
 #undef READ_CONSTANT
@@ -234,25 +323,25 @@ static InterpretResult run(VM* vm) {
 }
 
 InterpretResult interpretChunk(VM* vm, Chunk* chunk) {
-  vm->chunk = chunk;
-  vm->ip = vm->chunk->code;
+  ObjFunction* function = newFunction(&vm->objects);
+  freeChunk(&function->chunk);
+  function->chunk = *chunk;
+
+  push(vm, OBJ_VAL(function));
+  call(vm, function, 0);
+
   return run(vm);
 }
 
 InterpretResult interpret(VM* vm, const char* source) {
-  Chunk chunk;
-  initChunk(&chunk);
-
-  if (!compile(vm->fout, vm->ferr, source, &chunk, &vm->objects,
-          &vm->strings)) {
-    freeChunk(&chunk);
+  ObjFunction* function =
+      compile(vm->fout, vm->ferr, source, &vm->objects, &vm->strings);
+  if (function == NULL) {
     return INTERPRET_COMPILE_ERROR;
   }
 
-  InterpretResult result = interpretChunk(vm, &chunk);
+  push(vm, OBJ_VAL(function));
+  call(vm, function, 0);
 
-  vm->chunk = NULL;
-  vm->ip = NULL;
-  freeChunk(&chunk);
-  return result;
+  return run(vm);
 }

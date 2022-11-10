@@ -8,7 +8,7 @@
 #include "object.h"
 #include "table.h"
 
-bool compile(FILE* fout, FILE* ferr, const char* source, Chunk* chunk,
+ObjFunction* compile(FILE* fout, FILE* ferr, const char* source,
     Obj** objects, Table* strings);
 
 #endif

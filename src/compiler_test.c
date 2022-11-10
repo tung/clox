@@ -38,7 +38,6 @@ typedef struct {
 } SourceToChunk;
 
 struct CompileExpr {
-  Chunk chunk;
   Obj* objects;
   Table strings;
   MemBuf out;
@@ -48,7 +47,6 @@ struct CompileExpr {
 
 UTEST_I_SETUP(CompileExpr) {
   (void)utest_index;
-  initChunk(&ufx->chunk);
   ufx->objects = NULL;
   initTable(&ufx->strings, 0.75);
   initMemBuf(&ufx->out);
@@ -59,7 +57,7 @@ UTEST_I_SETUP(CompileExpr) {
 UTEST_I_TEARDOWN(CompileExpr) {
   SourceToChunk* expected = &ufx->cases[utest_index];
 
-  // Prepare expected/actual out/err memstreams.
+  // Prepare expected/actual err memstreams.
   MemBuf xErr, aErr;
   initMemBuf(&xErr);
   initMemBuf(&aErr);
@@ -72,6 +70,7 @@ UTEST_I_TEARDOWN(CompileExpr) {
       writeChunk(&expectChunk, expected->code[i], 1);
     }
     writeChunk(&expectChunk, OP_PRINT, 1);
+    writeChunk(&expectChunk, OP_NIL, 1);
     writeChunk(&expectChunk, OP_RETURN, 1);
     for (int i = 0; i < expected->valueSize; ++i) {
       addConstant(&expectChunk, expected->values[i]);
@@ -85,10 +84,10 @@ UTEST_I_TEARDOWN(CompileExpr) {
   snprintf(srcBuf, sizeof(srcBuf) - 1, "print %s;", expected->src);
   srcBuf[sizeof(srcBuf) - 1] = '\0';
 
-  bool result = compile(ufx->out.fptr, ufx->err.fptr, srcBuf,
-      &ufx->chunk, &ufx->objects, &ufx->strings);
+  ObjFunction* result = compile(ufx->out.fptr, ufx->err.fptr, srcBuf,
+      &ufx->objects, &ufx->strings);
 
-  EXPECT_EQ(expected->result, result);
+  EXPECT_EQ(expected->result, !!result);
 
   // If success was expected but not achieved, print any compile errors.
   if (expected->result && !result) {
@@ -98,7 +97,7 @@ UTEST_I_TEARDOWN(CompileExpr) {
 
   // If compile succeeded, dump the actual chunk.
   if (result) {
-    disassembleChunk(aErr.fptr, &ufx->chunk, "CompileExpr");
+    disassembleChunk(aErr.fptr, &result->chunk, "CompileExpr");
   }
 
   // Compare err memstreams.
@@ -111,7 +110,6 @@ UTEST_I_TEARDOWN(CompileExpr) {
   freeMemBuf(&aErr);
 
   // Fixture teardown.
-  freeChunk(&ufx->chunk);
   freeTable(&ufx->strings);
   freeObjects(ufx->objects);
   freeMemBuf(&ufx->out);
@@ -303,7 +301,6 @@ SourceToChunk exprLogical[] = {
 COMPILE_EXPRS(Logical, exprLogical, 4);
 
 struct CompileStmt {
-  Chunk chunk;
   Obj* objects;
   Table strings;
   MemBuf out;
@@ -313,7 +310,6 @@ struct CompileStmt {
 
 UTEST_I_SETUP(CompileStmt) {
   (void)utest_index;
-  initChunk(&ufx->chunk);
   ufx->objects = NULL;
   initTable(&ufx->strings, 0.75);
   initMemBuf(&ufx->out);
@@ -336,6 +332,8 @@ UTEST_I_TEARDOWN(CompileStmt) {
     for (int i = 0; i < expected->codeSize; ++i) {
       writeChunk(&expectChunk, expected->code[i], 1);
     }
+    writeChunk(&expectChunk, OP_NIL, 1);
+    writeChunk(&expectChunk, OP_RETURN, 1);
     for (int i = 0; i < expected->valueSize; ++i) {
       addConstant(&expectChunk, expected->values[i]);
     }
@@ -343,10 +341,10 @@ UTEST_I_TEARDOWN(CompileStmt) {
     freeChunk(&expectChunk);
   }
 
-  bool result = compile(ufx->out.fptr, ufx->err.fptr, expected->src,
-      &ufx->chunk, &ufx->objects, &ufx->strings);
+  ObjFunction* result = compile(ufx->out.fptr, ufx->err.fptr,
+      expected->src, &ufx->objects, &ufx->strings);
 
-  EXPECT_EQ(expected->result, result);
+  EXPECT_EQ(expected->result, !!result);
 
   // If success was expected but not achieved, print any compile errors.
   if (expected->result && !result) {
@@ -356,7 +354,7 @@ UTEST_I_TEARDOWN(CompileStmt) {
 
   // If compile succeeded, dump the actual chunk.
   if (result) {
-    disassembleChunk(aErr.fptr, &ufx->chunk, "CompileExpr");
+    disassembleChunk(aErr.fptr, &result->chunk, "CompileExpr");
   }
 
   // Compare err memstreams.
@@ -369,7 +367,6 @@ UTEST_I_TEARDOWN(CompileStmt) {
   freeMemBuf(&aErr);
 
   // Fixture teardown.
-  freeChunk(&ufx->chunk);
   freeTable(&ufx->strings);
   freeObjects(ufx->objects);
   freeMemBuf(&ufx->out);
@@ -383,17 +380,31 @@ UTEST_I_TEARDOWN(CompileStmt) {
     ASSERT_TRUE(1); \
   }
 
+SourceToChunk stmtFunctions[] = {
+  { "fun", false, LIST(uint8_t), LIST(Value) },
+  { "fun a", false, LIST(uint8_t), LIST(Value) },
+  { "fun a()", false, LIST(uint8_t), LIST(Value) },
+  { "fun a(x", false, LIST(uint8_t), LIST(Value) },
+  { "fun a(x,", false, LIST(uint8_t), LIST(Value) },
+  { "fun a(x,y){", false, LIST(uint8_t), LIST(Value) },
+  { "return", false, LIST(uint8_t), LIST(Value) },
+  { "fun a(){return", false, LIST(uint8_t), LIST(Value) },
+  { "fun a(){return;", false, LIST(uint8_t), LIST(Value) },
+  { "fun a(){return 0", false, LIST(uint8_t), LIST(Value) },
+  { "a(", false, LIST(uint8_t), LIST(Value) },
+  { "a(0", false, LIST(uint8_t), LIST(Value) },
+};
+
+COMPILE_STMTS(Functions, stmtFunctions, 12);
+
 SourceToChunk stmtVarDecl[] = {
-  { "var foo;", true,
-      LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0, OP_RETURN),
+  { "var foo;", true, LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0),
       LIST(Value, S("foo")) },
   { "var foo = 0;", true,
-      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0),
       LIST(Value, S("foo"), N(0.0)) },
-  { "{ var foo; }", true, LIST(uint8_t, OP_NIL, OP_POP, OP_RETURN),
-      LIST(Value) },
-  { "{ var foo = 0; }", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_POP, OP_RETURN),
+  { "{ var foo; }", true, LIST(uint8_t, OP_NIL, OP_POP), LIST(Value) },
+  { "{ var foo = 0; }", true, LIST(uint8_t, OP_CONSTANT, 0, OP_POP),
       LIST(Value, N(0.0)) },
 };
 
@@ -401,26 +412,24 @@ COMPILE_STMTS(VarDecl, stmtVarDecl, 4);
 
 SourceToChunk stmtLocalVars[] = {
   { "{ var foo = 123; print foo; }", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 0, OP_PRINT, OP_POP,
-          OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 1, OP_PRINT, OP_POP),
       LIST(Value, N(123.0)) },
   { "{ var a = 1; var foo = 2; print a + foo; }", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_LOCAL, 0,
-          OP_GET_LOCAL, 1, OP_ADD, OP_PRINT, OP_POP, OP_POP, OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_LOCAL, 1,
+          OP_GET_LOCAL, 2, OP_ADD, OP_PRINT, OP_POP, OP_POP),
       LIST(Value, N(1.0), N(2.0)) },
   { "var a = 1; { var a = 2; print a; } print a;", true,
       LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_CONSTANT, 2,
-          OP_GET_LOCAL, 0, OP_PRINT, OP_POP, OP_GET_GLOBAL, 3, OP_PRINT,
-          OP_RETURN),
+          OP_GET_LOCAL, 1, OP_PRINT, OP_POP, OP_GET_GLOBAL, 3,
+          OP_PRINT),
       LIST(Value, S("a"), N(1.0), N(2.0), S("a")) },
   { "{ var a = 1; { var a = 2; print a; } print a; }", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_LOCAL, 1,
-          OP_PRINT, OP_POP, OP_GET_LOCAL, 0, OP_PRINT, OP_POP,
-          OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_LOCAL, 2,
+          OP_PRINT, OP_POP, OP_GET_LOCAL, 1, OP_PRINT, OP_POP),
       LIST(Value, N(1.0), N(2.0)) },
   { "var a; { var b = a; var c = b; }", true,
       LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
-          OP_GET_LOCAL, 0, OP_POP, OP_POP, OP_RETURN),
+          OP_GET_LOCAL, 1, OP_POP, OP_POP),
       LIST(Value, S("a"), S("a")) },
 };
 
@@ -428,30 +437,30 @@ COMPILE_STMTS(LocalVars, stmtLocalVars, 5);
 
 SourceToChunk stmtFor[] = {
   { "for (;;) 0;", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 6, OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 6),
       LIST(Value, N(0.0)) },
   { "for (var a = 0;;) 1;", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_POP, OP_LOOP, 0,
-          6, OP_POP, OP_RETURN),
+          6, OP_POP),
       LIST(Value, N(0.0), N(1.0)) },
   { "for (0;;) 1;", true,
       LIST(uint8_t, OP_CONSTANT, 0, OP_POP, OP_CONSTANT, 1, OP_POP,
-          OP_LOOP, 0, 6, OP_RETURN),
+          OP_LOOP, 0, 6),
       LIST(Value, N(0.0), N(1.0)) },
   { "for (; false;) 0;", true,
       LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
-          OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 11, OP_POP, OP_RETURN),
+          OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 11, OP_POP),
       LIST(Value, N(0.0)) },
   { "for (;; 0) 1;", true,
       LIST(uint8_t, OP_JUMP, 0, 6, OP_CONSTANT, 0, OP_POP, OP_LOOP, 0,
-          9, OP_CONSTANT, 1, OP_POP, OP_LOOP, 0, 12, OP_RETURN),
+          9, OP_CONSTANT, 1, OP_POP, OP_LOOP, 0, 12),
       LIST(Value, N(0.0), N(1.0)) },
   { "for (var i = 0; i < 5; i = i + 1) print i;", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 0, OP_CONSTANT, 1,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 1, OP_CONSTANT, 1,
           OP_LESS, OP_JUMP_IF_FALSE, 0, 21, OP_POP, OP_JUMP, 0, 11,
-          OP_GET_LOCAL, 0, OP_CONSTANT, 2, OP_ADD, OP_SET_LOCAL, 0,
-          OP_POP, OP_LOOP, 0, 23, OP_GET_LOCAL, 0, OP_PRINT, OP_LOOP, 0,
-          17, OP_POP, OP_POP, OP_RETURN),
+          OP_GET_LOCAL, 1, OP_CONSTANT, 2, OP_ADD, OP_SET_LOCAL, 1,
+          OP_POP, OP_LOOP, 0, 23, OP_GET_LOCAL, 1, OP_PRINT, OP_LOOP, 0,
+          17, OP_POP, OP_POP),
       LIST(Value, N(0.0), N(5.0), N(1.0)) },
 };
 
@@ -460,12 +469,12 @@ COMPILE_STMTS(For, stmtFor, 6);
 SourceToChunk stmtIf[] = {
   { "if (true) 0;", true,
       LIST(uint8_t, OP_TRUE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
-          OP_CONSTANT, 0, OP_POP, OP_JUMP, 0, 1, OP_POP, OP_RETURN),
+          OP_CONSTANT, 0, OP_POP, OP_JUMP, 0, 1, OP_POP),
       LIST(Value, N(0.0)) },
   { "if (false) 0; else 1;", true,
       LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
           OP_CONSTANT, 0, OP_POP, OP_JUMP, 0, 4, OP_POP, OP_CONSTANT, 1,
-          OP_POP, OP_RETURN),
+          OP_POP),
       LIST(Value, N(0.0), N(1.0)) },
 };
 
@@ -474,7 +483,7 @@ COMPILE_STMTS(If, stmtIf, 2);
 SourceToChunk stmtWhile[] = {
   { "while (false) 0;", true,
       LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
-          OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 11, OP_POP, OP_RETURN),
+          OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 11, OP_POP),
       LIST(Value, N(0.0)) },
 };
 
@@ -508,16 +517,15 @@ UTEST_F_TEARDOWN(Compile) {
 
 UTEST_F(Compile, PrintErrorEOF) {
   EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "print 0",
-      &ufx->chunk, &ufx->objects, &ufx->strings));
+      &ufx->objects, &ufx->strings));
   fflush(ufx->err.fptr);
   EXPECT_STREQ(
       "[line 1] Error at end: Expect ';' after value.\n", ufx->err.buf);
 }
 
 UTEST_F(Compile, PrintErrorSyncSemicolon) {
-  EXPECT_FALSE(
-      compile(ufx->out.fptr, ufx->err.fptr, "print 0 1; print 2;",
-          &ufx->chunk, &ufx->objects, &ufx->strings));
+  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr,
+      "print 0 1; print 2;", &ufx->objects, &ufx->strings));
   fflush(ufx->err.fptr);
   EXPECT_STREQ(
       "[line 1] Error at '1': Expect ';' after value.\n", ufx->err.buf);
@@ -525,15 +533,15 @@ UTEST_F(Compile, PrintErrorSyncSemicolon) {
 
 UTEST_F(Compile, PrintErrorSyncPrint) {
   EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr,
-      "print 0 1 print 2;", &ufx->chunk, &ufx->objects, &ufx->strings));
+      "print 0 1 print 2;", &ufx->objects, &ufx->strings));
   fflush(ufx->err.fptr);
   EXPECT_STREQ(
       "[line 1] Error at '1': Expect ';' after value.\n", ufx->err.buf);
 }
 
 UTEST_F(Compile, ExprErrorNoSemicolon) {
-  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "0", &ufx->chunk,
-      &ufx->objects, &ufx->strings));
+  EXPECT_FALSE(compile(
+      ufx->out.fptr, ufx->err.fptr, "0", &ufx->objects, &ufx->strings));
   fflush(ufx->err.fptr);
   EXPECT_STREQ("[line 1] Error at end: Expect ';' after expression.\n",
       ufx->err.buf);
@@ -541,7 +549,7 @@ UTEST_F(Compile, ExprErrorNoSemicolon) {
 
 UTEST_F(Compile, VarDeclErrorNoName) {
   EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "var 0",
-      &ufx->chunk, &ufx->objects, &ufx->strings));
+      &ufx->objects, &ufx->strings));
   fflush(ufx->err.fptr);
   EXPECT_STREQ(
       "[line 1] Error at '0': Expect variable name.\n", ufx->err.buf);
@@ -549,7 +557,7 @@ UTEST_F(Compile, VarDeclErrorNoName) {
 
 UTEST_F(Compile, VarDeclErrorNoSemicolon) {
   EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "var foo",
-      &ufx->chunk, &ufx->objects, &ufx->strings));
+      &ufx->objects, &ufx->strings));
   fflush(ufx->err.fptr);
   EXPECT_STREQ(
       "[line 1] Error at end: Expect ';' after variable declaration.\n",
@@ -558,7 +566,7 @@ UTEST_F(Compile, VarDeclErrorNoSemicolon) {
 
 UTEST_F(Compile, VarDeclErrorLocalInitSelf) {
   EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "{ var x = x; }",
-      &ufx->chunk, &ufx->objects, &ufx->strings));
+      &ufx->objects, &ufx->strings));
   fflush(ufx->err.fptr);
   EXPECT_STREQ(
       "[line 1] Error at 'x': "
@@ -568,7 +576,7 @@ UTEST_F(Compile, VarDeclErrorLocalInitSelf) {
 
 UTEST_F(Compile, VarDeclErrorLocalDuplicate) {
   EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr,
-      "{ var x; var x; }", &ufx->chunk, &ufx->objects, &ufx->strings));
+      "{ var x; var x; }", &ufx->objects, &ufx->strings));
   fflush(ufx->err.fptr);
   EXPECT_STREQ(
       "[line 1] Error at 'x': "
@@ -577,8 +585,8 @@ UTEST_F(Compile, VarDeclErrorLocalDuplicate) {
 }
 
 UTEST_F(Compile, BlockErrorNoRightBrace) {
-  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "{", &ufx->chunk,
-      &ufx->objects, &ufx->strings));
+  EXPECT_FALSE(compile(
+      ufx->out.fptr, ufx->err.fptr, "{", &ufx->objects, &ufx->strings));
   fflush(ufx->err.fptr);
   EXPECT_STREQ(
       "[line 1] Error at end: Expect '}' after block.\n", ufx->err.buf);
