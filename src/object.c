@@ -29,8 +29,9 @@ ObjFunction* newFunction(Obj** objects) {
   return function;
 }
 
-ObjNative* newNative(Obj** objects, NativeFn function) {
+ObjNative* newNative(Obj** objects, NativeFn function, int arity) {
   ObjNative* native = ALLOCATE_OBJ(objects, ObjNative, OBJ_NATIVE);
+  native->arity = arity;
   native->function = function;
   return native;
 }

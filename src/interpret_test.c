@@ -356,6 +356,8 @@ InterpretCase functions[] = {
       "nil();" },
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       "fun a(){}a(0);" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "clock(nil);" },
   { INTERPRET_OK, "<native fn>\n", "print clock;" },
   { INTERPRET_OK, "true\n", "print clock()>=0;" },
   { INTERPRET_OK, "<fn a>\n", "fun a(){}print a;" },
@@ -372,7 +374,7 @@ InterpretCase functions[] = {
       "fun b(){print 0;}fun c(){print 3;b();print 4;}a();c();" },
 };
 
-INTERPRET(Functions, functions, 24);
+INTERPRET(Functions, functions, 25);
 
 InterpretCase globalVars[] = {
   { INTERPRET_COMPILE_ERROR, "Expect variable name.", "var 0;" },

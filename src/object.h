@@ -44,6 +44,7 @@ typedef Value (*NativeFn)(int argCount, Value* args);
 
 typedef struct {
   Obj obj;
+  int arity;
   NativeFn function;
 } ObjNative;
 
@@ -55,7 +56,7 @@ struct ObjString {
 };
 
 ObjFunction* newFunction(Obj** objects);
-ObjNative* newNative(Obj** objects, NativeFn function);
+ObjNative* newNative(Obj** objects, NativeFn function, int arity);
 ObjString* takeString(
     Obj** objects, Table* strings, char* chars, int length);
 ObjString* copyString(

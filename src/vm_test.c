@@ -249,6 +249,28 @@ UTEST_F(VMSimple, OpCallWrongNumArgs) {
   }
 }
 
+UTEST_F(VMSimple, OpCallClockWrongNumArgs) {
+  // clock(nil);
+  Chunk script;
+  initChunk(&script);
+  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_GLOBAL, 0, OP_NIL, OP_CALL, 1, OP_NIL,
+          OP_RETURN),
+      LIST(Value, S("clock")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Expected 0 arguments but got 1.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
 UTEST_F(VMSimple, FunNameInErrorMsg) {
   // fun myFunction() { nil(); }
   ObjFunction* myFunction = newFunction(&ufx->vm.objects);

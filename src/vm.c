@@ -49,11 +49,12 @@ static void runtimeError(VM* vm, const char* format, ...) {
   resetStack(vm);
 }
 
-static void defineNative(VM* vm, const char* name, NativeFn function) {
+static void defineNative(
+    VM* vm, const char* name, NativeFn function, int arity) {
   push(vm,
       OBJ_VAL(copyString(
           &vm->objects, &vm->strings, name, (int)strlen(name))));
-  push(vm, OBJ_VAL(newNative(&vm->objects, function)));
+  push(vm, OBJ_VAL(newNative(&vm->objects, function, arity)));
   tableSet(&vm->globals, AS_STRING(vm->stack[0]), vm->stack[1]);
   pop(vm);
   pop(vm);
@@ -67,7 +68,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   initTable(&vm->globals, 0.75);
   initTable(&vm->strings, 0.75);
 
-  defineNative(vm, "clock", clockNative);
+  defineNative(vm, "clock", clockNative, 0);
 }
 
 void freeVM(VM* vm) {
@@ -120,6 +121,12 @@ static bool callValue(VM* vm, Value callee, int argCount) {
     switch (OBJ_TYPE(callee)) {
       case OBJ_FUNCTION: return call(vm, AS_FUNCTION(callee), argCount);
       case OBJ_NATIVE: {
+        ObjNative* nativeObj = (ObjNative*)AS_OBJ(callee);
+        if (argCount != nativeObj->arity) {
+          runtimeError(vm, "Expected %d arguments but got %d.",
+              nativeObj->arity, argCount);
+          return false;
+        }
         NativeFn native = AS_NATIVE(callee);
         Value result = native(argCount, vm->stackTop - argCount);
         vm->stackTop -= argCount + 1;
