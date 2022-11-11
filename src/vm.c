@@ -10,15 +10,16 @@
 #include "compiler.h"
 #include "debug.h"
 #include "memory.h"
+#include "obj_native.h"
 #include "object.h"
 
 bool debugTraceExecution = false;
 
-static Value clockNative(int argCount, Value* args) {
+static bool clockNative(VM* vm, int argCount, Value* args) {
   (void)argCount;
   (void)args;
-
-  return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+  push(vm, NUMBER_VAL((double)clock() / CLOCKS_PER_SEC));
+  return true;
 }
 
 static void resetStack(VM* vm) {
@@ -49,6 +50,18 @@ static void runtimeError(VM* vm, const char* format, ...) {
   resetStack(vm);
 }
 
+static bool errorIfNilNative(VM* vm, int argCount, Value* args) {
+  (void)argCount;
+  if (IS_NIL(args[0])) {
+    runtimeError(vm, "Expected non-nil argument.");
+    return false;
+  }
+  printValue(vm->fout, args[0]);
+  fprintf(vm->fout, " is okay.\n");
+  push(vm, NIL_VAL);
+  return true;
+}
+
 static void defineNative(
     VM* vm, const char* name, NativeFn function, int arity) {
   push(vm,
@@ -69,6 +82,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   initTable(&vm->strings, 0.75);
 
   defineNative(vm, "clock", clockNative, 0);
+  defineNative(vm, "errorIfNil", errorIfNilNative, 1);
 }
 
 void freeVM(VM* vm) {
@@ -128,7 +142,10 @@ static bool callValue(VM* vm, Value callee, int argCount) {
           return false;
         }
         NativeFn native = AS_NATIVE(callee);
-        Value result = native(argCount, vm->stackTop - argCount);
+        if (!native(vm, argCount, vm->stackTop - argCount)) {
+          return false;
+        }
+        Value result = pop(vm);
         vm->stackTop -= argCount + 1;
         push(vm, result);
         return true;

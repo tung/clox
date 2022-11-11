@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "memory.h"
+#include "obj_native.h"
 #include "value.h"
 
 #define ALLOCATE_OBJ(objects, type, objectType) \
