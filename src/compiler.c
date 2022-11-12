@@ -799,6 +799,7 @@ ObjFunction* compile(FILE* fout, FILE* ferr, const char* source,
   parser.ferr = ferr;
   parser.objects = NULL;
   parser.strings = strings;
+  parser.currentCompiler = NULL;
   parser.hadError = false;
   parser.panicMode = false;
 
