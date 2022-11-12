@@ -63,8 +63,8 @@ mode_dir = $(build_dir)$(MODE)/
 
 # "debug" mode settings.
 ifeq ($(MODE),debug)
-  CFLAGS     = -Wall -Wextra -O1 -g -fsanitize=address -fno-omit-frame-pointer
-  LDFLAGS    = -g -fsanitize=address
+  CFLAGS     = -Wall -Wextra -O1 -g -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
+  LDFLAGS    = -g -fsanitize=address -fsanitize=undefined
   LDLIBS     =
   TESTLDLIBS =
 
