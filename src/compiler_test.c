@@ -300,296 +300,389 @@ SourceToChunk exprLogical[] = {
 
 COMPILE_EXPRS(Logical, exprLogical, 4);
 
-struct CompileStmt {
-  Obj* objects;
-  Table strings;
-  MemBuf out;
-  MemBuf err;
-  SourceToChunk* cases;
+static void dump(MemBuf* out, ObjFunction* fun) {
+  for (int i = 0; i < fun->chunk.constants.count; ++i) {
+    if (IS_FUNCTION(fun->chunk.constants.values[i])) {
+      dump(out, AS_FUNCTION(fun->chunk.constants.values[i]));
+    }
+  }
+  disassembleChunk(out->fptr, &fun->chunk,
+      fun->name ? fun->name->chars : "<script>");
+}
+
+typedef struct {
+  bool success;
+  const char* src;
+  const char* msg;
+} SourceToDump;
+
+struct DumpSrc {
+  SourceToDump* cases;
 };
 
-UTEST_I_SETUP(CompileStmt) {
+UTEST_I_SETUP(DumpSrc) {
   (void)utest_index;
-  ufx->objects = NULL;
-  initTable(&ufx->strings, 0.75);
-  initMemBuf(&ufx->out);
-  initMemBuf(&ufx->err);
+  (void)utest_fixture;
   ASSERT_TRUE(1);
 }
 
-UTEST_I_TEARDOWN(CompileStmt) {
-  SourceToChunk* expected = &ufx->cases[utest_index];
+UTEST_I_TEARDOWN(DumpSrc) {
+  SourceToDump* expected = &ufx->cases[utest_index];
 
-  // Prepare expected/actual out/err memstreams.
-  MemBuf xErr, aErr;
-  initMemBuf(&xErr);
-  initMemBuf(&aErr);
+  Obj* objects;
+  Table strings;
+  MemBuf out, err;
 
-  // If success is expected, assemble, dump and free our expected chunk.
-  if (expected->result) {
-    Chunk expectChunk;
-    initChunk(&expectChunk);
-    for (int i = 0; i < expected->codeSize; ++i) {
-      writeChunk(&expectChunk, expected->code[i], 1);
-    }
-    writeChunk(&expectChunk, OP_NIL, 1);
-    writeChunk(&expectChunk, OP_RETURN, 1);
-    for (int i = 0; i < expected->valueSize; ++i) {
-      addConstant(&expectChunk, expected->values[i]);
-    }
-    disassembleChunk(xErr.fptr, &expectChunk, "CompileExpr");
-    freeChunk(&expectChunk);
-  }
+  objects = NULL;
+  initTable(&strings, 0.75);
+  initMemBuf(&out);
+  initMemBuf(&err);
 
-  ObjFunction* result = compile(ufx->out.fptr, ufx->err.fptr,
-      expected->src, &ufx->objects, &ufx->strings);
+  ObjFunction* result =
+      compile(out.fptr, err.fptr, expected->src, &objects, &strings);
+  EXPECT_EQ(expected->success, !!result);
 
-  EXPECT_EQ(expected->result, !!result);
-
-  // If success was expected but not achieved, print any compile errors.
-  if (expected->result && !result) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
-  }
-
-  // If compile succeeded, dump the actual chunk.
   if (result) {
-    disassembleChunk(aErr.fptr, &result->chunk, "CompileExpr");
+    dump(&out, result);
   }
 
-  // Compare err memstreams.
-  fflush(xErr.fptr);
-  fflush(aErr.fptr);
-  EXPECT_STREQ(xErr.buf, aErr.buf);
+  fflush(out.fptr);
+  fflush(err.fptr);
+  if (expected->success) {
+    EXPECT_STREQ(expected->msg, out.buf);
+    const char* errMsg = strstr(err.buf, "[line ");
+    if (errMsg) {
+      const char* errMsgEnd = strchr(errMsg, '\n');
+      if (!errMsgEnd) {
+        errMsgEnd = strchr(errMsg, '\0');
+      }
+      EXPECT_STRNEQ("", errMsg, errMsgEnd - errMsg);
+    }
+  } else {
+    const char* findMsg = strstr(err.buf, expected->msg);
+    if (expected->msg && expected->msg[0] && findMsg) {
+      EXPECT_STRNEQ(expected->msg, findMsg, strlen(expected->msg));
+    } else {
+      EXPECT_STREQ(expected->msg, err.buf);
+    }
+  }
 
-  // Clean up memstreams.
-  freeMemBuf(&xErr);
-  freeMemBuf(&aErr);
-
-  // Fixture teardown.
-  freeTable(&ufx->strings);
-  freeObjects(ufx->objects);
-  freeMemBuf(&ufx->out);
-  freeMemBuf(&ufx->err);
+  freeTable(&strings);
+  freeObjects(objects);
+  freeMemBuf(&out);
+  freeMemBuf(&err);
 }
 
-#define COMPILE_STMTS(name, data, count) \
-  UTEST_I(CompileStmt, name, count) { \
+#define DUMP_SRC(name, data, count) \
+  UTEST_I(DumpSrc, name, count) { \
     static_assert(sizeof(data) / sizeof(data[0]) == count, #name); \
     utest_fixture->cases = data; \
     ASSERT_TRUE(1); \
   }
 
-SourceToChunk stmtFunctions[] = {
-  { "fun", false, LIST(uint8_t), LIST(Value) },
-  { "fun a", false, LIST(uint8_t), LIST(Value) },
-  { "fun a()", false, LIST(uint8_t), LIST(Value) },
-  { "fun a(x", false, LIST(uint8_t), LIST(Value) },
-  { "fun a(x,", false, LIST(uint8_t), LIST(Value) },
-  { "fun a(x,y){", false, LIST(uint8_t), LIST(Value) },
-  { "return", false, LIST(uint8_t), LIST(Value) },
-  { "fun a(){return", false, LIST(uint8_t), LIST(Value) },
-  { "fun a(){return;", false, LIST(uint8_t), LIST(Value) },
-  { "fun a(){return 0", false, LIST(uint8_t), LIST(Value) },
-  { "a(", false, LIST(uint8_t), LIST(Value) },
-  { "a(0", false, LIST(uint8_t), LIST(Value) },
+SourceToDump functions[] = {
+  { false, "fun", "Expect function name." },
+  { false, "fun a", "Expect '(' after function name." },
+  { false, "fun a(", "Expect parameter name." },
+  { false, "fun a()", "Expect '{' before function body." },
+  { false, "fun a(x", "Expect ')' after parameters." },
+  { false, "fun a(x,", "Expect parameter name." },
+  { false, "fun a(x,y){", "Expect '}' after block." },
+  { false, "return", "Can't return from top-level code." },
+  { false, "fun a(){return", "Expect expression." },
+  { false, "fun a(){return;", "Expect '}' after block." },
+  { false, "a(", "Expect expression." },
+  { false, "a(0", "Expect ')' after arguments." },
+  { true, "fun a(){print 1;}a();",
+      "== a ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_PRINT\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         1 '<fn a>'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'a'\n"
+      "0004    | OP_GET_GLOBAL       2 'a'\n"
+      "0006    | OP_CALL             0\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
+  { true, "fun a(x){print x;}a(1);",
+      "== a ==\n"
+      "0000    1 OP_GET_LOCAL        1\n"
+      "0002    | OP_PRINT\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         1 '<fn a>'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'a'\n"
+      "0004    | OP_GET_GLOBAL       2 'a'\n"
+      "0006    | OP_CONSTANT         3 '1'\n"
+      "0008    | OP_CALL             1\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_NIL\n"
+      "0012    | OP_RETURN\n" },
+  { true, "fun a(){return 1;}print a();",
+      "== a ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_RETURN\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         1 '<fn a>'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'a'\n"
+      "0004    | OP_GET_GLOBAL       2 'a'\n"
+      "0006    | OP_CALL             0\n"
+      "0008    | OP_PRINT\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
+  { true, "fun a(x,y){return x+y;}print a(3,a(2,1));",
+      "== a ==\n"
+      "0000    1 OP_GET_LOCAL        1\n"
+      "0002    | OP_GET_LOCAL        2\n"
+      "0004    | OP_ADD\n"
+      "0005    | OP_RETURN\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         1 '<fn a>'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'a'\n"
+      "0004    | OP_GET_GLOBAL       2 'a'\n"
+      "0006    | OP_CONSTANT         3 '3'\n"
+      "0008    | OP_GET_GLOBAL       4 'a'\n"
+      "0010    | OP_CONSTANT         5 '2'\n"
+      "0012    | OP_CONSTANT         6 '1'\n"
+      "0014    | OP_CALL             2\n"
+      "0016    | OP_CALL             2\n"
+      "0018    | OP_PRINT\n"
+      "0019    | OP_NIL\n"
+      "0020    | OP_RETURN\n" },
 };
 
-COMPILE_STMTS(Functions, stmtFunctions, 12);
+DUMP_SRC(Functions, functions, 16);
 
-SourceToChunk stmtVarDecl[] = {
-  { "var foo;", true, LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0),
-      LIST(Value, S("foo")) },
-  { "var foo = 0;", true,
-      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0),
-      LIST(Value, S("foo"), N(0.0)) },
-  { "{ var foo; }", true, LIST(uint8_t, OP_NIL, OP_POP), LIST(Value) },
-  { "{ var foo = 0; }", true, LIST(uint8_t, OP_CONSTANT, 0, OP_POP),
-      LIST(Value, N(0.0)) },
+SourceToDump varDecl[] = {
+  { false, "var", "Expect variable name." },
+  { false, "var 0", "Expect variable name." },
+  { false, "var foo", "Expect ';' after variable declaration." },
+  { true, "var foo;",
+      "== <script> ==\n"
+      "0000    1 OP_NIL\n"
+      "0001    | OP_DEFINE_GLOBAL    0 'foo'\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n" },
+  { true, "var foo=0;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         1 '0'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'foo'\n"
+      "0004    | OP_NIL\n"
+      "0005    | OP_RETURN\n" },
+  { true, "{var foo;}",
+      "== <script> ==\n"
+      "0000    1 OP_NIL\n"
+      "0001    | OP_POP\n"
+      "0002    | OP_NIL\n"
+      "0003    | OP_RETURN\n" },
+  { true, "{var foo=0;}",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_POP\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n" },
 };
 
-COMPILE_STMTS(VarDecl, stmtVarDecl, 4);
+DUMP_SRC(VarDecl, varDecl, 7);
 
-SourceToChunk stmtLocalVars[] = {
-  { "{ var foo = 123; print foo; }", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 1, OP_PRINT, OP_POP),
-      LIST(Value, N(123.0)) },
-  { "{ var a = 1; var foo = 2; print a + foo; }", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_LOCAL, 1,
-          OP_GET_LOCAL, 2, OP_ADD, OP_PRINT, OP_POP, OP_POP),
-      LIST(Value, N(1.0), N(2.0)) },
-  { "var a = 1; { var a = 2; print a; } print a;", true,
-      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_CONSTANT, 2,
-          OP_GET_LOCAL, 1, OP_PRINT, OP_POP, OP_GET_GLOBAL, 3,
-          OP_PRINT),
-      LIST(Value, S("a"), N(1.0), N(2.0), S("a")) },
-  { "{ var a = 1; { var a = 2; print a; } print a; }", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_LOCAL, 2,
-          OP_PRINT, OP_POP, OP_GET_LOCAL, 1, OP_PRINT, OP_POP),
-      LIST(Value, N(1.0), N(2.0)) },
-  { "var a; { var b = a; var c = b; }", true,
-      LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
-          OP_GET_LOCAL, 1, OP_POP, OP_POP),
-      LIST(Value, S("a"), S("a")) },
+SourceToDump localVars[] = {
+  { false, "{var x=x;}",
+      "Can't read local variable in its own initializer." },
+  { false, "{var x;var x;}",
+      "Already a variable with this name in this scope." },
+  { true, "{var foo=123;print foo;}",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '123'\n"
+      "0002    | OP_GET_LOCAL        1\n"
+      "0004    | OP_PRINT\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "{var a=1;var foo=2;print a+foo;}",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_CONSTANT         1 '2'\n"
+      "0004    | OP_GET_LOCAL        1\n"
+      "0006    | OP_GET_LOCAL        2\n"
+      "0008    | OP_ADD\n"
+      "0009    | OP_PRINT\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_POP\n"
+      "0012    | OP_NIL\n"
+      "0013    | OP_RETURN\n" },
+  { true, "var a=1;{var a=2;print a;}print a;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         1 '1'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'a'\n"
+      "0004    | OP_CONSTANT         2 '2'\n"
+      "0006    | OP_GET_LOCAL        1\n"
+      "0008    | OP_PRINT\n"
+      "0009    | OP_POP\n"
+      "0010    | OP_GET_GLOBAL       3 'a'\n"
+      "0012    | OP_PRINT\n"
+      "0013    | OP_NIL\n"
+      "0014    | OP_RETURN\n" },
+  { true, "{var a=1;{var a=2;print a;}print a;}",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_CONSTANT         1 '2'\n"
+      "0004    | OP_GET_LOCAL        2\n"
+      "0006    | OP_PRINT\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_GET_LOCAL        1\n"
+      "0010    | OP_PRINT\n"
+      "0011    | OP_POP\n"
+      "0012    | OP_NIL\n"
+      "0013    | OP_RETURN\n" },
+  { true, "var a;{var b=a;var c=b;}",
+      "== <script> ==\n"
+      "0000    1 OP_NIL\n"
+      "0001    | OP_DEFINE_GLOBAL    0 'a'\n"
+      "0003    | OP_GET_GLOBAL       1 'a'\n"
+      "0005    | OP_GET_LOCAL        1\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
 };
 
-COMPILE_STMTS(LocalVars, stmtLocalVars, 5);
+DUMP_SRC(LocalVars, localVars, 7);
 
-SourceToChunk stmtFor[] = {
-  { "for (;;) 0;", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 6),
-      LIST(Value, N(0.0)) },
-  { "for (var a = 0;;) 1;", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_POP, OP_LOOP, 0,
-          6, OP_POP),
-      LIST(Value, N(0.0), N(1.0)) },
-  { "for (0;;) 1;", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_POP, OP_CONSTANT, 1, OP_POP,
-          OP_LOOP, 0, 6),
-      LIST(Value, N(0.0), N(1.0)) },
-  { "for (; false;) 0;", true,
-      LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
-          OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 11, OP_POP),
-      LIST(Value, N(0.0)) },
-  { "for (;; 0) 1;", true,
-      LIST(uint8_t, OP_JUMP, 0, 6, OP_CONSTANT, 0, OP_POP, OP_LOOP, 0,
-          9, OP_CONSTANT, 1, OP_POP, OP_LOOP, 0, 12),
-      LIST(Value, N(0.0), N(1.0)) },
-  { "for (var i = 0; i < 5; i = i + 1) print i;", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 1, OP_CONSTANT, 1,
-          OP_LESS, OP_JUMP_IF_FALSE, 0, 21, OP_POP, OP_JUMP, 0, 11,
-          OP_GET_LOCAL, 1, OP_CONSTANT, 2, OP_ADD, OP_SET_LOCAL, 1,
-          OP_POP, OP_LOOP, 0, 23, OP_GET_LOCAL, 1, OP_PRINT, OP_LOOP, 0,
-          17, OP_POP, OP_POP),
-      LIST(Value, N(0.0), N(5.0), N(1.0)) },
+SourceToDump for_[] = {
+  { true, "for(;;)0;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_POP\n"
+      "0003    | OP_LOOP             3 -> 0\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "for(var a=0;;)1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_CONSTANT         1 '1'\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_LOOP             5 -> 2\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
+  { true, "for(0;;)1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_POP\n"
+      "0003    | OP_CONSTANT         1 '1'\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_LOOP             6 -> 3\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
+  { true, "for(;false;)0;",
+      "== <script> ==\n"
+      "0000    1 OP_FALSE\n"
+      "0001    | OP_JUMP_IF_FALSE    1 -> 11\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_CONSTANT         0 '0'\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_LOOP             8 -> 0\n"
+      "0011    | OP_POP\n"
+      "0012    | OP_NIL\n"
+      "0013    | OP_RETURN\n" },
+  { true, "for(;;0)1;",
+      "== <script> ==\n"
+      "0000    1 OP_JUMP             0 -> 9\n"
+      "0003    | OP_CONSTANT         0 '0'\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_LOOP             6 -> 0\n"
+      "0009    | OP_CONSTANT         1 '1'\n"
+      "0011    | OP_POP\n"
+      "0012    | OP_LOOP            12 -> 3\n"
+      "0015    | OP_NIL\n"
+      "0016    | OP_RETURN\n" },
+  { true, "for(var i=0;i<5;i=i+1)print i;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_GET_LOCAL        1\n"
+      "0004    | OP_CONSTANT         1 '5'\n"
+      "0006    | OP_LESS\n"
+      "0007    | OP_JUMP_IF_FALSE    7 -> 31\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_JUMP            11 -> 25\n"
+      "0014    | OP_GET_LOCAL        1\n"
+      "0016    | OP_CONSTANT         2 '1'\n"
+      "0018    | OP_ADD\n"
+      "0019    | OP_SET_LOCAL        1\n"
+      "0021    | OP_POP\n"
+      "0022    | OP_LOOP            22 -> 2\n"
+      "0025    | OP_GET_LOCAL        1\n"
+      "0027    | OP_PRINT\n"
+      "0028    | OP_LOOP            28 -> 14\n"
+      "0031    | OP_POP\n"
+      "0032    | OP_POP\n"
+      "0033    | OP_NIL\n"
+      "0034    | OP_RETURN\n" },
 };
 
-COMPILE_STMTS(For, stmtFor, 6);
+DUMP_SRC(For, for_, 6);
 
-SourceToChunk stmtIf[] = {
-  { "if (true) 0;", true,
-      LIST(uint8_t, OP_TRUE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
-          OP_CONSTANT, 0, OP_POP, OP_JUMP, 0, 1, OP_POP),
-      LIST(Value, N(0.0)) },
-  { "if (false) 0; else 1;", true,
-      LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
-          OP_CONSTANT, 0, OP_POP, OP_JUMP, 0, 4, OP_POP, OP_CONSTANT, 1,
-          OP_POP),
-      LIST(Value, N(0.0), N(1.0)) },
+SourceToDump if_[] = {
+  { true, "if(true)0;",
+      "== <script> ==\n"
+      "0000    1 OP_TRUE\n"
+      "0001    | OP_JUMP_IF_FALSE    1 -> 11\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_CONSTANT         0 '0'\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_JUMP             8 -> 12\n"
+      "0011    | OP_POP\n"
+      "0012    | OP_NIL\n"
+      "0013    | OP_RETURN\n" },
+  { true, "if(false)0;else 1;",
+      "== <script> ==\n"
+      "0000    1 OP_FALSE\n"
+      "0001    | OP_JUMP_IF_FALSE    1 -> 11\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_CONSTANT         0 '0'\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_JUMP             8 -> 15\n"
+      "0011    | OP_POP\n"
+      "0012    | OP_CONSTANT         1 '1'\n"
+      "0014    | OP_POP\n"
+      "0015    | OP_NIL\n"
+      "0016    | OP_RETURN\n" },
 };
 
-COMPILE_STMTS(If, stmtIf, 2);
+DUMP_SRC(If, if_, 2);
 
-SourceToChunk stmtWhile[] = {
-  { "while (false) 0;", true,
-      LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 7, OP_POP,
-          OP_CONSTANT, 0, OP_POP, OP_LOOP, 0, 11, OP_POP),
-      LIST(Value, N(0.0)) },
+SourceToDump while_[] = {
+  { true, "while(false)0;",
+      "== <script> ==\n"
+      "0000    1 OP_FALSE\n"
+      "0001    | OP_JUMP_IF_FALSE    1 -> 11\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_CONSTANT         0 '0'\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_LOOP             8 -> 0\n"
+      "0011    | OP_POP\n"
+      "0012    | OP_NIL\n"
+      "0013    | OP_RETURN\n" },
 };
 
-COMPILE_STMTS(While, stmtWhile, 1);
+DUMP_SRC(While, while_, 1);
 
-struct Compile {
-  Chunk chunk;
-  Obj* objects;
-  Table strings;
-  MemBuf out;
-  MemBuf err;
+SourceToDump error[] = {
+  { false, "print 0", "Expect ';' after value." },
+  { false, "print 0 1;print 2;", "Expect ';' after value." },
+  { false, "print 0 1 print 2;", "Expect ';' after value." },
+  { false, "0", "Expect ';' after expression." },
+  { false, "{", "Expect '}' after block." },
 };
 
-UTEST_F_SETUP(Compile) {
-  initChunk(&ufx->chunk);
-  ufx->objects = NULL;
-  initTable(&ufx->strings, 0.75);
-  initMemBuf(&ufx->out);
-  initMemBuf(&ufx->err);
-  ASSERT_TRUE(1);
-}
-
-UTEST_F_TEARDOWN(Compile) {
-  freeChunk(&ufx->chunk);
-  freeTable(&ufx->strings);
-  freeObjects(ufx->objects);
-  freeMemBuf(&ufx->out);
-  freeMemBuf(&ufx->err);
-  ASSERT_TRUE(1);
-}
-
-UTEST_F(Compile, PrintErrorEOF) {
-  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "print 0",
-      &ufx->objects, &ufx->strings));
-  fflush(ufx->err.fptr);
-  EXPECT_STREQ(
-      "[line 1] Error at end: Expect ';' after value.\n", ufx->err.buf);
-}
-
-UTEST_F(Compile, PrintErrorSyncSemicolon) {
-  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr,
-      "print 0 1; print 2;", &ufx->objects, &ufx->strings));
-  fflush(ufx->err.fptr);
-  EXPECT_STREQ(
-      "[line 1] Error at '1': Expect ';' after value.\n", ufx->err.buf);
-}
-
-UTEST_F(Compile, PrintErrorSyncPrint) {
-  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr,
-      "print 0 1 print 2;", &ufx->objects, &ufx->strings));
-  fflush(ufx->err.fptr);
-  EXPECT_STREQ(
-      "[line 1] Error at '1': Expect ';' after value.\n", ufx->err.buf);
-}
-
-UTEST_F(Compile, ExprErrorNoSemicolon) {
-  EXPECT_FALSE(compile(
-      ufx->out.fptr, ufx->err.fptr, "0", &ufx->objects, &ufx->strings));
-  fflush(ufx->err.fptr);
-  EXPECT_STREQ("[line 1] Error at end: Expect ';' after expression.\n",
-      ufx->err.buf);
-}
-
-UTEST_F(Compile, VarDeclErrorNoName) {
-  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "var 0",
-      &ufx->objects, &ufx->strings));
-  fflush(ufx->err.fptr);
-  EXPECT_STREQ(
-      "[line 1] Error at '0': Expect variable name.\n", ufx->err.buf);
-}
-
-UTEST_F(Compile, VarDeclErrorNoSemicolon) {
-  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "var foo",
-      &ufx->objects, &ufx->strings));
-  fflush(ufx->err.fptr);
-  EXPECT_STREQ(
-      "[line 1] Error at end: Expect ';' after variable declaration.\n",
-      ufx->err.buf);
-}
-
-UTEST_F(Compile, VarDeclErrorLocalInitSelf) {
-  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr, "{ var x = x; }",
-      &ufx->objects, &ufx->strings));
-  fflush(ufx->err.fptr);
-  EXPECT_STREQ(
-      "[line 1] Error at 'x': "
-      "Can't read local variable in its own initializer.\n",
-      ufx->err.buf);
-}
-
-UTEST_F(Compile, VarDeclErrorLocalDuplicate) {
-  EXPECT_FALSE(compile(ufx->out.fptr, ufx->err.fptr,
-      "{ var x; var x; }", &ufx->objects, &ufx->strings));
-  fflush(ufx->err.fptr);
-  EXPECT_STREQ(
-      "[line 1] Error at 'x': "
-      "Already a variable with this name in this scope.\n",
-      ufx->err.buf);
-}
-
-UTEST_F(Compile, BlockErrorNoRightBrace) {
-  EXPECT_FALSE(compile(
-      ufx->out.fptr, ufx->err.fptr, "{", &ufx->objects, &ufx->strings));
-  fflush(ufx->err.fptr);
-  EXPECT_STREQ(
-      "[line 1] Error at end: Expect '}' after block.\n", ufx->err.buf);
-}
+DUMP_SRC(Error, error, 5);
 
 UTEST_MAIN();
