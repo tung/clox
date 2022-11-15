@@ -101,6 +101,18 @@ UTEST(Value, PrintNumberValue) {
   freeMemBuf(&out);
 }
 
+UTEST(Value, PrintUpvalue) {
+  MemBuf out;
+  initMemBuf(&out);
+
+  Obj o = { .type = OBJ_UPVALUE, .next = NULL };
+  printValue(out.fptr, OBJ_VAL(&o));
+  fflush(out.fptr);
+  EXPECT_STREQ("upvalue", out.buf);
+
+  freeMemBuf(&out);
+}
+
 UTEST(Value, BoolsEqual) {
   EXPECT_VALEQ(BOOL_VAL(false), BOOL_VAL(false));
   EXPECT_VALEQ(BOOL_VAL(true), BOOL_VAL(true));

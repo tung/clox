@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+#include "object.h"
 #include "value.h"
 
 void disassembleChunk(FILE* ferr, Chunk* chunk, const char* name) {
@@ -69,6 +70,10 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
           ferr, "OP_DEFINE_GLOBAL", chunk, offset);
     case OP_SET_GLOBAL:
       return constantInstruction(ferr, "OP_SET_GLOBAL", chunk, offset);
+    case OP_GET_UPVALUE:
+      return byteInstruction(ferr, "OP_GET_UPVALUE", chunk, offset);
+    case OP_SET_UPVALUE:
+      return byteInstruction(ferr, "OP_SET_UPVALUE", chunk, offset);
     case OP_EQUAL: return simpleInstruction(ferr, "OP_EQUAL", offset);
     case OP_GREATER:
       return simpleInstruction(ferr, "OP_GREATER", offset);
@@ -91,6 +96,26 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
       return jumpInstruction(ferr, "OP_LOOP", -1, chunk, offset);
     case OP_CALL:
       return byteInstruction(ferr, "OP_CALL", chunk, offset);
+    case OP_CLOSURE: {
+      offset++;
+      uint8_t constant = chunk->code[offset++];
+      fprintf(ferr, "%-16s %4d ", "OP_CLOSURE", constant);
+      printValue(ferr, chunk->constants.values[constant]);
+      fprintf(ferr, "\n");
+
+      ObjFunction* function =
+          AS_FUNCTION(chunk->constants.values[constant]);
+      for (int j = 0; j < function->upvalueCount; j++) {
+        int isLocal = chunk->code[offset++];
+        int index = chunk->code[offset++];
+        fprintf(ferr, "%04d      |                     %s %d\n",
+            offset - 2, isLocal ? "local" : "upvalue", index);
+      }
+
+      return offset;
+    }
+    case OP_CLOSE_UPVALUE:
+      return simpleInstruction(ferr, "OP_CLOSE_UPVALUE", offset);
     case OP_RETURN: return simpleInstruction(ferr, "OP_RETURN", offset);
     default:
       fprintf(ferr, "Unknown opcode %d\n", instruction);

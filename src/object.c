@@ -20,10 +20,24 @@ static Obj* allocateObject(Obj** objects, size_t size, ObjType type) {
   return object;
 }
 
+ObjClosure* newClosure(Obj** objects, ObjFunction* function) {
+  ObjUpvalue** upvalues = ALLOCATE(ObjUpvalue*, function->upvalueCount);
+  for (int i = 0; i < function->upvalueCount; i++) {
+    upvalues[i] = NULL;
+  }
+
+  ObjClosure* closure = ALLOCATE_OBJ(objects, ObjClosure, OBJ_CLOSURE);
+  closure->function = function;
+  closure->upvalues = upvalues;
+  closure->upvalueCount = function->upvalueCount;
+  return closure;
+}
+
 ObjFunction* newFunction(Obj** objects) {
   ObjFunction* function =
       ALLOCATE_OBJ(objects, ObjFunction, OBJ_FUNCTION);
   function->arity = 0;
+  function->upvalueCount = 0;
   function->name = NULL;
   initChunk(&function->chunk);
   return function;
@@ -80,6 +94,14 @@ ObjString* copyString(
   return allocateString(objects, strings, heapChars, length, hash);
 }
 
+ObjUpvalue* newUpvalue(Obj** objects, Value* slot) {
+  ObjUpvalue* upvalue = ALLOCATE_OBJ(objects, ObjUpvalue, OBJ_UPVALUE);
+  upvalue->closed = NIL_VAL;
+  upvalue->location = slot;
+  upvalue->next = NULL;
+  return upvalue;
+}
+
 static void printFunction(FILE* fout, ObjFunction* function) {
   if (function->name == NULL) {
     fprintf(fout, "<script>");
@@ -90,8 +112,12 @@ static void printFunction(FILE* fout, ObjFunction* function) {
 
 void printObject(FILE* fout, Value value) {
   switch (OBJ_TYPE(value)) {
+    case OBJ_CLOSURE:
+      printFunction(fout, AS_CLOSURE(value)->function);
+      break;
     case OBJ_FUNCTION: printFunction(fout, AS_FUNCTION(value)); break;
     case OBJ_NATIVE: fprintf(fout, "<native fn>"); break;
     case OBJ_STRING: fprintf(fout, "%s", AS_CSTRING(value)); break;
+    case OBJ_UPVALUE: fprintf(fout, "upvalue"); break;
   }
 }

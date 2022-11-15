@@ -53,14 +53,7 @@ UTEST_F_TEARDOWN(InterpretMulti) {
     fflush(err.fptr);
     if (expected->ires == INTERPRET_OK) {
       EXPECT_STREQ(expected->msg, out.buf);
-      const char* errMsg = strstr(err.buf, "[line ");
-      if (errMsg) {
-        const char* errMsgEnd = strchr(errMsg, '\n');
-        if (!errMsgEnd) {
-          errMsgEnd = strchr(errMsg, '\0');
-        }
-        EXPECT_STRNEQ("", errMsg, errMsgEnd - errMsg);
-      }
+      EXPECT_STREQ("", err.buf);
     } else {
       const char* findMsg = strstr(err.buf, expected->msg);
       if (expected->msg && expected->msg[0] && findMsg) {
@@ -127,14 +120,7 @@ UTEST_I_TEARDOWN(Interpret) {
   fflush(err.fptr);
   if (expected->ires == INTERPRET_OK) {
     EXPECT_STREQ(expected->msg, out.buf);
-    const char* errMsg = strstr(err.buf, "[line ");
-    if (errMsg) {
-      const char* errMsgEnd = strchr(errMsg, '\n');
-      if (!errMsgEnd) {
-        errMsgEnd = strchr(errMsg, '\0');
-      }
-      EXPECT_STRNEQ("", errMsg, errMsgEnd - errMsg);
-    }
+    EXPECT_STREQ("", err.buf);
   } else {
     const char* findMsg = strstr(err.buf, expected->msg);
     if (expected->msg && expected->msg[0] && findMsg) {
@@ -356,6 +342,8 @@ InterpretCase functions[] = {
       "nil();" },
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       "fun a(){}a(0);" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "fun b(){}fun a(){b(0);}a();" },
   { INTERPRET_OK, "<native fn>\n", "print clock;" },
   { INTERPRET_OK, "true\n", "print clock()>=0;" },
   { INTERPRET_OK, "<fn a>\n", "fun a(){}print a;" },
@@ -372,7 +360,64 @@ InterpretCase functions[] = {
       "fun b(){print 0;}fun c(){print 3;b();print 4;}a();c();" },
 };
 
-INTERPRET(Functions, functions, 24);
+INTERPRET(Functions, functions, 25);
+
+InterpretCase closures[] = {
+  { INTERPRET_OK, "outer\n",
+      "var x = \"global\";"
+      "fun outer() {"
+      "  var x = \"outer\";"
+      "  fun inner() {"
+      "    print x;"
+      "  }"
+      "  inner();"
+      "}"
+      "outer();" },
+  { INTERPRET_OK, "local\n",
+      "fun makeClosure() {"
+      "  var local = \"local\";"
+      "  fun closure() {"
+      "    print local;"
+      "  }"
+      "  return closure;"
+      "}"
+      "var closure = makeClosure();"
+      "closure();" },
+  { INTERPRET_OK, "1\n2\n3\n",
+      "fun counter(n) {"
+      "  fun incAndPrint() {"
+      "    var prevN = n;"
+      "    print n;"
+      "    n = n + 1;"
+      "    return prevN;"
+      "  }"
+      "  return incAndPrint;"
+      "}"
+      "var c = counter(1);"
+      "c(); c(); c();" },
+  { INTERPRET_OK, "6\n",
+      "fun outer(x) {"
+      "  fun middle(y) {"
+      "    fun inner(z) {"
+      "      return x + y + z;"
+      "    }"
+      "    return inner;"
+      "  }"
+      "  return middle;"
+      "}"
+      "print outer(1)(2)(3);" },
+  { INTERPRET_OK, "z\nx\ny\n",
+      "var f; var g; var h;"
+      "{"
+      "  var x = \"x\"; var y = \"y\"; var z = \"z\";"
+      "  fun ff() { print z; } f = ff;"
+      "  fun gg() { print x; } g = gg;"
+      "  fun hh() { print y; } h = hh;"
+      "}"
+      "f(); g(); h();" },
+};
+
+INTERPRET(Closures, closures, 5);
 
 InterpretCase globalVars[] = {
   { INTERPRET_COMPILE_ERROR, "Expect variable name.", "var 0;" },

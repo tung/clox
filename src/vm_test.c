@@ -122,7 +122,9 @@ UTEST_F(VMSimple, PrintScript) {
 UTEST_F(VMSimple, OpCall) {
   // fun b(n) { print n; return n + 1; }
   ObjFunction* bFun = newFunction(&ufx->vm.objects);
+  push(&ufx->vm, OBJ_VAL(bFun));
   bFun->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "b", 1);
+  pop(&ufx->vm);
   bFun->arity = 1;
   fillChunk(&bFun->chunk, &ufx->vm.objects, &ufx->vm.strings,
       LIST(uint8_t, OP_GET_LOCAL, 1, OP_PRINT, OP_GET_LOCAL, 1,
@@ -131,9 +133,11 @@ UTEST_F(VMSimple, OpCall) {
 
   // fun a() { print "a"; print b(1); print "A"; }
   ObjFunction* aFun = newFunction(&ufx->vm.objects);
+  push(&ufx->vm, OBJ_VAL(aFun));
   aFun->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "a", 1);
+  pop(&ufx->vm);
   fillChunk(&aFun->chunk, &ufx->vm.objects, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_CONSTANT, 1,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_CLOSURE, 1,
           OP_CONSTANT, 2, OP_CALL, 1, OP_PRINT, OP_CONSTANT, 3,
           OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Value, S("a"), OBJ_VAL(bFun), N(1.0), S("A")));
@@ -142,8 +146,8 @@ UTEST_F(VMSimple, OpCall) {
   Chunk script;
   initChunk(&script);
   fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_CONSTANT, 1, OP_CALL,
-          0, OP_POP, OP_CONSTANT, 2, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_CLOSURE, 1, OP_CALL, 0,
+          OP_POP, OP_CONSTANT, 2, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Value, S("("), OBJ_VAL(aFun), S(")")));
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
@@ -224,7 +228,9 @@ UTEST_F(VMSimple, OpCallUncallableString) {
 UTEST_F(VMSimple, OpCallWrongNumArgs) {
   // fun a() {}
   ObjFunction* aFun = newFunction(&ufx->vm.objects);
+  push(&ufx->vm, OBJ_VAL(aFun));
   aFun->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "a", 1);
+  pop(&ufx->vm);
   fillChunk(&aFun->chunk, &ufx->vm.objects, &ufx->vm.strings,
       LIST(uint8_t, OP_NIL, OP_RETURN), LIST(Value));
 
@@ -232,7 +238,7 @@ UTEST_F(VMSimple, OpCallWrongNumArgs) {
   Chunk script;
   initChunk(&script);
   fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_CALL, 1, OP_NIL,
+      LIST(uint8_t, OP_CLOSURE, 0, OP_NIL, OP_CALL, 1, OP_NIL,
           OP_RETURN),
       LIST(Value, OBJ_VAL(aFun)));
 
@@ -252,8 +258,10 @@ UTEST_F(VMSimple, OpCallWrongNumArgs) {
 UTEST_F(VMSimple, FunNameInErrorMsg) {
   // fun myFunction() { nil(); }
   ObjFunction* myFunction = newFunction(&ufx->vm.objects);
+  push(&ufx->vm, OBJ_VAL(myFunction));
   myFunction->name =
       copyString(&ufx->vm.objects, &ufx->vm.strings, "myFunction", 10);
+  pop(&ufx->vm);
   fillChunk(&myFunction->chunk, &ufx->vm.objects, &ufx->vm.strings,
       LIST(uint8_t, OP_NIL, OP_CALL, 0, OP_POP, OP_NIL, OP_RETURN),
       LIST(Value));
@@ -262,7 +270,7 @@ UTEST_F(VMSimple, FunNameInErrorMsg) {
   Chunk script;
   initChunk(&script);
   fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(uint8_t, OP_CLOSURE, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
       LIST(Value, OBJ_VAL(myFunction)));
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
@@ -275,6 +283,128 @@ UTEST_F(VMSimple, FunNameInErrorMsg) {
     EXPECT_STRNEQ(msg, findMsg, strlen(msg));
   } else {
     EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, Closures1) {
+  // {
+  //   var x;
+  //   var y = 2;
+  //   fun f(a, b) {
+  //     x = 1;
+  //     fun g() {
+  //       print a + b + x + y;
+  //     }
+  //     return g;
+  //   }
+  //   f(3, 4)();
+  // }
+  ObjFunction* gFun = newFunction(&ufx->vm.objects);
+  push(&ufx->vm, OBJ_VAL(gFun));
+  gFun->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "g", 1);
+  pop(&ufx->vm);
+  gFun->upvalueCount = 4;
+  fillChunk(&gFun->chunk, &ufx->vm.objects, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_UPVALUE, 0, OP_GET_UPVALUE, 1, OP_ADD,
+          OP_GET_UPVALUE, 2, OP_ADD, OP_GET_UPVALUE, 3, OP_ADD,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value));
+
+  ObjFunction* fFun = newFunction(&ufx->vm.objects);
+  push(&ufx->vm, OBJ_VAL(fFun));
+  fFun->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "f", 1);
+  pop(&ufx->vm);
+  fFun->arity = 2;
+  fFun->upvalueCount = 2;
+  fillChunk(&fFun->chunk, &ufx->vm.objects, &ufx->vm.strings,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_SET_UPVALUE, 0, OP_POP,
+          OP_CLOSURE, 1, 1, 1, 1, 2, 0, 0, 0, 1, OP_GET_LOCAL, 3,
+          OP_RETURN, OP_NIL, OP_RETURN),
+      LIST(Value, N(1.0), OBJ_VAL(gFun)));
+
+  Chunk script;
+  initChunk(&script);
+  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_CLOSURE, 1, 1, 1, 1, 2,
+          OP_GET_LOCAL, 3, OP_CONSTANT, 2, OP_CONSTANT, 3, OP_CALL, 2,
+          OP_CALL, 0, OP_POP, OP_POP, OP_CLOSE_UPVALUE,
+          OP_CLOSE_UPVALUE, OP_NIL, OP_RETURN),
+      LIST(Value, N(2.0), OBJ_VAL(fFun), N(3.0), N(4.0)));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  fflush(ufx->out.fptr);
+  EXPECT_STREQ("10\n", ufx->out.buf);
+
+  if (ires != INTERPRET_OK) {
+    fflush(ufx->err.fptr);
+    EXPECT_STREQ("", ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, Closures2) {
+  // var f; var g; var h;
+  // {
+  //   var x = "x"; var y = "y"; var z = "z";
+  //   fun ff() { print z; } f = ff;
+  //   fun gg() { print x; } g = gg;
+  //   fun hh() { print y; } h = hh;
+  // }
+  // f(); g(); h();
+  ObjFunction* ff = newFunction(&ufx->vm.objects);
+  push(&ufx->vm, OBJ_VAL(ff));
+  ff->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "ff", 2);
+  pop(&ufx->vm);
+  ff->upvalueCount = 1;
+  fillChunk(&ff->chunk, &ufx->vm.objects, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value));
+
+  ObjFunction* gg = newFunction(&ufx->vm.objects);
+  push(&ufx->vm, OBJ_VAL(gg));
+  gg->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "gg", 2);
+  pop(&ufx->vm);
+  gg->upvalueCount = 1;
+  fillChunk(&gg->chunk, &ufx->vm.objects, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value));
+
+  ObjFunction* hh = newFunction(&ufx->vm.objects);
+  push(&ufx->vm, OBJ_VAL(hh));
+  hh->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "hh", 2);
+  pop(&ufx->vm);
+  hh->upvalueCount = 1;
+  fillChunk(&hh->chunk, &ufx->vm.objects, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value));
+
+  Chunk script;
+  initChunk(&script);
+  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+      LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0, OP_NIL,
+          OP_DEFINE_GLOBAL, 1, OP_NIL, OP_DEFINE_GLOBAL, 2, OP_CONSTANT,
+          3, OP_CONSTANT, 4, OP_CONSTANT, 5, OP_CLOSURE, 6, 1, 3,
+          OP_GET_LOCAL, 4, OP_SET_GLOBAL, 7, OP_POP, OP_CLOSURE, 8, 1,
+          1, OP_GET_LOCAL, 5, OP_SET_GLOBAL, 9, OP_POP, OP_CLOSURE, 10,
+          1, 2, OP_GET_LOCAL, 6, OP_SET_GLOBAL, 11, OP_POP, OP_POP,
+          OP_POP, OP_POP, OP_CLOSE_UPVALUE, OP_CLOSE_UPVALUE,
+          OP_CLOSE_UPVALUE, OP_GET_GLOBAL, 12, OP_CALL, 0, OP_POP,
+          OP_GET_GLOBAL, 13, OP_CALL, 0, OP_POP, OP_GET_GLOBAL, 14,
+          OP_CALL, 0, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, S("f"), S("g"), S("h"), S("x"), S("y"), S("z"),
+          OBJ_VAL(ff), S("f"), OBJ_VAL(gg), S("g"), OBJ_VAL(hh), S("h"),
+          S("f"), S("g"), S("h")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  fflush(ufx->out.fptr);
+  EXPECT_STREQ("z\nx\ny\n", ufx->out.buf);
+
+  if (ires != INTERPRET_OK) {
+    fflush(ufx->err.fptr);
+    EXPECT_STREQ("", ufx->err.buf);
   }
 }
 

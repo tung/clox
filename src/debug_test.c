@@ -121,6 +121,26 @@ UTEST_F(DisassembleChunk, OpSetGlobal) {
   freeObjects(objects);
 }
 
+UTEST_F(DisassembleChunk, OpGetUpvalue) {
+  writeChunk(&ufx->chunk, OP_GET_UPVALUE, 123);
+  writeChunk(&ufx->chunk, 2, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_GET_UPVALUE      2\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
+UTEST_F(DisassembleChunk, OpSetUpvalue) {
+  writeChunk(&ufx->chunk, OP_SET_UPVALUE, 123);
+  writeChunk(&ufx->chunk, 2, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_SET_UPVALUE      2\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
 UTEST_F(DisassembleChunk, OpJump) {
   writeChunk(&ufx->chunk, OP_JUMP, 123);
   writeChunk(&ufx->chunk, 1, 123);
@@ -163,6 +183,52 @@ UTEST_F(DisassembleChunk, OpCall) {
   fflush(ufx->err.fptr);
   const char msg[] = "0000  123 OP_CALL            45\n";
   EXPECT_STREQ(msg, ufx->err.buf);
+}
+
+UTEST_F(DisassembleChunk, OpClosure0) {
+  Obj* objects = NULL;
+  Table strings;
+  initTable(&strings, 0.75);
+
+  ObjFunction* fun = newFunction(&objects);
+  uint8_t funIndex = addConstant(&ufx->chunk, OBJ_VAL(fun));
+  writeChunk(&ufx->chunk, OP_CLOSURE, 123);
+  writeChunk(&ufx->chunk, funIndex, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_CLOSURE          0 <script>\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+
+  freeTable(&strings);
+  freeObjects(objects);
+}
+
+UTEST_F(DisassembleChunk, OpClosure2) {
+  Obj* objects = NULL;
+  Table strings;
+  initTable(&strings, 0.75);
+
+  ObjFunction* fun = newFunction(&objects);
+  fun->upvalueCount = 2;
+  uint8_t funIndex = addConstant(&ufx->chunk, OBJ_VAL(fun));
+  writeChunk(&ufx->chunk, OP_CLOSURE, 123);
+  writeChunk(&ufx->chunk, funIndex, 123);
+  writeChunk(&ufx->chunk, 1, 123);
+  writeChunk(&ufx->chunk, 1, 123);
+  writeChunk(&ufx->chunk, 0, 123);
+  writeChunk(&ufx->chunk, 2, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] =
+      "0000  123 OP_CLOSURE          0 <script>\n"
+      "0002      |                     local 1\n"
+      "0004      |                     upvalue 2\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+
+  freeTable(&strings);
+  freeObjects(objects);
 }
 
 UTEST_F(DisassembleChunk, Chapter14Sample1) {
@@ -289,12 +355,13 @@ OpCodeToString simpleOps[] = {
   SIMPLE_OP(OP_NOT),
   SIMPLE_OP(OP_NEGATE),
   SIMPLE_OP(OP_PRINT),
+  SIMPLE_OP(OP_CLOSE_UPVALUE),
   SIMPLE_OP(OP_RETURN),
   { 255, "0000  123 Unknown opcode 255\n" }
 };
 // clang-format on
 
-#define NUM_SIMPLE_OPS 16
+#define NUM_SIMPLE_OPS 17
 
 UTEST_I(DisassembleSimple, SimpleOps, NUM_SIMPLE_OPS) {
   static_assert(
