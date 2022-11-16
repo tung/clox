@@ -409,6 +409,20 @@ static void defineVariable(Parser* parser, uint8_t global) {
   emitBytes(parser, OP_DEFINE_GLOBAL, global);
 }
 
+static void beginScopeCloned(Parser* parser) {
+  beginScope(parser);
+
+  int oldLocalCount = parser->currentCompiler->localCount;
+  for (int i = 0; i < oldLocalCount; i++) {
+    Local* l = &parser->currentCompiler->locals[i];
+    if (l->depth == parser->currentCompiler->scopeDepth - 1) {
+      emitBytes(parser, OP_GET_LOCAL, i);
+      addLocal(parser, l->name);
+      markInitialized(parser);
+    }
+  }
+}
+
 static uint8_t argumentList(Parser* parser) {
   uint8_t argCount = 0;
   if (!check(parser, TOKEN_RIGHT_PAREN)) {
@@ -735,7 +749,9 @@ static void forStatement(Parser* parser) {
     patchJump(parser, bodyJump);
   }
 
+  beginScopeCloned(parser); // Inner scope.
   statement(parser);
+  endScope(parser); // Inner scope.
   emitLoop(parser, loopStart);
 
   if (exitJump != -1) {

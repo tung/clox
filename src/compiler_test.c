@@ -808,12 +808,14 @@ SourceToDump for_[] = {
   { true, "for(var a=0;;)1;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '0'\n"
-      "0002    | OP_CONSTANT         1 '1'\n"
-      "0004    | OP_POP\n"
-      "0005    | OP_LOOP             5 -> 2\n"
-      "0008    | OP_POP\n"
-      "0009    | OP_NIL\n"
-      "0010    | OP_RETURN\n" },
+      "0002    | OP_GET_LOCAL        1\n"
+      "0004    | OP_CONSTANT         1 '1'\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_LOOP             8 -> 2\n"
+      "0011    | OP_POP\n"
+      "0012    | OP_NIL\n"
+      "0013    | OP_RETURN\n" },
   { true, "for(0;;)1;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '0'\n"
@@ -851,7 +853,7 @@ SourceToDump for_[] = {
       "0002    | OP_GET_LOCAL        1\n"
       "0004    | OP_CONSTANT         1 '5'\n"
       "0006    | OP_LESS\n"
-      "0007    | OP_JUMP_IF_FALSE    7 -> 31\n"
+      "0007    | OP_JUMP_IF_FALSE    7 -> 34\n"
       "0010    | OP_POP\n"
       "0011    | OP_JUMP            11 -> 25\n"
       "0014    | OP_GET_LOCAL        1\n"
@@ -861,12 +863,14 @@ SourceToDump for_[] = {
       "0021    | OP_POP\n"
       "0022    | OP_LOOP            22 -> 2\n"
       "0025    | OP_GET_LOCAL        1\n"
-      "0027    | OP_PRINT\n"
-      "0028    | OP_LOOP            28 -> 14\n"
-      "0031    | OP_POP\n"
-      "0032    | OP_POP\n"
-      "0033    | OP_NIL\n"
-      "0034    | OP_RETURN\n" },
+      "0027    | OP_GET_LOCAL        2\n"
+      "0029    | OP_PRINT\n"
+      "0030    | OP_POP\n"
+      "0031    | OP_LOOP            31 -> 14\n"
+      "0034    | OP_POP\n"
+      "0035    | OP_POP\n"
+      "0036    | OP_NIL\n"
+      "0037    | OP_RETURN\n" },
 };
 
 DUMP_SRC(For, for_, 6);

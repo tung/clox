@@ -415,9 +415,21 @@ InterpretCase closures[] = {
       "  fun hh() { print y; } h = hh;"
       "}"
       "f(); g(); h();" },
+  { INTERPRET_OK, "1\n2\n",
+      "var g1; var g2;"
+      "fun main() {"
+      "  for (var a = 1; a <= 2; a = a + 1) {"
+      "    fun closure() {"
+      "      print a;"
+      "    }"
+      "    if (g1 == nil) g1 = closure;"
+      "    else g2 = closure;"
+      "  }"
+      "}"
+      "main(); g1(); g2();" },
 };
 
-INTERPRET(Closures, closures, 5);
+INTERPRET(Closures, closures, 6);
 
 InterpretCase globalVars[] = {
   { INTERPRET_COMPILE_ERROR, "Expect variable name.", "var 0;" },
