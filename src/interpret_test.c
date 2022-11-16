@@ -427,9 +427,30 @@ InterpretCase closures[] = {
       "  }"
       "}"
       "main(); g1(); g2();" },
+  { INTERPRET_OK, "2\n3\n4\n5\n6\n8\n",
+      "fun vec2(x, y) {"
+      "  fun get(field) {"
+      "    if (field == \"x\") return x;"
+      "    else if (field == \"y\") return y;"
+      "  }"
+      "  fun add(other) {"
+      "    return vec2(x + other(\"get\")(\"x\"),"
+      "        y + other(\"get\")(\"y\"));"
+      "  }"
+      "  fun dot(method) {"
+      "    if (method == \"get\") return get;"
+      "    else if (method == \"add\") return add;"
+      "  }"
+      "  return dot;"
+      "}"
+      "var v1 = vec2(2, 3); var v2 = vec2(4, 5);"
+      "print v1(\"get\")(\"x\"); print v1(\"get\")(\"y\");"
+      "print v2(\"get\")(\"x\"); print v2(\"get\")(\"y\");"
+      "var v3 = v1(\"add\")(v2);"
+      "print v3(\"get\")(\"x\"); print v3(\"get\")(\"y\");" },
 };
 
-INTERPRET(Closures, closures, 6);
+INTERPRET(Closures, closures, 7);
 
 InterpretCase globalVars[] = {
   { INTERPRET_COMPILE_ERROR, "Expect variable name.", "var 0;" },
