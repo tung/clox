@@ -101,6 +101,26 @@ UTEST(Value, PrintNumberValue) {
   freeMemBuf(&out);
 }
 
+UTEST(Value, PrintClosure) {
+  Obj* objects = NULL;
+  Table strings;
+  MemBuf out;
+  initTable(&strings, 0.75);
+  initMemBuf(&out);
+
+  ObjFunction* f = newFunction(&objects);
+  f->name = copyString(&objects, &strings, "f", 1);
+  ObjClosure* c = newClosure(&objects, f);
+
+  printValue(out.fptr, OBJ_VAL(c));
+  fflush(out.fptr);
+  EXPECT_STREQ("<fn f>", out.buf);
+
+  freeMemBuf(&out);
+  freeTable(&strings);
+  freeObjects(objects);
+}
+
 UTEST(Value, PrintUpvalue) {
   MemBuf out;
   initMemBuf(&out);
