@@ -6,6 +6,7 @@
 
 #include "common.h"
 #include "debug.h"
+#include "gc.h"
 #include "memory.h"
 #include "scanner.h"
 
@@ -41,7 +42,11 @@ typedef struct Compiler {
 typedef struct {
   FILE* fout;
   FILE* ferr;
-  Obj* objects;
+  GC* gc;
+  void (*prevMarkRoots)(GC*, void*);
+  void* prevMarkRootsArg;
+  void (*prevFixWeak)(void*);
+  void* prevFixWeakArg;
   Table* strings;
   Scanner scanner;
   Compiler* currentCompiler;
@@ -142,7 +147,8 @@ static bool match(Parser* parser, TokenType type) {
 }
 
 static void emitByte(Parser* parser, uint8_t byte) {
-  writeChunk(currentChunk(parser), byte, parser->previous.line);
+  writeChunk(
+      parser->gc, currentChunk(parser), byte, parser->previous.line);
 }
 
 static void emitBytes(Parser* parser, uint8_t byte1, uint8_t byte2) {
@@ -177,7 +183,7 @@ static void emitReturn(Parser* parser) {
 }
 
 static uint8_t makeConstant(Parser* parser, Value value) {
-  int constant = addConstant(currentChunk(parser), value);
+  int constant = addConstant(parser->gc, currentChunk(parser), value);
   // GCOV_EXCL_START
   if (constant > UINT8_MAX) {
     error(parser, "Too many constants in one chunk.");
@@ -213,12 +219,12 @@ static void initCompiler(
   compiler->type = type;
   compiler->localCount = 0;
   compiler->scopeDepth = 0;
-  compiler->function = newFunction(&parser->objects);
+  compiler->function = newFunction(parser->gc);
   parser->currentCompiler = compiler;
   if (type != TYPE_SCRIPT) {
     parser->currentCompiler->function->name =
-        copyString(&parser->objects, parser->strings,
-            parser->previous.start, parser->previous.length);
+        copyString(parser->gc, parser->strings, parser->previous.start,
+            parser->previous.length);
   }
 
   Local* local = &parser->currentCompiler
@@ -274,8 +280,8 @@ static void statement(Parser* parser);
 
 static uint8_t identifierConstant(Parser* parser, Token* name) {
   return makeConstant(parser,
-      OBJ_VAL(copyString(&parser->objects, parser->strings, name->start,
-          name->length)));
+      OBJ_VAL(copyString(
+          parser->gc, parser->strings, name->start, name->length)));
 }
 
 static bool identifiersEqual(Token* a, Token* b) {
@@ -508,7 +514,7 @@ static void string(Parser* parser, bool canAssign) {
   (void)canAssign;
 
   emitConstant(parser,
-      OBJ_VAL(copyString(&parser->objects, parser->strings,
+      OBJ_VAL(copyString(parser->gc, parser->strings,
           parser->previous.start + 1, parser->previous.length - 2)));
 }
 
@@ -859,12 +865,58 @@ static void statement(Parser* parser) {
   }
 }
 
-ObjFunction* compile(FILE* fout, FILE* ferr, const char* source,
-    Obj** objects, Table* strings) {
+static void compilerMarkRoots(struct GC* gc, void* arg) {
+  Parser* parser = (Parser*)arg;
+  Compiler* compiler = parser->currentCompiler;
+  while (compiler != NULL) {
+    markObject(gc, (Obj*)compiler->function);
+    compiler = compiler->enclosing;
+  }
+
+  if (parser->prevMarkRoots) {
+    parser->prevMarkRoots(gc, parser->prevMarkRootsArg);
+  }
+}
+
+static void compilerFixWeak(void* arg) {
+  Parser* parser = (Parser*)arg;
+  tableRemoveWhite(parser->strings);
+
+  if (parser->prevFixWeak) {
+    parser->prevFixWeak(parser->prevFixWeakArg);
+  }
+}
+
+static void setupGC(Parser* parser, GC* gc, Table* strings) {
+  parser->gc = gc;
+  parser->prevMarkRoots = gc->markRoots;
+  parser->prevMarkRootsArg = gc->markRootsArg;
+  parser->prevFixWeak = gc->fixWeak;
+  parser->prevFixWeakArg = gc->fixWeakArg;
+
+  gc->markRoots = compilerMarkRoots;
+  gc->markRootsArg = parser;
+  if (gc->fixWeak != (void (*)(void*))tableRemoveWhite ||
+      gc->fixWeakArg != strings) {
+    gc->fixWeak = compilerFixWeak;
+    gc->fixWeakArg = parser;
+  }
+}
+
+static void restoreGC(Parser* parser) {
+  GC* gc = parser->gc;
+  gc->markRoots = parser->prevMarkRoots;
+  gc->markRootsArg = parser->prevMarkRootsArg;
+  gc->fixWeak = parser->prevFixWeak;
+  gc->fixWeakArg = parser->prevFixWeakArg;
+}
+
+ObjFunction* compile(FILE* fout, FILE* ferr, const char* source, GC* gc,
+    Table* strings) {
   Parser parser;
   parser.fout = fout;
   parser.ferr = ferr;
-  parser.objects = NULL;
+  setupGC(&parser, gc, strings);
   parser.strings = strings;
   parser.currentCompiler = NULL;
   parser.hadError = false;
@@ -880,6 +932,6 @@ ObjFunction* compile(FILE* fout, FILE* ferr, const char* source,
   }
 
   ObjFunction* function = endCompiler(&parser);
-  prependObjects(objects, parser.objects);
+  restoreGC(&parser);
   return parser.hadError ? NULL : function;
 }

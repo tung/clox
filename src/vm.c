@@ -52,19 +52,44 @@ static void runtimeError(VM* vm, const char* format, ...) {
 
 static void defineNative(VM* vm, const char* name, NativeFn function) {
   push(vm,
-      OBJ_VAL(copyString(
-          &vm->objects, &vm->strings, name, (int)strlen(name))));
-  push(vm, OBJ_VAL(newNative(&vm->objects, function)));
-  tableSet(&vm->globals, AS_STRING(vm->stack[0]), vm->stack[1]);
+      OBJ_VAL(
+          copyString(&vm->gc, &vm->strings, name, (int)strlen(name))));
+  push(vm, OBJ_VAL(newNative(&vm->gc, function)));
+  tableSet(
+      &vm->gc, &vm->globals, AS_STRING(vm->stack[0]), vm->stack[1]);
   pop(vm);
   pop(vm);
+}
+
+static void vmMarkRoots(GC* gc, void* arg) {
+  VM* vm = (VM*)arg;
+
+  for (Value* slot = vm->stack; slot < vm->stackTop; slot++) {
+    markValue(gc, *slot);
+  }
+
+  for (int i = 0; i < vm->frameCount; i++) {
+    markObject(gc, (Obj*)vm->frames[i].closure);
+  }
+
+  for (ObjUpvalue* upvalue = vm->openUpvalues; upvalue != NULL;
+       upvalue = upvalue->next) {
+    markObject(gc, (Obj*)upvalue);
+  }
+
+  markTable(gc, &vm->globals);
 }
 
 void initVM(VM* vm, FILE* fout, FILE* ferr) {
   vm->fout = fout;
   vm->ferr = ferr;
   resetStack(vm);
-  vm->objects = NULL;
+  initGC(&vm->gc);
+  vm->gc.markRoots = vmMarkRoots;
+  vm->gc.markRootsArg = vm;
+  vm->gc.fixWeak = (void (*)(void*))tableRemoveWhite;
+  vm->gc.fixWeakArg = &vm->strings;
+
   initTable(&vm->globals, 0.75);
   initTable(&vm->strings, 0.75);
 
@@ -72,10 +97,9 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
 }
 
 void freeVM(VM* vm) {
-  freeTable(&vm->globals);
-  freeTable(&vm->strings);
-  freeObjects(vm->objects);
-  vm->objects = NULL;
+  freeTable(&vm->gc, &vm->globals);
+  freeTable(&vm->gc, &vm->strings);
+  freeGC(&vm->gc);
 }
 
 void push(VM* vm, Value value) {
@@ -146,7 +170,7 @@ static ObjUpvalue* captureUpvalue(VM* vm, Value* local) {
     return upvalue;
   }
 
-  ObjUpvalue* createdUpvalue = newUpvalue(&vm->objects, local);
+  ObjUpvalue* createdUpvalue = newUpvalue(&vm->gc, local);
   createdUpvalue->next = upvalue;
 
   if (prevUpvalue == NULL) {
@@ -173,17 +197,18 @@ static bool isFalsey(Value value) {
 }
 
 static void concatenate(VM* vm) {
-  ObjString* b = AS_STRING(pop(vm));
-  ObjString* a = AS_STRING(pop(vm));
+  ObjString* b = AS_STRING(peek(vm, 0));
+  ObjString* a = AS_STRING(peek(vm, 1));
 
   int length = a->length + b->length;
-  char* chars = ALLOCATE(char, length + 1);
+  char* chars = ALLOCATE(&vm->gc, char, length + 1);
   memcpy(chars, a->chars, a->length);
   memcpy(chars + a->length, b->chars, b->length);
   chars[length] = '\0';
 
-  ObjString* result =
-      takeString(&vm->objects, &vm->strings, chars, length);
+  ObjString* result = takeString(&vm->gc, &vm->strings, chars, length);
+  pop(vm);
+  pop(vm);
   push(vm, OBJ_VAL(result));
 }
 
@@ -258,13 +283,13 @@ static InterpretResult run(VM* vm) {
       }
       case OP_DEFINE_GLOBAL: {
         ObjString* name = READ_STRING();
-        tableSet(&vm->globals, name, peek(vm, 0));
+        tableSet(&vm->gc, &vm->globals, name, peek(vm, 0));
         pop(vm);
         break;
       }
       case OP_SET_GLOBAL: {
         ObjString* name = READ_STRING();
-        if (tableSet(&vm->globals, name, peek(vm, 0))) {
+        if (tableSet(&vm->gc, &vm->globals, name, peek(vm, 0))) {
           tableDelete(&vm->globals, name);
           runtimeError(vm, "Undefined variable '%s'.", name->chars);
           return INTERPRET_RUNTIME_ERROR;
@@ -346,7 +371,7 @@ static InterpretResult run(VM* vm) {
       }
       case OP_CLOSURE: {
         ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
-        ObjClosure* closure = newClosure(&vm->objects, function);
+        ObjClosure* closure = newClosure(&vm->gc, function);
         push(vm, OBJ_VAL(closure));
         for (int i = 0; i < closure->upvalueCount; i++) {
           uint8_t isLocal = READ_BYTE();
@@ -393,12 +418,12 @@ static InterpretResult run(VM* vm) {
 }
 
 InterpretResult interpretChunk(VM* vm, Chunk* chunk) {
-  ObjFunction* function = newFunction(&vm->objects);
-  freeChunk(&function->chunk);
+  ObjFunction* function = newFunction(&vm->gc);
+  freeChunk(&vm->gc, &function->chunk);
   function->chunk = *chunk;
 
   push(vm, OBJ_VAL(function));
-  ObjClosure* closure = newClosure(&vm->objects, function);
+  ObjClosure* closure = newClosure(&vm->gc, function);
   pop(vm);
   push(vm, OBJ_VAL(closure));
   call(vm, closure, 0);
@@ -408,13 +433,13 @@ InterpretResult interpretChunk(VM* vm, Chunk* chunk) {
 
 InterpretResult interpret(VM* vm, const char* source) {
   ObjFunction* function =
-      compile(vm->fout, vm->ferr, source, &vm->objects, &vm->strings);
+      compile(vm->fout, vm->ferr, source, &vm->gc, &vm->strings);
   if (function == NULL) {
     return INTERPRET_COMPILE_ERROR;
   }
 
   push(vm, OBJ_VAL(function));
-  ObjClosure* closure = newClosure(&vm->objects, function);
+  ObjClosure* closure = newClosure(&vm->gc, function);
   pop(vm);
   push(vm, OBJ_VAL(closure));
   call(vm, closure, 0);

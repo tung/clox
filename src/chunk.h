@@ -5,6 +5,8 @@
 #include "common.h"
 #include "value.h"
 
+typedef struct GC GC;
+
 typedef enum {
   OP_CONSTANT,
   OP_NIL,
@@ -46,8 +48,8 @@ typedef struct {
 } Chunk;
 
 void initChunk(Chunk* chunk);
-void freeChunk(Chunk* chunk);
-void writeChunk(Chunk* chunk, uint8_t byte, int line);
-int addConstant(Chunk* chunk, Value value);
+void freeChunk(GC* gc, Chunk* chunk);
+void writeChunk(GC* gc, Chunk* chunk, uint8_t byte, int line);
+int addConstant(GC* gc, Chunk* chunk, Value value);
 
 #endif

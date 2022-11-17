@@ -6,6 +6,7 @@
 #include "utest.h"
 
 #include "chunk.h"
+#include "gc.h"
 #include "list.h"
 #include "membuf.h"
 #include "memory.h"
@@ -34,22 +35,29 @@
   }
 // clang-format on
 
-static void fillChunk(Chunk* chunk, Obj** objects, Table* strings,
+static size_t fillChunk(Chunk* chunk, GC* gc, Table* strings,
     size_t numOps, uint8_t* ops, size_t numVals, Value* vals) {
+  size_t temps = 0;
+
   for (size_t i = 0; i < numOps; ++i) {
-    writeChunk(chunk, ops[i], 1);
+    writeChunk(gc, chunk, ops[i], 1);
   }
   for (size_t i = 0; i < numVals; ++i) {
     if (IS_STRING(vals[i])) {
       // Ensure strings are interned correctly.
       ObjString* valStr = AS_STRING(vals[i]);
-      addConstant(chunk,
-          OBJ_VAL(copyString(
-              objects, strings, valStr->chars, valStr->length)));
+      ObjString* valStrCopy =
+          copyString(gc, strings, valStr->chars, valStr->length);
+      Value v = OBJ_VAL(valStrCopy);
+      pushTemp(gc, v);
+      temps++;
+      addConstant(gc, chunk, v);
     } else {
-      addConstant(chunk, vals[i]);
+      addConstant(gc, chunk, vals[i]);
     }
   }
+
+  return temps;
 }
 
 struct VMSimple {
@@ -90,7 +98,7 @@ UTEST_F(VMSimple, PushPop) {
 UTEST_F(VMSimple, UnknownOp) {
   Chunk chunk;
   initChunk(&chunk);
-  writeChunk(&chunk, 255, 1);
+  writeChunk(&ufx->vm.gc, &chunk, 255, 1);
 
   InterpretResult ires = interpretChunk(&ufx->vm, &chunk);
   EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
@@ -101,14 +109,21 @@ UTEST_F(VMSimple, UnknownOp) {
 }
 
 UTEST_F(VMSimple, PrintScript) {
+  size_t temps = 0;
+
   Chunk script;
   initChunk(&script);
-  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_GET_LOCAL, 0, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Value));
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
 
   fflush(ufx->out.fptr);
   EXPECT_STREQ("<script>\n", ufx->out.buf);
@@ -120,23 +135,25 @@ UTEST_F(VMSimple, PrintScript) {
 }
 
 UTEST_F(VMSimple, OpCall) {
+  size_t temps = 0;
+
   // fun b(n) { print n; return n + 1; }
-  ObjFunction* bFun = newFunction(&ufx->vm.objects);
-  push(&ufx->vm, OBJ_VAL(bFun));
-  bFun->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "b", 1);
-  pop(&ufx->vm);
+  ObjFunction* bFun = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(bFun));
+  temps++;
+  bFun->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "b", 1);
   bFun->arity = 1;
-  fillChunk(&bFun->chunk, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&bFun->chunk, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_GET_LOCAL, 1, OP_PRINT, OP_GET_LOCAL, 1,
           OP_CONSTANT, 0, OP_ADD, OP_RETURN),
       LIST(Value, N(1.0)));
 
   // fun a() { print "a"; print b(1); print "A"; }
-  ObjFunction* aFun = newFunction(&ufx->vm.objects);
-  push(&ufx->vm, OBJ_VAL(aFun));
-  aFun->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "a", 1);
-  pop(&ufx->vm);
-  fillChunk(&aFun->chunk, &ufx->vm.objects, &ufx->vm.strings,
+  ObjFunction* aFun = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(aFun));
+  temps++;
+  aFun->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "a", 1);
+  temps += fillChunk(&aFun->chunk, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_CLOSURE, 1,
           OP_CONSTANT, 2, OP_CALL, 1, OP_PRINT, OP_CONSTANT, 3,
           OP_PRINT, OP_NIL, OP_RETURN),
@@ -145,13 +162,18 @@ UTEST_F(VMSimple, OpCall) {
   // print "z"; a(); print "Z";
   Chunk script;
   initChunk(&script);
-  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_CLOSURE, 1, OP_CALL, 0,
           OP_POP, OP_CONSTANT, 2, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Value, S("("), OBJ_VAL(aFun), S(")")));
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
 
   fflush(ufx->out.fptr);
   EXPECT_STREQ("(\na\n1\n2\nA\n)\n", ufx->out.buf);
@@ -163,16 +185,23 @@ UTEST_F(VMSimple, OpCall) {
 }
 
 UTEST_F(VMSimple, OpCallClock) {
+  size_t temps = 0;
+
   // print clock() >= 0;
   Chunk script;
   initChunk(&script);
-  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_GET_GLOBAL, 0, OP_CALL, 0, OP_CONSTANT, 1,
           OP_LESS, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Value, S("clock"), N(0.0)));
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
 
   fflush(ufx->out.fptr);
   EXPECT_STREQ("true\n", ufx->out.buf);
@@ -184,15 +213,22 @@ UTEST_F(VMSimple, OpCallClock) {
 }
 
 UTEST_F(VMSimple, OpCallUncallableNil) {
+  size_t temps = 0;
+
   // nil();
   Chunk script;
   initChunk(&script);
-  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_NIL, OP_CALL, 0, OP_NIL, OP_RETURN),
       LIST(Value));
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
   EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
 
   fflush(ufx->err.fptr);
   const char* msg = "Can only call functions and classes.";
@@ -205,15 +241,22 @@ UTEST_F(VMSimple, OpCallUncallableNil) {
 }
 
 UTEST_F(VMSimple, OpCallUncallableString) {
+  size_t temps = 0;
+
   // "foo"();
   Chunk script;
   initChunk(&script);
-  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_CONSTANT, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
       LIST(Value, S("foo")));
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
   EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
 
   fflush(ufx->err.fptr);
   const char* msg = "Can only call functions and classes.";
@@ -226,24 +269,31 @@ UTEST_F(VMSimple, OpCallUncallableString) {
 }
 
 UTEST_F(VMSimple, OpCallWrongNumArgs) {
+  size_t temps = 0;
+
   // fun a() {}
-  ObjFunction* aFun = newFunction(&ufx->vm.objects);
-  push(&ufx->vm, OBJ_VAL(aFun));
-  aFun->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "a", 1);
-  pop(&ufx->vm);
-  fillChunk(&aFun->chunk, &ufx->vm.objects, &ufx->vm.strings,
+  ObjFunction* aFun = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(aFun));
+  temps++;
+  aFun->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "a", 1);
+  temps += fillChunk(&aFun->chunk, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_NIL, OP_RETURN), LIST(Value));
 
   // a(nil);
   Chunk script;
   initChunk(&script);
-  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_CLOSURE, 0, OP_NIL, OP_CALL, 1, OP_NIL,
           OP_RETURN),
       LIST(Value, OBJ_VAL(aFun)));
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
   EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
 
   fflush(ufx->err.fptr);
   const char* msg = "Expected 0 arguments but got 1.";
@@ -256,25 +306,32 @@ UTEST_F(VMSimple, OpCallWrongNumArgs) {
 }
 
 UTEST_F(VMSimple, FunNameInErrorMsg) {
+  size_t temps = 0;
+
   // fun myFunction() { nil(); }
-  ObjFunction* myFunction = newFunction(&ufx->vm.objects);
-  push(&ufx->vm, OBJ_VAL(myFunction));
+  ObjFunction* myFunction = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(myFunction));
+  temps++;
   myFunction->name =
-      copyString(&ufx->vm.objects, &ufx->vm.strings, "myFunction", 10);
-  pop(&ufx->vm);
-  fillChunk(&myFunction->chunk, &ufx->vm.objects, &ufx->vm.strings,
+      copyString(&ufx->vm.gc, &ufx->vm.strings, "myFunction", 10);
+  temps += fillChunk(&myFunction->chunk, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_NIL, OP_CALL, 0, OP_POP, OP_NIL, OP_RETURN),
       LIST(Value));
 
   // myFunction();
   Chunk script;
   initChunk(&script);
-  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_CLOSURE, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
       LIST(Value, OBJ_VAL(myFunction)));
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
   EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
 
   fflush(ufx->err.fptr);
   const char* msg = "] in myFunction";
@@ -299,24 +356,26 @@ UTEST_F(VMSimple, Closures1) {
   //   }
   //   f(3, 4)();
   // }
-  ObjFunction* gFun = newFunction(&ufx->vm.objects);
-  push(&ufx->vm, OBJ_VAL(gFun));
-  gFun->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "g", 1);
-  pop(&ufx->vm);
+  size_t temps = 0;
+
+  ObjFunction* gFun = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(gFun));
+  temps++;
+  gFun->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "g", 1);
   gFun->upvalueCount = 4;
-  fillChunk(&gFun->chunk, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&gFun->chunk, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_GET_UPVALUE, 0, OP_GET_UPVALUE, 1, OP_ADD,
           OP_GET_UPVALUE, 2, OP_ADD, OP_GET_UPVALUE, 3, OP_ADD,
           OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Value));
 
-  ObjFunction* fFun = newFunction(&ufx->vm.objects);
-  push(&ufx->vm, OBJ_VAL(fFun));
-  fFun->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "f", 1);
-  pop(&ufx->vm);
+  ObjFunction* fFun = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(fFun));
+  temps++;
+  fFun->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "f", 1);
   fFun->arity = 2;
   fFun->upvalueCount = 2;
-  fillChunk(&fFun->chunk, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&fFun->chunk, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_CONSTANT, 0, OP_SET_UPVALUE, 0, OP_POP,
           OP_CLOSURE, 1, 1, 1, 1, 2, 0, 0, 0, 1, OP_GET_LOCAL, 3,
           OP_RETURN, OP_NIL, OP_RETURN),
@@ -324,7 +383,7 @@ UTEST_F(VMSimple, Closures1) {
 
   Chunk script;
   initChunk(&script);
-  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_CLOSURE, 1, 1, 1, 1, 2,
           OP_GET_LOCAL, 3, OP_CONSTANT, 2, OP_CONSTANT, 3, OP_CALL, 2,
           OP_CALL, 0, OP_POP, OP_POP, OP_CLOSE_UPVALUE,
@@ -333,6 +392,11 @@ UTEST_F(VMSimple, Closures1) {
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
 
   fflush(ufx->out.fptr);
   EXPECT_STREQ("10\n", ufx->out.buf);
@@ -352,36 +416,38 @@ UTEST_F(VMSimple, Closures2) {
   //   fun hh() { print y; } h = hh;
   // }
   // f(); g(); h();
-  ObjFunction* ff = newFunction(&ufx->vm.objects);
-  push(&ufx->vm, OBJ_VAL(ff));
-  ff->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "ff", 2);
-  pop(&ufx->vm);
+  size_t temps = 0;
+
+  ObjFunction* ff = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(ff));
+  temps++;
+  ff->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "ff", 2);
   ff->upvalueCount = 1;
-  fillChunk(&ff->chunk, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&ff->chunk, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Value));
 
-  ObjFunction* gg = newFunction(&ufx->vm.objects);
-  push(&ufx->vm, OBJ_VAL(gg));
-  gg->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "gg", 2);
-  pop(&ufx->vm);
+  ObjFunction* gg = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(gg));
+  temps++;
+  gg->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "gg", 2);
   gg->upvalueCount = 1;
-  fillChunk(&gg->chunk, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&gg->chunk, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Value));
 
-  ObjFunction* hh = newFunction(&ufx->vm.objects);
-  push(&ufx->vm, OBJ_VAL(hh));
-  hh->name = copyString(&ufx->vm.objects, &ufx->vm.strings, "hh", 2);
-  pop(&ufx->vm);
+  ObjFunction* hh = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(hh));
+  temps++;
+  hh->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "hh", 2);
   hh->upvalueCount = 1;
-  fillChunk(&hh->chunk, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&hh->chunk, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Value));
 
   Chunk script;
   initChunk(&script);
-  fillChunk(&script, &ufx->vm.objects, &ufx->vm.strings,
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
       LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0, OP_NIL,
           OP_DEFINE_GLOBAL, 1, OP_NIL, OP_DEFINE_GLOBAL, 2, OP_CONSTANT,
           3, OP_CONSTANT, 4, OP_CONSTANT, 5, OP_CLOSURE, 6, 1, 3,
@@ -398,6 +464,11 @@ UTEST_F(VMSimple, Closures2) {
 
   InterpretResult ires = interpretChunk(&ufx->vm, &script);
   EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
 
   fflush(ufx->out.fptr);
   EXPECT_STREQ("z\nx\ny\n", ufx->out.buf);
@@ -440,12 +511,12 @@ UTEST_I_TEARDOWN(VM) {
 
   // Prepare the chunk.
   for (int i = 0; i < expected->codeSize; ++i) {
-    writeChunk(&chunk, expected->code[i], i >> 1);
+    writeChunk(&vm.gc, &chunk, expected->code[i], i >> 1);
   }
-  writeChunk(&chunk, OP_NIL, (expected->codeSize - 1) >> 1);
-  writeChunk(&chunk, OP_RETURN, (expected->codeSize - 1) >> 1);
+  writeChunk(&vm.gc, &chunk, OP_NIL, (expected->codeSize - 1) >> 1);
+  writeChunk(&vm.gc, &chunk, OP_RETURN, (expected->codeSize - 1) >> 1);
   for (int i = 0; i < expected->valueSize; ++i) {
-    addConstant(&chunk, expected->values[i]);
+    addConstant(&vm.gc, &chunk, expected->values[i]);
   }
 
   // Interpret the chunk.
@@ -766,4 +837,9 @@ ResultFromChunk opLoop[] = {
 
 VM_CASES(OpLoop, opLoop, 1);
 
-UTEST_MAIN();
+UTEST_STATE();
+
+int main(int argc, const char* argv[]) {
+  debugStressGC = true;
+  return utest_main(argc, argv);
+}

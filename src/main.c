@@ -6,6 +6,7 @@
 #include "common.h"
 #include "compiler.h"
 #include "debug.h"
+#include "memory.h"
 #include "vm.h"
 
 static void repl(void) {
@@ -73,10 +74,15 @@ static void runFile(const char* path) {
 
 int main(int argc, char* argv[]) {
   while (argc > 1) {
-    if (strncmp("--dump", argv[1], sizeof("--dump")) == 0) {
+    if (!strncmp("--dump", argv[1], sizeof("--dump"))) {
       debugPrintCode = true;
-    } else if (strncmp("--trace", argv[1], sizeof("--trace")) == 0) {
+    } else if (!strncmp("--trace", argv[1], sizeof("--trace"))) {
       debugTraceExecution = true;
+    } else if (!strncmp("--log-gc", argv[1], sizeof("--log-gc"))) {
+      debugLogGC = true;
+    } else if (!strncmp(
+                   "--stress-gc", argv[1], sizeof("--stress-gc"))) {
+      debugStressGC = true;
     } else {
       break;
     }

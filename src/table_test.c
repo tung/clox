@@ -2,27 +2,28 @@
 
 #include "utest.h"
 
+#include "gc.h"
 #include "memory.h"
 
 #define ufx utest_fixture
 
 struct Table {
+  GC gc;
   Table t;
-  Obj* objects;
   Table strings;
 };
 
 UTEST_F_SETUP(Table) {
+  initGC(&ufx->gc);
   initTable(&ufx->t, 1.0);
-  ufx->objects = NULL;
   initTable(&ufx->strings, 0.75);
   ASSERT_TRUE(1);
 }
 
 UTEST_F_TEARDOWN(Table) {
-  freeTable(&ufx->t);
-  freeTable(&ufx->strings);
-  freeObjects(ufx->objects);
+  freeTable(&ufx->gc, &ufx->t);
+  freeTable(&ufx->gc, &ufx->strings);
+  freeGC(&ufx->gc);
   ASSERT_TRUE(1);
 }
 
@@ -31,8 +32,10 @@ UTEST_F(Table, InitFree) {
 }
 
 UTEST_F(Table, GetSetDelete) {
-  ObjString* foo = copyString(&ufx->objects, &ufx->strings, "foo", 3);
-  ObjString* bar = copyString(&ufx->objects, &ufx->strings, "bar", 3);
+  ObjString* foo = copyString(&ufx->gc, &ufx->strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(foo));
+  ObjString* bar = copyString(&ufx->gc, &ufx->strings, "bar", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(bar));
   Value fooValue, barValue;
 
   // No keys in an empty table.
@@ -44,13 +47,13 @@ UTEST_F(Table, GetSetDelete) {
   EXPECT_FALSE(tableDelete(&ufx->t, bar));
 
   // Insert foo => 1.0.
-  EXPECT_TRUE(tableSet(&ufx->t, foo, NUMBER_VAL(1.0)));
+  EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, foo, NUMBER_VAL(1.0)));
   EXPECT_TRUE(tableGet(&ufx->t, foo, &fooValue));
   EXPECT_VALEQ(NUMBER_VAL(1.0), fooValue);
   EXPECT_FALSE(tableGet(&ufx->t, bar, &barValue));
 
   // Update foo => 2.0.
-  EXPECT_FALSE(tableSet(&ufx->t, foo, NUMBER_VAL(2.0)));
+  EXPECT_FALSE(tableSet(&ufx->gc, &ufx->t, foo, NUMBER_VAL(2.0)));
   EXPECT_TRUE(tableGet(&ufx->t, foo, &fooValue));
   EXPECT_VALEQ(NUMBER_VAL(2.0), fooValue);
   EXPECT_FALSE(tableGet(&ufx->t, bar, &barValue));
@@ -60,22 +63,32 @@ UTEST_F(Table, GetSetDelete) {
   EXPECT_FALSE(tableDelete(&ufx->t, bar));
   EXPECT_FALSE(tableGet(&ufx->t, foo, &fooValue));
   EXPECT_FALSE(tableGet(&ufx->t, bar, &barValue));
+
+  popTemp(&ufx->gc);
+  popTemp(&ufx->gc);
 }
 
 UTEST_F(Table, AddAll) {
   Table t2;
   initTable(&t2, 1.0);
 
-  ObjString* foo = copyString(&ufx->objects, &ufx->strings, "foo", 3);
-  ObjString* bar = copyString(&ufx->objects, &ufx->strings, "bar", 3);
-  ObjString* baz = copyString(&ufx->objects, &ufx->strings, "baz", 3);
+  ObjString* foo = copyString(&ufx->gc, &ufx->strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(foo));
+  ObjString* bar = copyString(&ufx->gc, &ufx->strings, "bar", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(bar));
+  ObjString* baz = copyString(&ufx->gc, &ufx->strings, "baz", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(baz));
 
-  EXPECT_TRUE(tableSet(&ufx->t, foo, NUMBER_VAL(1.0)));
-  EXPECT_TRUE(tableSet(&ufx->t, bar, NUMBER_VAL(2.0)));
-  EXPECT_TRUE(tableSet(&t2, bar, NUMBER_VAL(3.0)));
-  EXPECT_TRUE(tableSet(&t2, baz, NUMBER_VAL(4.0)));
+  EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, foo, NUMBER_VAL(1.0)));
+  EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, bar, NUMBER_VAL(2.0)));
+  EXPECT_TRUE(tableSet(&ufx->gc, &t2, bar, NUMBER_VAL(3.0)));
+  EXPECT_TRUE(tableSet(&ufx->gc, &t2, baz, NUMBER_VAL(4.0)));
 
-  tableAddAll(&t2, &ufx->t);
+  popTemp(&ufx->gc);
+  popTemp(&ufx->gc);
+  popTemp(&ufx->gc);
+
+  tableAddAll(&ufx->gc, &t2, &ufx->t);
 
   Value v;
   EXPECT_TRUE(tableGet(&ufx->t, foo, &v));
@@ -85,7 +98,7 @@ UTEST_F(Table, AddAll) {
   EXPECT_TRUE(tableGet(&ufx->t, baz, &v));
   EXPECT_VALEQ(NUMBER_VAL(4.0), v);
 
-  freeTable(&t2);
+  freeTable(&ufx->gc, &t2);
 }
 
 UTEST_F(Table, SetGetLots) {
@@ -93,8 +106,9 @@ UTEST_F(Table, SetGetLots) {
   ObjString* oStrs[ARRAY_SIZE(strs)];
 
   for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
-    oStrs[i] = copyString(&ufx->objects, &ufx->strings, strs[i], 1);
-    EXPECT_TRUE(tableSet(&ufx->t, oStrs[i], NUMBER_VAL(i)));
+    oStrs[i] = copyString(&ufx->gc, &ufx->strings, strs[i], 1);
+    pushTemp(&ufx->gc, OBJ_VAL(oStrs[i]));
+    EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, oStrs[i], NUMBER_VAL(i)));
   }
 
   EXPECT_EQ(9, ufx->t.count);
@@ -102,6 +116,7 @@ UTEST_F(Table, SetGetLots) {
   for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
     Value v;
     EXPECT_TRUE(tableGet(&ufx->t, oStrs[i], &v));
+    popTemp(&ufx->gc);
     EXPECT_VALEQ(NUMBER_VAL(i), v);
   }
 }
@@ -111,14 +126,16 @@ UTEST_F(Table, FullTableGetMissing) {
   ufx->t.maxLoad = 1.0;
   const char* strs[8] = { "a", "b", "c", "d", "e", "f", "g", "h" };
 
-  ObjString* a = copyString(&ufx->objects, &ufx->strings, strs[0], 1);
-  ObjString* b = copyString(&ufx->objects, &ufx->strings, strs[1], 1);
-  EXPECT_TRUE(tableSet(&ufx->t, a, NUMBER_VAL(0.0)));
-  EXPECT_TRUE(tableSet(&ufx->t, b, NUMBER_VAL(1.0)));
+  ObjString* a = copyString(&ufx->gc, &ufx->strings, strs[0], 1);
+  pushTemp(&ufx->gc, OBJ_VAL(a));
+  ObjString* b = copyString(&ufx->gc, &ufx->strings, strs[1], 1);
+  pushTemp(&ufx->gc, OBJ_VAL(b));
+  EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, a, NUMBER_VAL(0.0)));
+  EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, b, NUMBER_VAL(1.0)));
   for (size_t i = 2; i < ARRAY_SIZE(strs); ++i) {
-    ObjString* oStr =
-        copyString(&ufx->objects, &ufx->strings, strs[i], 1);
-    EXPECT_TRUE(tableSet(&ufx->t, oStr, NUMBER_VAL(i)));
+    ObjString* oStr = copyString(&ufx->gc, &ufx->strings, strs[i], 1);
+    pushTemp(&ufx->gc, OBJ_VAL(oStr));
+    EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, oStr, NUMBER_VAL(i)));
   }
 
   // Check that the table is indeed full.
@@ -126,7 +143,8 @@ UTEST_F(Table, FullTableGetMissing) {
 
   const char missingStr[] = "z";
   ObjString* missingOStr =
-      copyString(&ufx->objects, &ufx->strings, missingStr, 1);
+      copyString(&ufx->gc, &ufx->strings, missingStr, 1);
+  pushTemp(&ufx->gc, OBJ_VAL(missingOStr));
   Value missingValue;
 
   EXPECT_FALSE(tableGet(&ufx->t, missingOStr, &missingValue));
@@ -139,6 +157,16 @@ UTEST_F(Table, FullTableGetMissing) {
   EXPECT_EQ(ufx->t.capacity, ufx->t.count);
 
   EXPECT_FALSE(tableGet(&ufx->t, missingOStr, &missingValue));
+
+  for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
+    popTemp(&ufx->gc);
+  }
+  popTemp(&ufx->gc);
 }
 
-UTEST_MAIN();
+UTEST_STATE();
+
+int main(int argc, const char* argv[]) {
+  debugStressGC = true;
+  return utest_main(argc, argv);
+}

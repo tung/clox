@@ -6,6 +6,7 @@
 
 #include "common.h"
 
+typedef struct GC GC;
 typedef struct Obj Obj;
 typedef struct ObjString ObjString;
 
@@ -52,8 +53,8 @@ typedef struct {
 } ValueArray;
 
 void initValueArray(ValueArray* array);
-void writeValueArray(ValueArray* array, Value value);
-void freeValueArray(ValueArray* array);
+void writeValueArray(GC* gc, ValueArray* array, Value value);
+void freeValueArray(GC* gc, ValueArray* array);
 void printValue(FILE* fout, Value value);
 bool valuesEqual(Value a, Value b);
 

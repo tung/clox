@@ -4,9 +4,35 @@
 #include "utest.h"
 
 #include "membuf.h"
+#include "memory.h"
 #include "vm.h"
 
 #define ufx utest_fixture
+
+UTEST(InterpretMulti, ForceGC) {
+  MemBuf out, err;
+  VM vm;
+
+  initMemBuf(&out);
+  initMemBuf(&err);
+  // debugLogGC = true;
+  debugStressGC = true; // Force initial collect with small heap.
+  initVM(&vm, out.fptr, err.fptr);
+
+  debugStressGC = false; // Test non-stressed garbage collection.
+  for (size_t i = 0; i < 10; ++i) {
+    InterpretResult ires = interpret(&vm, "fun a(){}");
+    EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+    if (ires != INTERPRET_OK) {
+      EXPECT_EQ(9999u, i);
+    }
+  }
+  debugStressGC = true;
+
+  freeVM(&vm);
+  freeMemBuf(&out);
+  freeMemBuf(&err);
+}
 
 typedef struct {
   InterpretResult ires;
@@ -518,4 +544,9 @@ InterpretCase whileStmt[] = {
 
 INTERPRET(WhileStmt, whileStmt, 7);
 
-UTEST_MAIN();
+UTEST_STATE();
+
+int main(int argc, const char* argv[]) {
+  debugStressGC = true;
+  return utest_main(argc, argv);
+}

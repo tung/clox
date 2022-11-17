@@ -2,6 +2,7 @@
 
 #include "utest.h"
 
+#include "gc.h"
 #include "membuf.h"
 #include "memory.h"
 #include "object.h"
@@ -9,16 +10,19 @@
 #define ufx utest_fixture
 
 struct ValueArray {
+  GC gc;
   ValueArray va;
 };
 
 UTEST_F_SETUP(ValueArray) {
+  initGC(&ufx->gc);
   initValueArray(&ufx->va);
   ASSERT_TRUE(1);
 }
 
 UTEST_F_TEARDOWN(ValueArray) {
-  freeValueArray(&ufx->va);
+  freeValueArray(&ufx->gc, &ufx->va);
+  freeGC(&ufx->gc);
   ASSERT_TRUE(1);
 }
 
@@ -27,15 +31,15 @@ UTEST_F(ValueArray, Empty) {
 }
 
 UTEST_F(ValueArray, WriteOne) {
-  writeValueArray(&ufx->va, NUMBER_VAL(1.1));
+  writeValueArray(&ufx->gc, &ufx->va, NUMBER_VAL(1.1));
   ASSERT_EQ(1, ufx->va.count);
   EXPECT_VALEQ(NUMBER_VAL(1.1), ufx->va.values[0]);
 }
 
 UTEST_F(ValueArray, WriteSome) {
-  writeValueArray(&ufx->va, NUMBER_VAL(1.1));
-  writeValueArray(&ufx->va, NUMBER_VAL(2.2));
-  writeValueArray(&ufx->va, NUMBER_VAL(3.3));
+  writeValueArray(&ufx->gc, &ufx->va, NUMBER_VAL(1.1));
+  writeValueArray(&ufx->gc, &ufx->va, NUMBER_VAL(2.2));
+  writeValueArray(&ufx->gc, &ufx->va, NUMBER_VAL(3.3));
   ASSERT_EQ(3, ufx->va.count);
   EXPECT_VALEQ(NUMBER_VAL(1.1), ufx->va.values[0]);
   EXPECT_VALEQ(NUMBER_VAL(2.2), ufx->va.values[1]);
@@ -45,7 +49,7 @@ UTEST_F(ValueArray, WriteSome) {
 UTEST_F(ValueArray, WriteLots) {
   double data[] = { 1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9 };
   for (size_t i = 0; i < ARRAY_SIZE(data); ++i) {
-    writeValueArray(&ufx->va, NUMBER_VAL(data[i]));
+    writeValueArray(&ufx->gc, &ufx->va, NUMBER_VAL(data[i]));
   }
   ASSERT_EQ((int)ARRAY_SIZE(data), ufx->va.count);
   for (size_t i = 0; i < ARRAY_SIZE(data); ++i) {
@@ -54,15 +58,15 @@ UTEST_F(ValueArray, WriteLots) {
 }
 
 UTEST_F(ValueArray, WriteBools) {
-  writeValueArray(&ufx->va, BOOL_VAL(true));
-  writeValueArray(&ufx->va, BOOL_VAL(false));
+  writeValueArray(&ufx->gc, &ufx->va, BOOL_VAL(true));
+  writeValueArray(&ufx->gc, &ufx->va, BOOL_VAL(false));
   ASSERT_EQ(2, ufx->va.count);
   EXPECT_VALEQ(BOOL_VAL(true), ufx->va.values[0]);
   EXPECT_VALEQ(BOOL_VAL(false), ufx->va.values[1]);
 }
 
 UTEST_F(ValueArray, WriteNil) {
-  writeValueArray(&ufx->va, NIL_VAL);
+  writeValueArray(&ufx->gc, &ufx->va, NIL_VAL);
   ASSERT_EQ(1, ufx->va.count);
   EXPECT_VALEQ(NIL_VAL, ufx->va.values[0]);
 }
@@ -139,39 +143,48 @@ UTEST(Value, NumbersUnequal) {
 }
 
 UTEST(Value, StringsEqual) {
-  Obj* objects = NULL;
+  GC gc;
   Table strings;
+  initGC(&gc);
   initTable(&strings, 0.75);
-  ObjString* empty = copyString(&objects, &strings, "", 0);
-  ObjString* foo = copyString(&objects, &strings, "foo", 3);
-  ObjString* bar = copyString(&objects, &strings, "bar", 3);
-  ObjString* blah = copyString(&objects, &strings, "blah", 4);
+
+  ObjString* empty = copyString(&gc, &strings, "", 0);
+  ObjString* foo = copyString(&gc, &strings, "foo", 3);
+  ObjString* bar = copyString(&gc, &strings, "bar", 3);
+  ObjString* blah = copyString(&gc, &strings, "blah", 4);
 
   EXPECT_VALEQ(OBJ_VAL(empty), OBJ_VAL(empty));
   EXPECT_VALEQ(OBJ_VAL(foo), OBJ_VAL(foo));
   EXPECT_VALEQ(OBJ_VAL(bar), OBJ_VAL(bar));
   EXPECT_VALEQ(OBJ_VAL(blah), OBJ_VAL(blah));
 
-  freeTable(&strings);
-  freeObjects(objects);
+  freeTable(&gc, &strings);
+  freeGC(&gc);
 }
 
 UTEST(Value, StringsUnequal) {
-  Obj* objects = NULL;
+  GC gc;
   Table strings;
+  initGC(&gc);
   initTable(&strings, 0.75);
-  ObjString* empty = copyString(&objects, &strings, "", 0);
-  ObjString* foo = copyString(&objects, &strings, "foo", 3);
-  ObjString* bar = copyString(&objects, &strings, "bar", 3);
-  ObjString* blah = copyString(&objects, &strings, "blah", 4);
+
+  ObjString* empty = copyString(&gc, &strings, "", 0);
+  ObjString* foo = copyString(&gc, &strings, "foo", 3);
+  ObjString* bar = copyString(&gc, &strings, "bar", 3);
+  ObjString* blah = copyString(&gc, &strings, "blah", 4);
 
   EXPECT_VALNE(OBJ_VAL(empty), OBJ_VAL(foo));
   EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(empty));
   EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(bar));
   EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(blah));
 
-  freeTable(&strings);
-  freeObjects(objects);
+  freeTable(&gc, &strings);
+  freeGC(&gc);
 }
 
-UTEST_MAIN();
+UTEST_STATE();
+
+int main(int argc, const char* argv[]) {
+  debugStressGC = true;
+  return utest_main(argc, argv);
+}

@@ -2,19 +2,25 @@
 
 #include "utest.h"
 
+#include "gc.h"
+#include "memory.h"
+
 #define ufx utest_fixture
 
 struct Chunk {
+  GC gc;
   Chunk chunk;
 };
 
 UTEST_F_SETUP(Chunk) {
+  initGC(&ufx->gc);
   initChunk(&ufx->chunk);
   ASSERT_TRUE(1);
 }
 
 UTEST_F_TEARDOWN(Chunk) {
-  freeChunk(&ufx->chunk);
+  freeChunk(&ufx->gc, &ufx->chunk);
+  freeGC(&ufx->gc);
   ASSERT_TRUE(1);
 }
 
@@ -24,7 +30,7 @@ UTEST_F(Chunk, Empty) {
 
 UTEST_F(Chunk, Write) {
   for (size_t i = 0; i < 9; ++i) {
-    writeChunk(&ufx->chunk, OP_RETURN, 1);
+    writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 1);
   }
   ASSERT_EQ(9, ufx->chunk.count);
   for (size_t i = 0; i < 9; ++i) {
@@ -33,9 +39,9 @@ UTEST_F(Chunk, Write) {
 }
 
 UTEST_F(Chunk, AddConstant) {
-  addConstant(&ufx->chunk, NUMBER_VAL(2.0));
-  addConstant(&ufx->chunk, NUMBER_VAL(2.0));
-  addConstant(&ufx->chunk, NUMBER_VAL(2.0));
+  addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(2.0));
+  addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(2.0));
+  addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(2.0));
   ASSERT_EQ(3, ufx->chunk.constants.count);
   EXPECT_VALEQ(NUMBER_VAL(2.0), ufx->chunk.constants.values[0]);
   EXPECT_VALEQ(NUMBER_VAL(2.0), ufx->chunk.constants.values[1]);
@@ -43,13 +49,13 @@ UTEST_F(Chunk, AddConstant) {
 }
 
 UTEST_F(Chunk, Lines) {
-  writeChunk(&ufx->chunk, OP_RETURN, 1);
-  writeChunk(&ufx->chunk, OP_RETURN, 2);
-  writeChunk(&ufx->chunk, OP_RETURN, 2);
-  writeChunk(&ufx->chunk, OP_RETURN, 3);
-  writeChunk(&ufx->chunk, OP_RETURN, 3);
-  writeChunk(&ufx->chunk, OP_RETURN, 3);
-  writeChunk(&ufx->chunk, OP_RETURN, 4);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 1);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 2);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 2);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 3);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 3);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 3);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 4);
   ASSERT_EQ(7, ufx->chunk.count);
   EXPECT_EQ(1, ufx->chunk.lines[0]);
   EXPECT_EQ(2, ufx->chunk.lines[1]);
@@ -61,10 +67,10 @@ UTEST_F(Chunk, Lines) {
 }
 
 UTEST_F(Chunk, OpConstant) {
-  writeChunk(&ufx->chunk, OP_CONSTANT, 1);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 1);
   Value value = NUMBER_VAL(1.5);
-  int constIndex = addConstant(&ufx->chunk, value);
-  writeChunk(&ufx->chunk, constIndex, 1);
+  int constIndex = addConstant(&ufx->gc, &ufx->chunk, value);
+  writeChunk(&ufx->gc, &ufx->chunk, constIndex, 1);
   ASSERT_EQ(2, ufx->chunk.count);
   EXPECT_EQ(OP_CONSTANT, ufx->chunk.code[0]);
   EXPECT_EQ(constIndex, ufx->chunk.code[1]);
@@ -72,4 +78,9 @@ UTEST_F(Chunk, OpConstant) {
   EXPECT_VALEQ(value, ufx->chunk.constants.values[0]);
 }
 
-UTEST_MAIN();
+UTEST_STATE();
+
+int main(int argc, const char* argv[]) {
+  debugStressGC = true;
+  return utest_main(argc, argv);
+}

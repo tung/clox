@@ -6,6 +6,7 @@
 
 #include "chunk.h"
 #include "common.h"
+#include "gc.h"
 #include "table.h"
 #include "value.h"
 
@@ -34,6 +35,7 @@ typedef enum {
 
 struct Obj {
   ObjType type;
+  bool isMarked;
   struct Obj* next;
 };
 
@@ -73,14 +75,13 @@ typedef struct {
   int upvalueCount;
 } ObjClosure;
 
-ObjClosure* newClosure(Obj** objects, ObjFunction* function);
-ObjFunction* newFunction(Obj** objects);
-ObjNative* newNative(Obj** objects, NativeFn function);
-ObjString* takeString(
-    Obj** objects, Table* strings, char* chars, int length);
+ObjClosure* newClosure(GC* gc, ObjFunction* function);
+ObjFunction* newFunction(GC* gc);
+ObjNative* newNative(GC* gc, NativeFn function);
+ObjString* takeString(GC* gc, Table* strings, char* chars, int length);
 ObjString* copyString(
-    Obj** objects, Table* strings, const char* chars, int length);
-ObjUpvalue* newUpvalue(Obj** objects, Value* slot);
+    GC* gc, Table* strings, const char* chars, int length);
+ObjUpvalue* newUpvalue(GC* gc, Value* slot);
 void printObject(FILE* fout, Value value);
 
 static inline bool isObjType(Value value, ObjType type) {

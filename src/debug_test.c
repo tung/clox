@@ -6,6 +6,7 @@
 #include "utest.h"
 
 #include "chunk.h"
+#include "gc.h"
 #include "membuf.h"
 #include "memory.h"
 #include "object.h"
@@ -14,26 +15,30 @@
 #define ufx utest_fixture
 
 struct DisassembleChunk {
+  GC gc;
   Chunk chunk;
   MemBuf err;
 };
 
 UTEST_F_SETUP(DisassembleChunk) {
+  initGC(&ufx->gc);
   initChunk(&ufx->chunk);
   initMemBuf(&ufx->err);
   ASSERT_TRUE(1);
 }
 
 UTEST_F_TEARDOWN(DisassembleChunk) {
-  freeChunk(&ufx->chunk);
+  freeChunk(&ufx->gc, &ufx->chunk);
+  freeGC(&ufx->gc);
   freeMemBuf(&ufx->err);
   ASSERT_TRUE(1);
 }
 
 UTEST_F(DisassembleChunk, OpConstant) {
-  uint8_t constantIndex = addConstant(&ufx->chunk, NUMBER_VAL(1.0));
-  writeChunk(&ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->chunk, constantIndex, 123);
+  uint8_t constantIndex =
+      addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.0));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, constantIndex, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -42,8 +47,8 @@ UTEST_F(DisassembleChunk, OpConstant) {
 }
 
 UTEST_F(DisassembleChunk, OpGetLocal) {
-  writeChunk(&ufx->chunk, OP_GET_LOCAL, 123);
-  writeChunk(&ufx->chunk, 0, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_GET_LOCAL, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -52,8 +57,8 @@ UTEST_F(DisassembleChunk, OpGetLocal) {
 }
 
 UTEST_F(DisassembleChunk, OpSetLocal) {
-  writeChunk(&ufx->chunk, OP_SET_LOCAL, 123);
-  writeChunk(&ufx->chunk, 0, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_SET_LOCAL, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -62,68 +67,74 @@ UTEST_F(DisassembleChunk, OpSetLocal) {
 }
 
 UTEST_F(DisassembleChunk, OpGetGlobal) {
-  Obj* objects = NULL;
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* globalOStr = copyString(&objects, &strings, "foo", 3);
+  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
 
-  uint8_t global = addConstant(&ufx->chunk, OBJ_VAL(globalOStr));
-  writeChunk(&ufx->chunk, OP_GET_GLOBAL, 123);
-  writeChunk(&ufx->chunk, global, 123);
+  uint8_t global =
+      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_GET_GLOBAL, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+
+  popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
   const char msg[] = "0000  123 OP_GET_GLOBAL       0 'foo'\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 
-  freeTable(&strings);
-  freeObjects(objects);
+  freeTable(&ufx->gc, &strings);
 }
 
 UTEST_F(DisassembleChunk, OpDefineGlobal) {
-  Obj* objects = NULL;
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* globalOStr = copyString(&objects, &strings, "foo", 3);
+  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
 
-  uint8_t global = addConstant(&ufx->chunk, OBJ_VAL(globalOStr));
-  writeChunk(&ufx->chunk, OP_DEFINE_GLOBAL, 123);
-  writeChunk(&ufx->chunk, global, 123);
+  uint8_t global =
+      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_DEFINE_GLOBAL, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+
+  popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
   const char msg[] = "0000  123 OP_DEFINE_GLOBAL    0 'foo'\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 
-  freeTable(&strings);
-  freeObjects(objects);
+  freeTable(&ufx->gc, &strings);
 }
 
 UTEST_F(DisassembleChunk, OpSetGlobal) {
-  Obj* objects = NULL;
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* globalOStr = copyString(&objects, &strings, "foo", 3);
+  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
 
-  uint8_t global = addConstant(&ufx->chunk, OBJ_VAL(globalOStr));
-  writeChunk(&ufx->chunk, OP_SET_GLOBAL, 123);
-  writeChunk(&ufx->chunk, global, 123);
+  uint8_t global =
+      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_SET_GLOBAL, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+
+  popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
   const char msg[] = "0000  123 OP_SET_GLOBAL       0 'foo'\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 
-  freeTable(&strings);
-  freeObjects(objects);
+  freeTable(&ufx->gc, &strings);
 }
 
 UTEST_F(DisassembleChunk, OpGetUpvalue) {
-  writeChunk(&ufx->chunk, OP_GET_UPVALUE, 123);
-  writeChunk(&ufx->chunk, 2, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_GET_UPVALUE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 2, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -132,8 +143,8 @@ UTEST_F(DisassembleChunk, OpGetUpvalue) {
 }
 
 UTEST_F(DisassembleChunk, OpSetUpvalue) {
-  writeChunk(&ufx->chunk, OP_SET_UPVALUE, 123);
-  writeChunk(&ufx->chunk, 2, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_SET_UPVALUE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 2, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -142,9 +153,9 @@ UTEST_F(DisassembleChunk, OpSetUpvalue) {
 }
 
 UTEST_F(DisassembleChunk, OpJump) {
-  writeChunk(&ufx->chunk, OP_JUMP, 123);
-  writeChunk(&ufx->chunk, 1, 123);
-  writeChunk(&ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_JUMP, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -153,9 +164,9 @@ UTEST_F(DisassembleChunk, OpJump) {
 }
 
 UTEST_F(DisassembleChunk, OpJumpIfFalse) {
-  writeChunk(&ufx->chunk, OP_JUMP_IF_FALSE, 123);
-  writeChunk(&ufx->chunk, 1, 123);
-  writeChunk(&ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_JUMP_IF_FALSE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -164,10 +175,10 @@ UTEST_F(DisassembleChunk, OpJumpIfFalse) {
 }
 
 UTEST_F(DisassembleChunk, OpLoop) {
-  writeChunk(&ufx->chunk, OP_NIL, 123);
-  writeChunk(&ufx->chunk, OP_LOOP, 123);
-  writeChunk(&ufx->chunk, 0, 123);
-  writeChunk(&ufx->chunk, 4, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_NIL, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_LOOP, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 4, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 1);
 
   fflush(ufx->err.fptr);
@@ -176,8 +187,8 @@ UTEST_F(DisassembleChunk, OpLoop) {
 }
 
 UTEST_F(DisassembleChunk, OpCall) {
-  writeChunk(&ufx->chunk, OP_CALL, 123);
-  writeChunk(&ufx->chunk, 45, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CALL, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 45, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -186,38 +197,43 @@ UTEST_F(DisassembleChunk, OpCall) {
 }
 
 UTEST_F(DisassembleChunk, OpClosure0) {
-  Obj* objects = NULL;
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjFunction* fun = newFunction(&objects);
-  uint8_t funIndex = addConstant(&ufx->chunk, OBJ_VAL(fun));
-  writeChunk(&ufx->chunk, OP_CLOSURE, 123);
-  writeChunk(&ufx->chunk, funIndex, 123);
+  ObjFunction* fun = newFunction(&ufx->gc);
+  pushTemp(&ufx->gc, OBJ_VAL(fun));
+
+  uint8_t funIndex = addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(fun));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CLOSURE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, funIndex, 123);
+
+  popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
   const char msg[] = "0000  123 OP_CLOSURE          0 <script>\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 
-  freeTable(&strings);
-  freeObjects(objects);
+  freeTable(&ufx->gc, &strings);
 }
 
 UTEST_F(DisassembleChunk, OpClosure2) {
-  Obj* objects = NULL;
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjFunction* fun = newFunction(&objects);
+  ObjFunction* fun = newFunction(&ufx->gc);
   fun->upvalueCount = 2;
-  uint8_t funIndex = addConstant(&ufx->chunk, OBJ_VAL(fun));
-  writeChunk(&ufx->chunk, OP_CLOSURE, 123);
-  writeChunk(&ufx->chunk, funIndex, 123);
-  writeChunk(&ufx->chunk, 1, 123);
-  writeChunk(&ufx->chunk, 1, 123);
-  writeChunk(&ufx->chunk, 0, 123);
-  writeChunk(&ufx->chunk, 2, 123);
+  pushTemp(&ufx->gc, OBJ_VAL(fun));
+
+  uint8_t funIndex = addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(fun));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CLOSURE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, funIndex, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 2, 123);
+
+  popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -227,12 +243,11 @@ UTEST_F(DisassembleChunk, OpClosure2) {
       "0004      |                     upvalue 2\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 
-  freeTable(&strings);
-  freeObjects(objects);
+  freeTable(&ufx->gc, &strings);
 }
 
 UTEST_F(DisassembleChunk, Chapter14Sample1) {
-  writeChunk(&ufx->chunk, OP_RETURN, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 123);
   disassembleChunk(ufx->err.fptr, &ufx->chunk, "test chunk");
 
   fflush(ufx->err.fptr);
@@ -243,10 +258,10 @@ UTEST_F(DisassembleChunk, Chapter14Sample1) {
 }
 
 UTEST_F(DisassembleChunk, Chapter14Sample2) {
-  int constant = addConstant(&ufx->chunk, NUMBER_VAL(1.2));
-  writeChunk(&ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->chunk, constant, 123);
-  writeChunk(&ufx->chunk, OP_RETURN, 123);
+  int constant = addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.2));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, constant, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 123);
   disassembleChunk(ufx->err.fptr, &ufx->chunk, "test chunk");
 
   fflush(ufx->err.fptr);
@@ -258,11 +273,11 @@ UTEST_F(DisassembleChunk, Chapter14Sample2) {
 }
 
 UTEST_F(DisassembleChunk, Chapter15Sample1) {
-  int constant = addConstant(&ufx->chunk, NUMBER_VAL(1.2));
-  writeChunk(&ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->chunk, constant, 123);
-  writeChunk(&ufx->chunk, OP_NEGATE, 123);
-  writeChunk(&ufx->chunk, OP_RETURN, 123);
+  int constant = addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.2));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, constant, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_NEGATE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 123);
   disassembleChunk(ufx->err.fptr, &ufx->chunk, "test chunk");
 
   fflush(ufx->err.fptr);
@@ -275,19 +290,19 @@ UTEST_F(DisassembleChunk, Chapter15Sample1) {
 }
 
 UTEST_F(DisassembleChunk, Chapter15Sample2) {
-  int constant = addConstant(&ufx->chunk, NUMBER_VAL(1.2));
-  writeChunk(&ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->chunk, constant, 123);
-  constant = addConstant(&ufx->chunk, NUMBER_VAL(3.4));
-  writeChunk(&ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->chunk, constant, 123);
-  writeChunk(&ufx->chunk, OP_ADD, 123);
-  constant = addConstant(&ufx->chunk, NUMBER_VAL(5.6));
-  writeChunk(&ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->chunk, constant, 123);
-  writeChunk(&ufx->chunk, OP_DIVIDE, 123);
-  writeChunk(&ufx->chunk, OP_NEGATE, 123);
-  writeChunk(&ufx->chunk, OP_RETURN, 123);
+  int constant = addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.2));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, constant, 123);
+  constant = addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(3.4));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, constant, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_ADD, 123);
+  constant = addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(5.6));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, constant, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_DIVIDE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_NEGATE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 123);
   disassembleChunk(ufx->err.fptr, &ufx->chunk, "test chunk");
 
   fflush(ufx->err.fptr);
@@ -321,18 +336,21 @@ UTEST_I_SETUP(DisassembleSimple) {
 UTEST_I_TEARDOWN(DisassembleSimple) {
   OpCodeToString* expected = &ufx->cases[utest_index];
 
+  GC gc;
   Chunk chunk;
   MemBuf err;
+  initGC(&gc);
   initChunk(&chunk);
   initMemBuf(&err);
 
-  writeChunk(&chunk, expected->op, 123);
+  writeChunk(&gc, &chunk, expected->op, 123);
   disassembleInstruction(err.fptr, &chunk, 0);
 
   fflush(err.fptr);
   EXPECT_STREQ(expected->str, err.buf);
 
-  freeChunk(&chunk);
+  freeChunk(&gc, &chunk);
+  freeGC(&gc);
   freeMemBuf(&err);
 }
 
@@ -371,4 +389,9 @@ UTEST_I(DisassembleSimple, SimpleOps, NUM_SIMPLE_OPS) {
   ASSERT_TRUE(1);
 }
 
-UTEST_MAIN();
+UTEST_STATE();
+
+int main(int argc, const char* argv[]) {
+  debugStressGC = true;
+  return utest_main(argc, argv);
+}

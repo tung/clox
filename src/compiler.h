@@ -8,8 +8,8 @@
 #include "object.h"
 #include "table.h"
 
-ObjFunction* compile(FILE* fout, FILE* ferr, const char* source,
-    Obj** objects, Table* strings);
+ObjFunction* compile(
+    FILE* fout, FILE* ferr, const char* source, GC* gc, Table* strings);
 
 extern bool debugPrintCode;
 

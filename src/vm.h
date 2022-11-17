@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-#include "chunk.h"
+#include "gc.h"
 #include "object.h"
 #include "table.h"
 #include "value.h"
@@ -30,7 +30,8 @@ typedef struct {
   Table globals;
   Table strings;
   ObjUpvalue* openUpvalues;
-  Obj* objects;
+
+  GC gc;
 } VM;
 
 typedef enum {

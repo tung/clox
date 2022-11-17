@@ -6,6 +6,7 @@
 #include "utest.h"
 
 #include "debug.h"
+#include "gc.h"
 #include "list.h"
 #include "membuf.h"
 #include "memory.h"
@@ -38,24 +39,26 @@ typedef struct {
 } SourceToChunk;
 
 struct CompileExpr {
-  Obj* objects;
-  Table strings;
-  MemBuf out;
-  MemBuf err;
   SourceToChunk* cases;
 };
 
 UTEST_I_SETUP(CompileExpr) {
   (void)utest_index;
-  ufx->objects = NULL;
-  initTable(&ufx->strings, 0.75);
-  initMemBuf(&ufx->out);
-  initMemBuf(&ufx->err);
+  (void)utest_fixture;
   ASSERT_TRUE(1);
 }
 
 UTEST_I_TEARDOWN(CompileExpr) {
   SourceToChunk* expected = &ufx->cases[utest_index];
+
+  // Fixture setup.
+  GC gc;
+  Table strings;
+  MemBuf out, err;
+  initGC(&gc);
+  initTable(&strings, 0.75);
+  initMemBuf(&out);
+  initMemBuf(&err);
 
   // Prepare expected/actual err memstreams.
   MemBuf xErr, aErr;
@@ -67,16 +70,16 @@ UTEST_I_TEARDOWN(CompileExpr) {
     Chunk expectChunk;
     initChunk(&expectChunk);
     for (int i = 0; i < expected->codeSize; ++i) {
-      writeChunk(&expectChunk, expected->code[i], 1);
+      writeChunk(&gc, &expectChunk, expected->code[i], 1);
     }
-    writeChunk(&expectChunk, OP_PRINT, 1);
-    writeChunk(&expectChunk, OP_NIL, 1);
-    writeChunk(&expectChunk, OP_RETURN, 1);
+    writeChunk(&gc, &expectChunk, OP_PRINT, 1);
+    writeChunk(&gc, &expectChunk, OP_NIL, 1);
+    writeChunk(&gc, &expectChunk, OP_RETURN, 1);
     for (int i = 0; i < expected->valueSize; ++i) {
-      addConstant(&expectChunk, expected->values[i]);
+      addConstant(&gc, &expectChunk, expected->values[i]);
     }
     disassembleChunk(xErr.fptr, &expectChunk, "CompileExpr");
-    freeChunk(&expectChunk);
+    freeChunk(&gc, &expectChunk);
   }
 
   // Prepare expression as "print ${expr};" for compile function.
@@ -84,15 +87,15 @@ UTEST_I_TEARDOWN(CompileExpr) {
   snprintf(srcBuf, sizeof(srcBuf) - 1, "print %s;", expected->src);
   srcBuf[sizeof(srcBuf) - 1] = '\0';
 
-  ObjFunction* result = compile(ufx->out.fptr, ufx->err.fptr, srcBuf,
-      &ufx->objects, &ufx->strings);
+  ObjFunction* result =
+      compile(out.fptr, err.fptr, srcBuf, &gc, &strings);
 
   EXPECT_EQ(expected->result, !!result);
 
   // If success was expected but not achieved, print any compile errors.
   if (expected->result && !result) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
+    fflush(err.fptr);
+    EXPECT_STREQ("", err.buf);
   }
 
   // If compile succeeded, dump the actual chunk.
@@ -110,10 +113,10 @@ UTEST_I_TEARDOWN(CompileExpr) {
   freeMemBuf(&aErr);
 
   // Fixture teardown.
-  freeTable(&ufx->strings);
-  freeObjects(ufx->objects);
-  freeMemBuf(&ufx->out);
-  freeMemBuf(&ufx->err);
+  freeTable(&gc, &strings);
+  freeGC(&gc);
+  freeMemBuf(&out);
+  freeMemBuf(&err);
 }
 
 #define COMPILE_EXPRS(name, data, count) \
@@ -329,17 +332,17 @@ UTEST_I_SETUP(DumpSrc) {
 UTEST_I_TEARDOWN(DumpSrc) {
   SourceToDump* expected = &ufx->cases[utest_index];
 
-  Obj* objects;
+  GC gc;
   Table strings;
   MemBuf out, err;
 
-  objects = NULL;
+  initGC(&gc);
   initTable(&strings, 0.75);
   initMemBuf(&out);
   initMemBuf(&err);
 
   ObjFunction* result =
-      compile(out.fptr, err.fptr, expected->src, &objects, &strings);
+      compile(out.fptr, err.fptr, expected->src, &gc, &strings);
   EXPECT_EQ(expected->success, !!result);
 
   if (result) {
@@ -350,14 +353,7 @@ UTEST_I_TEARDOWN(DumpSrc) {
   fflush(err.fptr);
   if (expected->success) {
     EXPECT_STREQ(expected->msg, out.buf);
-    const char* errMsg = strstr(err.buf, "[line ");
-    if (errMsg) {
-      const char* errMsgEnd = strchr(errMsg, '\n');
-      if (!errMsgEnd) {
-        errMsgEnd = strchr(errMsg, '\0');
-      }
-      EXPECT_STRNEQ("", errMsg, errMsgEnd - errMsg);
-    }
+    EXPECT_STREQ("", err.buf);
   } else {
     const char* findMsg = strstr(err.buf, expected->msg);
     if (expected->msg && expected->msg[0] && findMsg) {
@@ -367,8 +363,8 @@ UTEST_I_TEARDOWN(DumpSrc) {
     }
   }
 
-  freeTable(&strings);
-  freeObjects(objects);
+  freeTable(&gc, &strings);
+  freeGC(&gc);
   freeMemBuf(&out);
   freeMemBuf(&err);
 }
@@ -926,4 +922,9 @@ SourceToDump error[] = {
 
 DUMP_SRC(Error, error, 5);
 
-UTEST_MAIN();
+UTEST_STATE();
+
+int main(int argc, const char* argv[]) {
+  debugStressGC = true;
+  return utest_main(argc, argv);
+}
