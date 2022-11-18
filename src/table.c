@@ -159,10 +159,10 @@ ObjString* tableFindString(
   return NULL;
 }
 
-void tableRemoveWhite(Table* table) {
+void tableRemoveWhite(GC* gc, Table* table) {
   for (int i = 0; i < table->capacity; i++) {
     Entry* entry = &table->entries[i];
-    if (entry->key != NULL && !entry->key->obj.isMarked) {
+    if (entry->key != NULL && entry->key->obj.mark != gc->mark) {
       tableDelete(table, entry->key);
     }
   }

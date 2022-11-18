@@ -45,7 +45,7 @@ typedef struct {
   GC* gc;
   void (*prevMarkRoots)(GC*, void*);
   void* prevMarkRootsArg;
-  void (*prevFixWeak)(void*);
+  void (*prevFixWeak)(GC*, void*);
   void* prevFixWeakArg;
   Table* strings;
   Scanner scanner;
@@ -878,12 +878,12 @@ static void compilerMarkRoots(struct GC* gc, void* arg) {
   }
 }
 
-static void compilerFixWeak(void* arg) {
+static void compilerFixWeak(GC* gc, void* arg) {
   Parser* parser = (Parser*)arg;
-  tableRemoveWhite(parser->strings);
+  tableRemoveWhite(gc, parser->strings);
 
   if (parser->prevFixWeak) {
-    parser->prevFixWeak(parser->prevFixWeakArg);
+    parser->prevFixWeak(gc, parser->prevFixWeakArg);
   }
 }
 
@@ -896,7 +896,7 @@ static void setupGC(Parser* parser, GC* gc, Table* strings) {
 
   gc->markRoots = compilerMarkRoots;
   gc->markRootsArg = parser;
-  if (gc->fixWeak != (void (*)(void*))tableRemoveWhite ||
+  if (gc->fixWeak != (void (*)(GC*, void*))tableRemoveWhite ||
       gc->fixWeakArg != strings) {
     gc->fixWeak = compilerFixWeak;
     gc->fixWeakArg = parser;

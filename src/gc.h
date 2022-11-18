@@ -11,6 +11,7 @@ typedef struct GC {
   Obj* objects;
   size_t bytesAllocated;
   size_t nextGC;
+  bool mark;
 
   int grayCount;
   int grayCapacity;
@@ -22,7 +23,7 @@ typedef struct GC {
 
   void (*markRoots)(struct GC*, void*);
   void* markRootsArg;
-  void (*fixWeak)(void*);
+  void (*fixWeak)(struct GC*, void*);
   void* fixWeakArg;
 } GC;
 

@@ -40,7 +40,7 @@ void markObject(GC* gc, Obj* object) {
   if (object == NULL) {
     return;
   }
-  if (object->isMarked) {
+  if (object->mark == gc->mark) {
     return;
   }
   // GCOV_EXCL_START
@@ -51,7 +51,7 @@ void markObject(GC* gc, Obj* object) {
   }
   // GCOV_EXCL_STOP
 
-  object->isMarked = true;
+  object->mark = gc->mark;
   if (gc->grayCapacity < gc->grayCount + 1) {
     gc->grayCapacity = GROW_CAPACITY(gc->grayCapacity);
     gc->grayStack =
@@ -154,8 +154,7 @@ static void sweep(GC* gc) {
   Obj* previous = NULL;
   Obj* object = gc->objects;
   while (object != NULL) {
-    if (object->isMarked) {
-      object->isMarked = false;
+    if (object->mark == gc->mark) {
       previous = object;
       object = object->next;
     } else {
@@ -188,9 +187,10 @@ void collectGarbage(GC* gc) {
   }
   traceReferences(gc);
   if (gc->fixWeak) {
-    gc->fixWeak(gc->fixWeakArg);
+    gc->fixWeak(gc, gc->fixWeakArg);
   }
   sweep(gc);
+  gc->mark = !gc->mark;
 
   gc->nextGC = gc->bytesAllocated * GC_HEAP_GROW_FACTOR;
 

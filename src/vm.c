@@ -87,7 +87,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   initGC(&vm->gc);
   vm->gc.markRoots = vmMarkRoots;
   vm->gc.markRootsArg = vm;
-  vm->gc.fixWeak = (void (*)(void*))tableRemoveWhite;
+  vm->gc.fixWeak = (void (*)(GC*, void*))tableRemoveWhite;
   vm->gc.fixWeakArg = &vm->strings;
 
   initTable(&vm->globals, 0.75);

@@ -9,6 +9,7 @@ void initGC(GC* gc) {
   gc->objects = NULL;
   gc->bytesAllocated = 0;
   gc->nextGC = 1024 * 1024;
+  gc->mark = true;
 
   gc->grayCount = 0;
   gc->grayCapacity = 0;
