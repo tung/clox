@@ -152,6 +152,50 @@ UTEST_F(DisassembleChunk, OpSetUpvalue) {
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 
+UTEST_F(DisassembleChunk, OpGetProperty) {
+  Table strings;
+  initTable(&strings, 0.75);
+
+  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
+
+  uint8_t global =
+      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_GET_PROPERTY, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+
+  popTemp(&ufx->gc);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_GET_PROPERTY     0 'foo'\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+
+  freeTable(&ufx->gc, &strings);
+}
+
+UTEST_F(DisassembleChunk, OpSetProperty) {
+  Table strings;
+  initTable(&strings, 0.75);
+
+  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
+
+  uint8_t global =
+      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_SET_PROPERTY, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+
+  popTemp(&ufx->gc);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_SET_PROPERTY     0 'foo'\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+
+  freeTable(&ufx->gc, &strings);
+}
+
 UTEST_F(DisassembleChunk, OpJump) {
   writeChunk(&ufx->gc, &ufx->chunk, OP_JUMP, 123);
   writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
@@ -241,6 +285,28 @@ UTEST_F(DisassembleChunk, OpClosure2) {
       "0000  123 OP_CLOSURE          0 <script>\n"
       "0002      |                     local 1\n"
       "0004      |                     upvalue 2\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+
+  freeTable(&ufx->gc, &strings);
+}
+
+UTEST_F(DisassembleChunk, OpClass) {
+  Table strings;
+  initTable(&strings, 0.75);
+
+  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
+
+  uint8_t global =
+      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_CLASS, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+
+  popTemp(&ufx->gc);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_CLASS            0 'foo'\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 
   freeTable(&ufx->gc, &strings);

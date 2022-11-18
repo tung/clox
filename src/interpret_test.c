@@ -544,6 +544,28 @@ InterpretCase whileStmt[] = {
 
 INTERPRET(WhileStmt, whileStmt, 7);
 
+InterpretCase classes[] = {
+  { INTERPRET_COMPILE_ERROR, "Expect class name.", "class" },
+  { INTERPRET_COMPILE_ERROR, "Expect class name.", "class 0" },
+  { INTERPRET_COMPILE_ERROR, "Expect '{' before class body.",
+      "class F" },
+  { INTERPRET_COMPILE_ERROR, "Expect '}' after class body.",
+      "class F{" },
+  { INTERPRET_COMPILE_ERROR, "Invalid assignment target.",
+      "class F{}var f=F();1+f.x=2;" },
+  { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
+      "0.x;" },
+  { INTERPRET_RUNTIME_ERROR, "Only instances have fields.", "0.x=1;" },
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
+      "class F{}var f=F();f.x;" },
+  { INTERPRET_OK, "F\n", "class F{}print F;" },
+  { INTERPRET_OK, "F instance\n", "class F{}print F();" },
+  { INTERPRET_OK, "1\n1\n",
+      "class F{}var f=F();print f.x=1;print f.x;" },
+};
+
+INTERPRET(Classes, classes, 11);
+
 UTEST_STATE();
 
 int main(int argc, const char* argv[]) {

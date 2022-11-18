@@ -143,6 +143,12 @@ static bool call(VM* vm, ObjClosure* closure, int argCount) {
 static bool callValue(VM* vm, Value callee, int argCount) {
   if (IS_OBJ(callee)) {
     switch (OBJ_TYPE(callee)) {
+      case OBJ_CLASS: {
+        ObjClass* klass = AS_CLASS(callee);
+        vm->stackTop[-argCount - 1] =
+            OBJ_VAL(newInstance(&vm->gc, klass));
+        return true;
+      }
       case OBJ_CLOSURE: return call(vm, AS_CLOSURE(callee), argCount);
       case OBJ_NATIVE: {
         NativeFn native = AS_NATIVE(callee);
@@ -306,6 +312,39 @@ static InterpretResult run(VM* vm) {
         *frame->closure->upvalues[slot]->location = peek(vm, 0);
         break;
       }
+      case OP_GET_PROPERTY: {
+        if (!IS_INSTANCE(peek(vm, 0))) {
+          runtimeError(vm, "Only instances have properties.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        ObjInstance* instance = AS_INSTANCE(peek(vm, 0));
+        ObjString* name = READ_STRING();
+
+        Value value;
+        if (tableGet(&instance->fields, name, &value)) {
+          pop(vm); // Instance.
+          push(vm, value);
+          break;
+        }
+
+        runtimeError(vm, "Undefined property '%s'.", name->chars);
+        return INTERPRET_RUNTIME_ERROR;
+      }
+      case OP_SET_PROPERTY: {
+        if (!IS_INSTANCE(peek(vm, 1))) {
+          runtimeError(vm, "Only instances have fields.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        ObjInstance* instance = AS_INSTANCE(peek(vm, 1));
+        tableSet(
+            &vm->gc, &instance->fields, READ_STRING(), peek(vm, 0));
+        Value value = pop(vm);
+        pop(vm);
+        push(vm, value);
+        break;
+      }
       case OP_EQUAL: {
         Value b = pop(vm);
         Value a = pop(vm);
@@ -403,6 +442,9 @@ static InterpretResult run(VM* vm) {
         frame = &vm->frames[vm->frameCount - 1];
         break;
       }
+      case OP_CLASS:
+        push(vm, OBJ_VAL(newClass(&vm->gc, READ_STRING())));
+        break;
       default: {
         fprintf(vm->ferr, "Unknown opcode %d\n", instruction);
         return INTERPRET_RUNTIME_ERROR;

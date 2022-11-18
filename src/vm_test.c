@@ -479,6 +479,125 @@ UTEST_F(VMSimple, Closures2) {
   }
 }
 
+UTEST_F(VMSimple, ClassesSimple) {
+  size_t temps = 0;
+
+  // class F{} var f = F(); f.x = 1; print f.x;
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 2,
+          OP_CALL, 0, OP_DEFINE_GLOBAL, 1, OP_GET_GLOBAL, 3,
+          OP_CONSTANT, 5, OP_SET_PROPERTY, 4, OP_POP, OP_GET_GLOBAL, 6,
+          OP_GET_PROPERTY, 7, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value, S("F"), S("f"), S("F"), S("f"), S("x"), N(1.0),
+          S("f"), S("x")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->out.fptr);
+  EXPECT_STREQ("1\n", ufx->out.buf);
+
+  if (ires != INTERPRET_OK) {
+    fflush(ufx->err.fptr);
+    EXPECT_STREQ("", ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesGetUndefinedProperty) {
+  size_t temps = 0;
+
+  // class F{} var f = F(); f.x;
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 2,
+          OP_CALL, 0, OP_DEFINE_GLOBAL, 1, OP_GET_GLOBAL, 3,
+          OP_GET_PROPERTY, 4, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, S("F"), S("f"), S("F"), S("f"), S("x")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Undefined property 'x'.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesGetNonInstance) {
+  size_t temps = 0;
+
+  // 0.x;
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_PROPERTY, 1, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Value, N(0.0), S("x")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Only instances have properties.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesSetNonInstance) {
+  size_t temps = 0;
+
+  // 0.x = 1;
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 2, OP_SET_PROPERTY, 1,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, N(0.0), S("x"), N(1.0)));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Only instances have fields.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
 typedef struct {
   const char* msgSuffix;
   InterpretResult ires;

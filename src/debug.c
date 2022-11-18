@@ -74,6 +74,12 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
       return byteInstruction(ferr, "OP_GET_UPVALUE", chunk, offset);
     case OP_SET_UPVALUE:
       return byteInstruction(ferr, "OP_SET_UPVALUE", chunk, offset);
+    case OP_GET_PROPERTY:
+      return constantInstruction(
+          ferr, "OP_GET_PROPERTY", chunk, offset);
+    case OP_SET_PROPERTY:
+      return constantInstruction(
+          ferr, "OP_SET_PROPERTY", chunk, offset);
     case OP_EQUAL: return simpleInstruction(ferr, "OP_EQUAL", offset);
     case OP_GREATER:
       return simpleInstruction(ferr, "OP_GREATER", offset);
@@ -117,6 +123,8 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
     case OP_CLOSE_UPVALUE:
       return simpleInstruction(ferr, "OP_CLOSE_UPVALUE", offset);
     case OP_RETURN: return simpleInstruction(ferr, "OP_RETURN", offset);
+    case OP_CLASS:
+      return constantInstruction(ferr, "OP_CLASS", chunk, offset);
     default:
       fprintf(ferr, "Unknown opcode %d\n", instruction);
       return offset + 1;

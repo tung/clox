@@ -89,6 +89,11 @@ static void blackenObject(GC* gc, Obj* object) {
   // GCOV_EXCL_STOP
 
   switch (object->type) {
+    case OBJ_CLASS: {
+      ObjClass* klass = (ObjClass*)object;
+      markObject(gc, (Obj*)klass->name);
+      break;
+    }
     case OBJ_CLOSURE: {
       ObjClosure* closure = (ObjClosure*)object;
       markObject(gc, (Obj*)closure->function);
@@ -101,6 +106,12 @@ static void blackenObject(GC* gc, Obj* object) {
       ObjFunction* function = (ObjFunction*)object;
       markObject(gc, (Obj*)function->name);
       markArray(gc, &function->chunk.constants);
+      break;
+    }
+    case OBJ_INSTANCE: {
+      ObjInstance* instance = (ObjInstance*)object;
+      markObject(gc, (Obj*)instance->klass);
+      markTable(gc, &instance->fields);
       break;
     }
     case OBJ_UPVALUE:
@@ -119,6 +130,10 @@ static void freeObject(GC* gc, Obj* object) {
   // GCOV_EXCL_STOP
 
   switch (object->type) {
+    case OBJ_CLASS: {
+      FREE(gc, ObjClass, object);
+      break;
+    }
     case OBJ_CLOSURE: {
       ObjClosure* closure = (ObjClosure*)object;
       FREE_ARRAY(
@@ -130,6 +145,12 @@ static void freeObject(GC* gc, Obj* object) {
       ObjFunction* function = (ObjFunction*)object;
       freeChunk(gc, &function->chunk);
       FREE(gc, ObjFunction, object);
+      break;
+    }
+    case OBJ_INSTANCE: {
+      ObjInstance* instance = (ObjInstance*)object;
+      freeTable(gc, &instance->fields);
+      FREE(gc, ObjInstance, object);
       break;
     }
     case OBJ_NATIVE: FREE(gc, ObjNative, object); break;

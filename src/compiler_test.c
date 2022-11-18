@@ -912,6 +912,63 @@ SourceToDump while_[] = {
 
 DUMP_SRC(While, while_, 1);
 
+SourceToDump classes[] = {
+  { false, "1+f.x=2;", "Invalid assignment target." },
+  { true, "class F{}",
+      "== <script> ==\n"
+      "0000    1 OP_CLASS            0 'F'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'F'\n"
+      "0004    | OP_NIL\n"
+      "0005    | OP_RETURN\n" },
+  { true, "fun g(){class F{}}",
+      "== g ==\n"
+      "0000    1 OP_CLASS            0 'F'\n"
+      "0002    | OP_NIL\n"
+      "0003    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CLOSURE          1 <fn g>\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'g'\n"
+      "0004    | OP_NIL\n"
+      "0005    | OP_RETURN\n" },
+  { true, "class F{}var f=F();f.x=1;print f.x;",
+      "== <script> ==\n"
+      "0000    1 OP_CLASS            0 'F'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'F'\n"
+      "0004    | OP_GET_GLOBAL       2 'F'\n"
+      "0006    | OP_CALL             0\n"
+      "0008    | OP_DEFINE_GLOBAL    1 'f'\n"
+      "0010    | OP_GET_GLOBAL       3 'f'\n"
+      "0012    | OP_CONSTANT         5 '1'\n"
+      "0014    | OP_SET_PROPERTY     4 'x'\n"
+      "0016    | OP_POP\n"
+      "0017    | OP_GET_GLOBAL       6 'f'\n"
+      "0019    | OP_GET_PROPERTY     7 'x'\n"
+      "0021    | OP_PRINT\n"
+      "0022    | OP_NIL\n"
+      "0023    | OP_RETURN\n" },
+  { true, "fun g(){class F{}var f=F();f.x=1;print f.x;}",
+      "== g ==\n"
+      "0000    1 OP_CLASS            0 'F'\n"
+      "0002    | OP_GET_LOCAL        1\n"
+      "0004    | OP_CALL             0\n"
+      "0006    | OP_GET_LOCAL        2\n"
+      "0008    | OP_CONSTANT         2 '1'\n"
+      "0010    | OP_SET_PROPERTY     1 'x'\n"
+      "0012    | OP_POP\n"
+      "0013    | OP_GET_LOCAL        2\n"
+      "0015    | OP_GET_PROPERTY     3 'x'\n"
+      "0017    | OP_PRINT\n"
+      "0018    | OP_NIL\n"
+      "0019    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CLOSURE          1 <fn g>\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'g'\n"
+      "0004    | OP_NIL\n"
+      "0005    | OP_RETURN\n" },
+};
+
+DUMP_SRC(Classes, classes, 5);
+
 SourceToDump error[] = {
   { false, "print 0", "Expect ';' after value." },
   { false, "print 0 1;print 2;", "Expect ';' after value." },

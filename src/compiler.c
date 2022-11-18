@@ -472,6 +472,18 @@ static void call(Parser* parser, bool canAssign) {
   emitBytes(parser, OP_CALL, argCount);
 }
 
+static void dot(Parser* parser, bool canAssign) {
+  consume(parser, TOKEN_IDENTIFIER, "Expect property name after '.'.");
+  uint8_t name = identifierConstant(parser, &parser->previous);
+
+  if (canAssign && match(parser, TOKEN_EQUAL)) {
+    expression(parser);
+    emitBytes(parser, OP_SET_PROPERTY, name);
+  } else {
+    emitBytes(parser, OP_GET_PROPERTY, name);
+  }
+}
+
 static void literal(Parser* parser, bool canAssign) {
   (void)canAssign;
 
@@ -569,7 +581,7 @@ ParseRule rules[] = {
   [TOKEN_LEFT_BRACE]    = { NULL,     NULL,   PREC_NONE },
   [TOKEN_RIGHT_BRACE]   = { NULL,     NULL,   PREC_NONE },
   [TOKEN_COMMA]         = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_DOT]           = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_DOT]           = { NULL,     dot,    PREC_CALL },
   [TOKEN_MINUS]         = { unary,    binary, PREC_TERM },
   [TOKEN_PLUS]          = { NULL,     binary, PREC_TERM },
   [TOKEN_SEMICOLON]     = { NULL,     NULL,   PREC_NONE },
@@ -677,6 +689,18 @@ static void function(Parser* parser, FunctionType type) {
     emitByte(parser, compiler.upvalues[i].isLocal ? 1 : 0);
     emitByte(parser, compiler.upvalues[i].index);
   }
+}
+
+static void classDeclaration(Parser* parser) {
+  consume(parser, TOKEN_IDENTIFIER, "Expect class name.");
+  uint8_t nameConstant = identifierConstant(parser, &parser->previous);
+  declareVariable(parser);
+
+  emitBytes(parser, OP_CLASS, nameConstant);
+  defineVariable(parser, nameConstant);
+
+  consume(parser, TOKEN_LEFT_BRACE, "Expect '{' before class body.");
+  consume(parser, TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
 }
 
 static void funDeclaration(Parser* parser) {
@@ -832,7 +856,9 @@ static void synchronize(Parser* parser) {
 }
 
 static void declaration(Parser* parser) {
-  if (match(parser, TOKEN_FUN)) {
+  if (match(parser, TOKEN_CLASS)) {
+    classDeclaration(parser);
+  } else if (match(parser, TOKEN_FUN)) {
     funDeclaration(parser);
   } else if (match(parser, TOKEN_VAR)) {
     varDeclaration(parser);

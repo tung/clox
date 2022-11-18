@@ -30,6 +30,12 @@ static Obj* allocateObject(GC* gc, size_t size, ObjType type) {
   return object;
 }
 
+ObjClass* newClass(GC* gc, ObjString* name) {
+  ObjClass* klass = ALLOCATE_OBJ(gc, ObjClass, OBJ_CLASS);
+  klass->name = name;
+  return klass;
+}
+
 ObjClosure* newClosure(GC* gc, ObjFunction* function) {
   ObjUpvalue** upvalues =
       ALLOCATE(gc, ObjUpvalue*, function->upvalueCount);
@@ -51,6 +57,13 @@ ObjFunction* newFunction(GC* gc) {
   function->name = NULL;
   initChunk(&function->chunk);
   return function;
+}
+
+ObjInstance* newInstance(GC* gc, ObjClass* klass) {
+  ObjInstance* instance = ALLOCATE_OBJ(gc, ObjInstance, OBJ_INSTANCE);
+  instance->klass = klass;
+  initTable(&instance->fields, 0.75);
+  return instance;
 }
 
 ObjNative* newNative(GC* gc, NativeFn function) {
@@ -124,10 +137,17 @@ static void printFunction(FILE* fout, ObjFunction* function) {
 
 void printObject(FILE* fout, Value value) {
   switch (OBJ_TYPE(value)) {
+    case OBJ_CLASS:
+      fprintf(fout, "%s", AS_CLASS(value)->name->chars);
+      break;
     case OBJ_CLOSURE:
       printFunction(fout, AS_CLOSURE(value)->function);
       break;
     case OBJ_FUNCTION: printFunction(fout, AS_FUNCTION(value)); break;
+    case OBJ_INSTANCE:
+      fprintf(
+          fout, "%s instance", AS_INSTANCE(value)->klass->name->chars);
+      break;
     case OBJ_NATIVE: fprintf(fout, "<native fn>"); break;
     case OBJ_STRING: fprintf(fout, "%s", AS_CSTRING(value)); break;
     case OBJ_UPVALUE: fprintf(fout, "upvalue"); break;
