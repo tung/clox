@@ -620,6 +620,7 @@ UTEST_I_SETUP(VM) {
 UTEST_I_TEARDOWN(VM) {
   ResultFromChunk* expected = &ufx->cases[utest_index];
 
+  size_t temps = 0;
   MemBuf out, err;
   VM vm;
   Chunk chunk;
@@ -629,18 +630,19 @@ UTEST_I_TEARDOWN(VM) {
   initChunk(&chunk);
 
   // Prepare the chunk.
-  for (int i = 0; i < expected->codeSize; ++i) {
-    writeChunk(&vm.gc, &chunk, expected->code[i], i >> 1);
-  }
+  temps += fillChunk(&chunk, &vm.gc, &vm.strings, expected->codeSize,
+      expected->code, expected->valueSize, expected->values);
   writeChunk(&vm.gc, &chunk, OP_NIL, (expected->codeSize - 1) >> 1);
   writeChunk(&vm.gc, &chunk, OP_RETURN, (expected->codeSize - 1) >> 1);
-  for (int i = 0; i < expected->valueSize; ++i) {
-    addConstant(&vm.gc, &chunk, expected->values[i]);
-  }
 
   // Interpret the chunk.
   InterpretResult ires = interpretChunk(&vm, &chunk);
   EXPECT_EQ(expected->ires, ires);
+
+  while (temps > 0) {
+    popTemp(&vm.gc);
+    temps--;
+  }
 
   fflush(out.fptr);
   fflush(err.fptr);
@@ -799,6 +801,31 @@ ResultFromChunk opLess[] = {
 };
 
 VM_CASES(OpLess, opLess, 5);
+
+ResultFromChunk opIn[] = {
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_IN, OP_PRINT), LIST(Value) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_IN, OP_PRINT),
+      LIST(Value, S("x")) },
+  { "", INTERPRET_RUNTIME_ERROR,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_NIL,
+          OP_GET_GLOBAL, 1, OP_CALL, 0, OP_IN, OP_PRINT),
+      LIST(Value, S("F"), S("F")) },
+  { "false\n", INTERPRET_OK,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_CONSTANT, 1,
+          OP_GET_GLOBAL, 2, OP_CALL, 0, OP_IN, OP_PRINT),
+      LIST(Value, S("F"), S("x"), S("F")) },
+  { "true\n", INTERPRET_OK,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 2,
+          OP_CALL, 0, OP_DEFINE_GLOBAL, 1, OP_GET_GLOBAL, 3,
+          OP_CONSTANT, 5, OP_SET_PROPERTY, 4, OP_POP, OP_CONSTANT, 6,
+          OP_GET_GLOBAL, 7, OP_IN, OP_PRINT),
+      LIST(Value, S("F"), S("f"), S("F"), S("f"), S("x"), N(1.0),
+          S("x"), S("f")) },
+};
+
+VM_CASES(OpIn, opIn, 5);
 
 ResultFromChunk opAdd[] = {
   { "", INTERPRET_RUNTIME_ERROR,

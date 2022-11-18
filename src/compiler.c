@@ -64,6 +64,7 @@ typedef enum {
   PREC_AND,        // and
   PREC_EQUALITY,   // == !=
   PREC_COMPARISON, // < > <= >=
+  PREC_IN,         // in
   PREC_TERM,       // + -
   PREC_FACTOR,     // * /
   PREC_UNARY,      // ! -
@@ -502,6 +503,14 @@ static void grouping(Parser* parser, bool canAssign) {
   consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
 
+static void in_(Parser* parser, bool canAssign) {
+  (void)canAssign;
+
+  ParseRule* rule = getRule(TOKEN_IN);
+  parsePrecedence(parser, (Precedence)(rule->precedence + 1));
+  emitByte(parser, OP_IN);
+}
+
 static void number(Parser* parser, bool canAssign) {
   (void)canAssign;
 
@@ -605,6 +614,7 @@ ParseRule rules[] = {
   [TOKEN_FOR]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_FUN]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_IF]            = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_IN]            = { NULL,     in_,    PREC_IN },
   [TOKEN_NIL]           = { literal,  NULL,   PREC_NONE },
   [TOKEN_OR]            = { NULL,     or_,    PREC_OR },
   [TOKEN_PRINT]         = { NULL,     NULL,   PREC_NONE },

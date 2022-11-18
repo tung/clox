@@ -25,6 +25,7 @@ typedef enum {
   OP_EQUAL,
   OP_GREATER,
   OP_LESS,
+  OP_IN,
   OP_ADD,
   OP_SUBTRACT,
   OP_MULTIPLY,

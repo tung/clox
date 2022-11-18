@@ -353,6 +353,23 @@ static InterpretResult run(VM* vm) {
       }
       case OP_GREATER: BINARY_OP(BOOL_VAL, >); break;
       case OP_LESS: BINARY_OP(BOOL_VAL, <); break;
+      case OP_IN: {
+        if (!IS_INSTANCE(peek(vm, 0)) || !IS_STRING(peek(vm, 1))) {
+          runtimeError(
+              vm, "Operands must be a string and an instance.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        ObjInstance* instance = AS_INSTANCE(peek(vm, 0));
+        ObjString* name = AS_STRING(peek(vm, 1));
+
+        Value value;
+        bool nameExists = tableGet(&instance->fields, name, &value);
+        pop(vm);
+        pop(vm);
+        push(vm, BOOL_VAL(nameExists));
+        break;
+      }
       case OP_ADD: {
         if (IS_STRING(peek(vm, 0)) && IS_STRING(peek(vm, 1))) {
           concatenate(vm);

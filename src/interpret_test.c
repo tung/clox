@@ -336,6 +336,25 @@ InterpretCase lessEqual[] = {
 
 INTERPRET(LessEqual, lessEqual, 3);
 
+InterpretCase in_[] = {
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be a string and an instance.",
+      "print nil in nil;" },
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be a string and an instance.",
+      "print\"x\" in nil;" },
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be a string and an instance.",
+      "class F{}print nil in F();" },
+  { INTERPRET_OK, "false\n", "class F{}var f=F();print\"x\" in F();" },
+  { INTERPRET_OK, "true\n",
+      "class F{}var f=F();f.x=1;print\"x\"in f;" },
+  { INTERPRET_OK, "true\n",
+      "class F{}var f=F();f.foo=1;print\"f\"+\"oo\"in f;" },
+};
+
+INTERPRET(In, in_, 6);
+
 InterpretCase strings[] = {
   { INTERPRET_OK, "\n", "print \"\";" },
   { INTERPRET_OK, "foo\n", "print \"foo\";" },

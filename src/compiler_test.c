@@ -280,6 +280,22 @@ SourceToChunk exprConcatStrings[] = {
 
 COMPILE_EXPRS(ConcatStrings, exprConcatStrings, 3);
 
+SourceToChunk exprIn[] = {
+  { "\"x\" in f", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_GLOBAL, 1, OP_IN),
+      LIST(Value, S("x"), S("f")) },
+  { "\"x\" + \"y\" in f", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD,
+          OP_GET_GLOBAL, 2, OP_IN),
+      LIST(Value, S("x"), S("y"), S("f")) },
+  { "\"x\" in f == false", true,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_GLOBAL, 1, OP_IN, OP_FALSE,
+          OP_EQUAL),
+      LIST(Value, S("x"), S("f")) },
+};
+
+COMPILE_EXPRS(In, exprIn, 3);
+
 SourceToChunk exprLogical[] = {
   { "true and false", true,
       LIST(uint8_t, OP_TRUE, OP_JUMP_IF_FALSE, 0, 2, OP_POP, OP_FALSE),

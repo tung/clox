@@ -167,6 +167,10 @@ StringToTokenTypes identifiers[] = {
   { "f", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "fee", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "foe", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
+  { "i", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
+  { "ii", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
+  { "iff", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
+  { "inn", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "t", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "to", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
   { "___", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
@@ -177,7 +181,7 @@ StringToTokenTypes identifiers[] = {
   { "_0123456789", (TokenType[]){ TOKEN_IDENTIFIER, TOKEN_EOF } },
 };
 
-SCAN_TOKEN_TYPES(Identifiers, identifiers, 9);
+SCAN_TOKEN_TYPES(Identifiers, identifiers, 13);
 
 StringToTokenTypes keywords[] = {
   { "and", (TokenType[]){ TOKEN_AND, TOKEN_EOF } },
@@ -187,6 +191,7 @@ StringToTokenTypes keywords[] = {
   { "for", (TokenType[]){ TOKEN_FOR, TOKEN_EOF } },
   { "fun", (TokenType[]){ TOKEN_FUN, TOKEN_EOF } },
   { "if", (TokenType[]){ TOKEN_IF, TOKEN_EOF } },
+  { "in", (TokenType[]){ TOKEN_IN, TOKEN_EOF } },
   { "nil", (TokenType[]){ TOKEN_NIL, TOKEN_EOF } },
   { "or", (TokenType[]){ TOKEN_OR, TOKEN_EOF } },
   { "print", (TokenType[]){ TOKEN_PRINT, TOKEN_EOF } },
@@ -198,6 +203,6 @@ StringToTokenTypes keywords[] = {
   { "while", (TokenType[]){ TOKEN_WHILE, TOKEN_EOF } },
 };
 
-SCAN_TOKEN_TYPES(Keywords, keywords, 16);
+SCAN_TOKEN_TYPES(Keywords, keywords, 17);
 
 UTEST_MAIN();
