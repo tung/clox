@@ -574,16 +574,28 @@ InterpretCase classes[] = {
       "class F{}var f=F();1+f.x=2;" },
   { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
       "0.x;" },
+  { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
+      "0[\"x\"];" },
   { INTERPRET_RUNTIME_ERROR, "Only instances have fields.", "0.x=1;" },
+  { INTERPRET_RUNTIME_ERROR, "Only instances have fields.",
+      "0[\"x\"]=1;" },
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
       "class F{}var f=F();f.x;" },
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
+      "class F{}var f=F();f[\"x\"];" },
+  { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
+      "class F{}var f=F();f[0];" },
+  { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
+      "class F{}var f=F();f[0]=1;" },
   { INTERPRET_OK, "F\n", "class F{}print F;" },
   { INTERPRET_OK, "F instance\n", "class F{}print F();" },
   { INTERPRET_OK, "1\n1\n",
       "class F{}var f=F();print f.x=1;print f.x;" },
+  { INTERPRET_OK, "1\n1\n",
+      "class F{}var f=F();print f[\"x\"]=1;print f[\"x\"];" },
 };
 
-INTERPRET(Classes, classes, 11);
+INTERPRET(Classes, classes, 17);
 
 UTEST_STATE();
 

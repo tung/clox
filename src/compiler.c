@@ -511,6 +511,18 @@ static void in_(Parser* parser, bool canAssign) {
   emitByte(parser, OP_IN);
 }
 
+static void index_(Parser* parser, bool canAssign) {
+  expression(parser);
+  consume(parser, TOKEN_RIGHT_SQUARE, "Expect ']' after expression.");
+
+  if (canAssign && match(parser, TOKEN_EQUAL)) {
+    expression(parser);
+    emitByte(parser, OP_SET_INDEX);
+  } else {
+    emitByte(parser, OP_GET_INDEX);
+  }
+}
+
 static void number(Parser* parser, bool canAssign) {
   (void)canAssign;
 
@@ -589,6 +601,8 @@ ParseRule rules[] = {
   [TOKEN_RIGHT_PAREN]   = { NULL,     NULL,   PREC_NONE },
   [TOKEN_LEFT_BRACE]    = { NULL,     NULL,   PREC_NONE },
   [TOKEN_RIGHT_BRACE]   = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_LEFT_SQUARE]   = { NULL,     index_, PREC_CALL },
+  [TOKEN_RIGHT_SQUARE]  = { NULL,     NULL,   PREC_NONE },
   [TOKEN_COMMA]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_DOT]           = { NULL,     dot,    PREC_CALL },
   [TOKEN_MINUS]         = { unary,    binary, PREC_TERM },

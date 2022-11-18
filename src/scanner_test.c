@@ -97,6 +97,8 @@ StringToTokenTypes single[] = {
   { ")", (TokenType[]){ TOKEN_RIGHT_PAREN, TOKEN_EOF } },
   { "{", (TokenType[]){ TOKEN_LEFT_BRACE, TOKEN_EOF } },
   { "}", (TokenType[]){ TOKEN_RIGHT_BRACE, TOKEN_EOF } },
+  { "[", (TokenType[]){ TOKEN_LEFT_SQUARE, TOKEN_EOF } },
+  { "]", (TokenType[]){ TOKEN_RIGHT_SQUARE, TOKEN_EOF } },
   { ";", (TokenType[]){ TOKEN_SEMICOLON, TOKEN_EOF } },
   { ",", (TokenType[]){ TOKEN_COMMA, TOKEN_EOF } },
   { ".", (TokenType[]){ TOKEN_DOT, TOKEN_EOF } },
@@ -106,7 +108,7 @@ StringToTokenTypes single[] = {
   { "*", (TokenType[]){ TOKEN_STAR, TOKEN_EOF } },
 };
 
-SCAN_TOKEN_TYPES(Single, single, 11);
+SCAN_TOKEN_TYPES(Single, single, 13);
 
 StringToTokenTypes oneOrTwo[] = {
   { "!", (TokenType[]){ TOKEN_BANG, TOKEN_EOF } },
