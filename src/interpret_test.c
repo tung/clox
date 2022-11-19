@@ -509,6 +509,29 @@ InterpretCase andOr[] = {
 
 INTERPRET(AndOr, andOr, 6);
 
+InterpretCase delStmt[] = {
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "del" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "del," },
+  { INTERPRET_COMPILE_ERROR, "Expect ',' after expression.", "del 0" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "del 0," },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "del 0,;" },
+  { INTERPRET_COMPILE_ERROR, "Expect ';' after expression.",
+      "del 0,0" },
+  { INTERPRET_RUNTIME_ERROR, "Can only delete from an instance.",
+      "del 0,0;" },
+  { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
+      "class F{}var f=F();del f,0;" },
+  { INTERPRET_OK, "true\ntrue\nfalse\ntrue\n",
+      "class F {}"
+      "var f = F();"
+      "f.x = f.y = 1;"
+      "print \"x\" in f; print \"y\" in f;"
+      "del f, \"x\";"
+      "print \"x\" in f; print \"y\" in f;" },
+};
+
+INTERPRET(DelStmt, delStmt, 9);
+
 InterpretCase expressionStmt[] = {
   { INTERPRET_OK, "", "0;" },
   { INTERPRET_OK, "", "nil;" },

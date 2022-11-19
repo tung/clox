@@ -388,6 +388,23 @@ static InterpretResult run(VM* vm) {
         push(vm, value);
         break;
       }
+      case OP_DELETE: {
+        if (!IS_INSTANCE(peek(vm, 1))) {
+          runtimeError(vm, "Can only delete from an instance.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        if (!IS_STRING(peek(vm, 0))) {
+          runtimeError(vm, "Instances can only be indexed by string.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        ObjString* name = AS_STRING(peek(vm, 0));
+        ObjInstance* instance = AS_INSTANCE(peek(vm, 1));
+        tableDelete(&instance->fields, name);
+        pop(vm); // Name.
+        pop(vm); // Instance.
+        break;
+      }
       case OP_EQUAL: {
         Value b = pop(vm);
         Value a = pop(vm);

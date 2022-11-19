@@ -431,6 +431,7 @@ OpCodeToString simpleOps[] = {
   SIMPLE_OP(OP_POP),
   SIMPLE_OP(OP_GET_INDEX),
   SIMPLE_OP(OP_SET_INDEX),
+  SIMPLE_OP(OP_DELETE),
   SIMPLE_OP(OP_EQUAL),
   SIMPLE_OP(OP_GREATER),
   SIMPLE_OP(OP_LESS),
@@ -448,7 +449,7 @@ OpCodeToString simpleOps[] = {
 };
 // clang-format on
 
-#define NUM_SIMPLE_OPS 20
+#define NUM_SIMPLE_OPS 21
 
 UTEST_I(DisassembleSimple, SimpleOps, NUM_SIMPLE_OPS) {
   static_assert(

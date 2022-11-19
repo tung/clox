@@ -84,6 +84,7 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
       return simpleInstruction(ferr, "OP_GET_INDEX", offset);
     case OP_SET_INDEX:
       return simpleInstruction(ferr, "OP_SET_INDEX", offset);
+    case OP_DELETE: return simpleInstruction(ferr, "OP_DELETE", offset);
     case OP_EQUAL: return simpleInstruction(ferr, "OP_EQUAL", offset);
     case OP_GREATER:
       return simpleInstruction(ferr, "OP_GREATER", offset);

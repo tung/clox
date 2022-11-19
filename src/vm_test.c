@@ -779,6 +779,97 @@ UTEST_F(VMSimple, ClassesIndexSetBadIndex) {
   }
 }
 
+UTEST_F(VMSimple, ClassesDelete) {
+  size_t temps = 0;
+
+  // class F{} var f=F(); f.x=1; print"x"in f; del f,"x"; print"x"in f;
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 2,
+          OP_CALL, 0, OP_DEFINE_GLOBAL, 1, OP_GET_GLOBAL, 3,
+          OP_CONSTANT, 5, OP_SET_PROPERTY, 4, OP_POP, OP_CONSTANT, 6,
+          OP_GET_GLOBAL, 7, OP_IN, OP_PRINT, OP_GET_GLOBAL, 8,
+          OP_CONSTANT, 9, OP_DELETE, OP_CONSTANT, 10, OP_GET_GLOBAL, 11,
+          OP_IN, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value, S("F"), S("f"), S("F"), S("f"), S("x"), N(1.0),
+          S("x"), S("f"), S("f"), S("x"), S("x"), S("f")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->out.fptr);
+  EXPECT_STREQ("true\nfalse\n", ufx->out.buf);
+
+  if (ires != INTERPRET_OK) {
+    fflush(ufx->err.fptr);
+    EXPECT_STREQ("", ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesDeleteNonInstance) {
+  size_t temps = 0;
+
+  // del nil,nil;
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_DELETE, OP_NIL, OP_RETURN),
+      LIST(Value));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Can only delete from an instance.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesDeleteBadIndex) {
+  size_t temps = 0;
+
+  // class F{} var f = F(); del f, nil;
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 2,
+          OP_CALL, 0, OP_DEFINE_GLOBAL, 1, OP_GET_GLOBAL, 3, OP_NIL,
+          OP_DELETE, OP_NIL, OP_RETURN),
+      LIST(Value, S("F"), S("f"), S("F"), S("f")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Instances can only be indexed by string.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
 typedef struct {
   const char* msgSuffix;
   InterpretResult ires;

@@ -748,6 +748,14 @@ static void varDeclaration(Parser* parser) {
   defineVariable(parser, global);
 }
 
+static void delStatement(Parser* parser) {
+  expression(parser);
+  consume(parser, TOKEN_COMMA, "Expect ',' after expression.");
+  expression(parser);
+  consume(parser, TOKEN_SEMICOLON, "Expect ';' after expression.");
+  emitByte(parser, OP_DELETE);
+}
+
 static void expressionStatement(Parser* parser) {
   expression(parser);
   consume(parser, TOKEN_SEMICOLON, "Expect ';' after expression.");
@@ -898,6 +906,8 @@ static void declaration(Parser* parser) {
 static void statement(Parser* parser) {
   if (match(parser, TOKEN_PRINT)) {
     printStatement(parser);
+  } else if (match(parser, TOKEN_DEL)) {
+    delStatement(parser);
   } else if (match(parser, TOKEN_FOR)) {
     forStatement(parser);
   } else if (match(parser, TOKEN_IF)) {
