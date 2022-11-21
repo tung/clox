@@ -240,6 +240,29 @@ UTEST_F(DisassembleChunk, OpCall) {
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 
+UTEST_F(DisassembleChunk, OpInvoke) {
+  Table strings;
+  initTable(&strings, 0.75);
+
+  ObjString* methodOStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(methodOStr));
+
+  uint8_t method =
+      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_INVOKE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, method, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
+
+  popTemp(&ufx->gc);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_INVOKE        (0 args)    0 'foo'\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+
+  freeTable(&ufx->gc, &strings);
+}
+
 UTEST_F(DisassembleChunk, OpClosure0) {
   Table strings;
   initTable(&strings, 0.75);
@@ -307,6 +330,28 @@ UTEST_F(DisassembleChunk, OpClass) {
 
   fflush(ufx->err.fptr);
   const char msg[] = "0000  123 OP_CLASS            0 'foo'\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+
+  freeTable(&ufx->gc, &strings);
+}
+
+UTEST_F(DisassembleChunk, OpMethod) {
+  Table strings;
+  initTable(&strings, 0.75);
+
+  ObjString* methodOStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(methodOStr));
+
+  uint8_t method =
+      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_METHOD, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, method, 123);
+
+  popTemp(&ufx->gc);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_METHOD           0 'foo'\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 
   freeTable(&ufx->gc, &strings);

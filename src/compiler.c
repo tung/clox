@@ -25,6 +25,8 @@ typedef struct {
 
 typedef enum {
   TYPE_FUNCTION,
+  TYPE_INITIALIZER,
+  TYPE_METHOD,
   TYPE_SCRIPT,
 } FunctionType;
 
@@ -39,6 +41,10 @@ typedef struct Compiler {
   int scopeDepth;
 } Compiler;
 
+typedef struct ClassCompiler {
+  struct ClassCompiler* enclosing;
+} ClassCompiler;
+
 typedef struct {
   FILE* fout;
   FILE* ferr;
@@ -50,6 +56,7 @@ typedef struct {
   Table* strings;
   Scanner scanner;
   Compiler* currentCompiler;
+  ClassCompiler* currentClass;
   Token current;
   Token previous;
   bool hadError;
@@ -178,7 +185,12 @@ static int emitJump(Parser* parser, uint8_t instruction) {
 }
 
 static void emitReturn(Parser* parser) {
-  emitByte(parser, OP_NIL);
+  if (parser->currentCompiler->type == TYPE_INITIALIZER) {
+    emitBytes(parser, OP_GET_LOCAL, 0);
+  } else {
+    emitByte(parser, OP_NIL);
+  }
+
   emitByte(parser, OP_RETURN);
 }
 
@@ -231,8 +243,13 @@ static void initCompiler(
                       ->locals[parser->currentCompiler->localCount++];
   local->depth = 0;
   local->isCaptured = false;
-  local->name.start = "";
-  local->name.length = 0;
+  if (type != TYPE_FUNCTION) {
+    local->name.start = "this";
+    local->name.length = 4;
+  } else {
+    local->name.start = "";
+    local->name.length = 0;
+  }
 }
 
 static ObjFunction* endCompiler(Parser* parser) {
@@ -479,6 +496,10 @@ static void dot(Parser* parser, bool canAssign) {
   if (canAssign && match(parser, TOKEN_EQUAL)) {
     expression(parser);
     emitBytes(parser, OP_SET_PROPERTY, name);
+  } else if (match(parser, TOKEN_LEFT_PAREN)) {
+    uint8_t argCount = argumentList(parser);
+    emitBytes(parser, OP_INVOKE, name);
+    emitByte(parser, argCount);
   } else {
     emitBytes(parser, OP_GET_PROPERTY, name);
   }
@@ -558,6 +579,17 @@ static void variable(Parser* parser, bool canAssign) {
   namedVariable(parser, parser->previous, canAssign);
 }
 
+static void this_(Parser* parser, bool canAssign) {
+  (void)canAssign;
+
+  if (parser->currentClass == NULL) {
+    error(parser, "Can't use 'this' outside of a class.");
+    return;
+  }
+
+  variable(parser, false);
+}
+
 static void unary(Parser* parser, bool canAssign) {
   (void)canAssign;
 
@@ -610,7 +642,7 @@ ParseRule rules[] = {
   [TOKEN_PRINT]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_RETURN]        = { NULL,     NULL,   PREC_NONE },
   [TOKEN_SUPER]         = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_THIS]          = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_THIS]          = { this_,    NULL,   PREC_NONE },
   [TOKEN_TRUE]          = { literal,  NULL,   PREC_NONE },
   [TOKEN_VAR]           = { NULL,     NULL,   PREC_NONE },
   [TOKEN_WHILE]         = { NULL,     NULL,   PREC_NONE },
@@ -691,16 +723,42 @@ static void function(Parser* parser, FunctionType type) {
   }
 }
 
+static void method(Parser* parser) {
+  consume(parser, TOKEN_IDENTIFIER, "Expect method name.");
+  uint8_t constant = identifierConstant(parser, &parser->previous);
+
+  FunctionType type = TYPE_METHOD;
+  if (parser->previous.length == 4 &&
+      memcmp(parser->previous.start, "init", 4) == 0) {
+    type = TYPE_INITIALIZER;
+  }
+  function(parser, type);
+  emitBytes(parser, OP_METHOD, constant);
+}
+
 static void classDeclaration(Parser* parser) {
   consume(parser, TOKEN_IDENTIFIER, "Expect class name.");
+  Token className = parser->previous;
   uint8_t nameConstant = identifierConstant(parser, &parser->previous);
   declareVariable(parser);
 
   emitBytes(parser, OP_CLASS, nameConstant);
   defineVariable(parser, nameConstant);
 
+  ClassCompiler classCompiler;
+  classCompiler.enclosing = parser->currentClass;
+  parser->currentClass = &classCompiler;
+
+  namedVariable(parser, className, false);
   consume(parser, TOKEN_LEFT_BRACE, "Expect '{' before class body.");
+  while (
+      !check(parser, TOKEN_RIGHT_BRACE) && !check(parser, TOKEN_EOF)) {
+    method(parser);
+  }
   consume(parser, TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+  emitByte(parser, OP_POP);
+
+  parser->currentClass = parser->currentClass->enclosing;
 }
 
 static void funDeclaration(Parser* parser) {
@@ -810,6 +868,10 @@ static void returnStatement(Parser* parser) {
   if (match(parser, TOKEN_SEMICOLON)) {
     emitReturn(parser);
   } else {
+    if (parser->currentCompiler->type == TYPE_INITIALIZER) {
+      error(parser, "Can't return a value from an initializer.");
+    }
+
     expression(parser);
     consume(parser, TOKEN_SEMICOLON, "Expect ';' after return value.");
     emitByte(parser, OP_RETURN);
@@ -945,6 +1007,7 @@ ObjFunction* compile(FILE* fout, FILE* ferr, const char* source, GC* gc,
   setupGC(&parser, gc, strings);
   parser.strings = strings;
   parser.currentCompiler = NULL;
+  parser.currentClass = NULL;
   parser.hadError = false;
   parser.panicMode = false;
 

@@ -89,9 +89,16 @@ static void blackenObject(GC* gc, Obj* object) {
   // GCOV_EXCL_STOP
 
   switch (object->type) {
+    case OBJ_BOUND_METHOD: {
+      ObjBoundMethod* bound = (ObjBoundMethod*)object;
+      markValue(gc, bound->receiver);
+      markObject(gc, (Obj*)bound->method);
+      break;
+    }
     case OBJ_CLASS: {
       ObjClass* klass = (ObjClass*)object;
       markObject(gc, (Obj*)klass->name);
+      markTable(gc, &klass->methods);
       break;
     }
     case OBJ_CLOSURE: {
@@ -130,7 +137,10 @@ static void freeObject(GC* gc, Obj* object) {
   // GCOV_EXCL_STOP
 
   switch (object->type) {
+    case OBJ_BOUND_METHOD: FREE(gc, ObjBoundMethod, object); break;
     case OBJ_CLASS: {
+      ObjClass* klass = (ObjClass*)object;
+      freeTable(gc, &klass->methods);
       FREE(gc, ObjClass, object);
       break;
     }

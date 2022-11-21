@@ -566,6 +566,56 @@ InterpretCase classes[] = {
 
 INTERPRET(Classes, classes, 11);
 
+InterpretCase methods[] = {
+  { INTERPRET_COMPILE_ERROR, "Expect method name.", "class F{0}" },
+  { INTERPRET_COMPILE_ERROR, "Can't use 'this' outside of a class.",
+      "this" },
+  { INTERPRET_COMPILE_ERROR, "Can't use 'this' outside of a class.",
+      "fun f(){this;}" },
+  { INTERPRET_COMPILE_ERROR,
+      "Can't return a value from an initializer.",
+      "class F{init(){return 0;}}" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "class F{}F(0);" },
+  { INTERPRET_RUNTIME_ERROR, "Only instances have methods.", "0.x();" },
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
+      "class F{}F().x();" },
+  { INTERPRET_OK, "<fn x>\n", "class F{x(){}}print F().x;" },
+  { INTERPRET_OK, "0\n1\n",
+      "class F{x(n){print n;return n+1;}}print F().x(0);" },
+  { INTERPRET_OK, "2\n3\n",
+      "class F {"
+      "  init(x) { this.x = x; }"
+      "  get() { return this.x; }"
+      "  set(nx) { this.x = nx; }"
+      "}"
+      "var f = F(2); print f.get(); f.set(3); print f.get();" },
+  { INTERPRET_OK, "2\n3\n",
+      "class F {"
+      "  init(x) { this.x = x; }"
+      "  get() { return this.x; }"
+      "  set(nx) { this.x = nx; }"
+      "}"
+      "var f = F(2); var g = f.get; var s = f.set;"
+      "print g(); s(3); print g();" },
+  { INTERPRET_OK, "not a method\n",
+      "class Oops {"
+      "  init() {"
+      "    fun f() { print \"not a method\"; }"
+      "    this.field = f;"
+      "  }"
+      "}"
+      "var oops = Oops(); oops.field();" },
+  { INTERPRET_OK, "1\n",
+      "class F {"
+      "  init() { this.x=1; }"
+      "  blah() { fun f() { print this.x; } f(); }"
+      "}"
+      "F().blah();" },
+};
+
+INTERPRET(Methods, methods, 13);
+
 UTEST_STATE();
 
 int main(int argc, const char* argv[]) {

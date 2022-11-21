@@ -78,6 +78,7 @@ static void vmMarkRoots(GC* gc, void* arg) {
   }
 
   markTable(gc, &vm->globals);
+  markObject(gc, (Obj*)vm->initString);
 }
 
 void initVM(VM* vm, FILE* fout, FILE* ferr) {
@@ -93,12 +94,16 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   initTable(&vm->globals, 0.75);
   initTable(&vm->strings, 0.75);
 
+  vm->initString = NULL;
+  vm->initString = copyString(&vm->gc, &vm->strings, "init", 4);
+
   defineNative(vm, "clock", clockNative);
 }
 
 void freeVM(VM* vm) {
   freeTable(&vm->gc, &vm->globals);
   freeTable(&vm->gc, &vm->strings);
+  vm->initString = NULL;
   freeGC(&vm->gc);
 }
 
@@ -143,10 +148,23 @@ static bool call(VM* vm, ObjClosure* closure, int argCount) {
 static bool callValue(VM* vm, Value callee, int argCount) {
   if (IS_OBJ(callee)) {
     switch (OBJ_TYPE(callee)) {
+      case OBJ_BOUND_METHOD: {
+        ObjBoundMethod* bound = AS_BOUND_METHOD(callee);
+        vm->stackTop[-argCount - 1] = bound->receiver;
+        return call(vm, bound->method, argCount);
+      }
       case OBJ_CLASS: {
         ObjClass* klass = AS_CLASS(callee);
         vm->stackTop[-argCount - 1] =
             OBJ_VAL(newInstance(&vm->gc, klass));
+        Value initializer;
+        if (tableGet(&klass->methods, vm->initString, &initializer)) {
+          return call(vm, AS_CLOSURE(initializer), argCount);
+        } else if (argCount != 0) {
+          runtimeError(
+              vm, "Expected 0 arguments but got %d.", argCount);
+          return false;
+        }
         return true;
       }
       case OBJ_CLOSURE: return call(vm, AS_CLOSURE(callee), argCount);
@@ -162,6 +180,49 @@ static bool callValue(VM* vm, Value callee, int argCount) {
   }
   runtimeError(vm, "Can only call functions and classes.");
   return false;
+}
+
+static bool invokeFromClass(
+    VM* vm, ObjClass* klass, ObjString* name, int argCount) {
+  Value method;
+  if (!tableGet(&klass->methods, name, &method)) {
+    runtimeError(vm, "Undefined property '%s'.", name->chars);
+    return false;
+  }
+  return call(vm, AS_CLOSURE(method), argCount);
+}
+
+static bool invoke(VM* vm, ObjString* name, int argCount) {
+  Value receiver = peek(vm, argCount);
+
+  if (!IS_INSTANCE(receiver)) {
+    runtimeError(vm, "Only instances have methods.");
+    return false;
+  }
+
+  ObjInstance* instance = AS_INSTANCE(receiver);
+
+  Value value;
+  if (tableGet(&instance->fields, name, &value)) {
+    vm->stackTop[-argCount - 1] = value;
+    return callValue(vm, value, argCount);
+  }
+
+  return invokeFromClass(vm, instance->klass, name, argCount);
+}
+
+static bool bindMethod(VM* vm, ObjClass* klass, ObjString* name) {
+  Value method;
+  if (!tableGet(&klass->methods, name, &method)) {
+    runtimeError(vm, "Undefined property '%s'.", name->chars);
+    return false;
+  }
+
+  ObjBoundMethod* bound =
+      newBoundMethod(&vm->gc, peek(vm, 0), AS_CLOSURE(method));
+  pop(vm);
+  push(vm, OBJ_VAL(bound));
+  return true;
 }
 
 static ObjUpvalue* captureUpvalue(VM* vm, Value* local) {
@@ -196,6 +257,13 @@ static void closeUpvalues(VM* vm, Value* last) {
     upvalue->location = &upvalue->closed;
     vm->openUpvalues = upvalue->next;
   }
+}
+
+static void defineMethod(VM* vm, ObjString* name) {
+  Value method = peek(vm, 0);
+  ObjClass* klass = AS_CLASS(peek(vm, 1));
+  tableSet(&vm->gc, &klass->methods, name, method);
+  pop(vm);
 }
 
 static bool isFalsey(Value value) {
@@ -328,8 +396,10 @@ static InterpretResult run(VM* vm) {
           break;
         }
 
-        runtimeError(vm, "Undefined property '%s'.", name->chars);
-        return INTERPRET_RUNTIME_ERROR;
+        if (!bindMethod(vm, instance->klass, name)) {
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        break;
       }
       case OP_SET_PROPERTY: {
         if (!IS_INSTANCE(peek(vm, 1))) {
@@ -408,6 +478,15 @@ static InterpretResult run(VM* vm) {
         frame = &vm->frames[vm->frameCount - 1];
         break;
       }
+      case OP_INVOKE: {
+        ObjString* method = READ_STRING();
+        int argCount = READ_BYTE();
+        if (!invoke(vm, method, argCount)) {
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        frame = &vm->frames[vm->frameCount - 1];
+        break;
+      }
       case OP_CLOSURE: {
         ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
         ObjClosure* closure = newClosure(&vm->gc, function);
@@ -445,6 +524,7 @@ static InterpretResult run(VM* vm) {
       case OP_CLASS:
         push(vm, OBJ_VAL(newClass(&vm->gc, READ_STRING())));
         break;
+      case OP_METHOD: defineMethod(vm, READ_STRING()); break;
       default: {
         fprintf(vm->ferr, "Unknown opcode %d\n", instruction);
         return INTERPRET_RUNTIME_ERROR;

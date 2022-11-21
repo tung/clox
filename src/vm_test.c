@@ -510,6 +510,36 @@ UTEST_F(VMSimple, ClassesSimple) {
   }
 }
 
+UTEST_F(VMSimple, ClassesInitWrongNumArgs) {
+  size_t temps = 0;
+
+  // class F{} F(nil);
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
+          OP_POP, OP_GET_GLOBAL, 2, OP_NIL, OP_CALL, 1, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Value, S("F"), S("F"), S("F")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Expected 0 arguments but got 1.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
 UTEST_F(VMSimple, ClassesGetUndefinedProperty) {
   size_t temps = 0;
 
@@ -590,6 +620,185 @@ UTEST_F(VMSimple, ClassesSetNonInstance) {
 
   fflush(ufx->err.fptr);
   const char* msg = "Only instances have fields.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesMethods) {
+  // class F {
+  //   init(n) { this.n = n; }
+  //   get() { return this.n; }
+  //   set(nn) { this.n = nn; }
+  // }
+  // var f = F(1); print f.get();  // 1
+  // f.set(2); print f.get();      // 2
+  // var g = f.get; var s = f.set;
+  // print g();                    // 2
+  // s(3); print g();              // 3
+  size_t temps = 0;
+
+  ObjFunction* init = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(init));
+  temps++;
+  init->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "init", 4);
+  init->arity = 1;
+  temps += fillChunk(&init->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_LOCAL, 1, OP_SET_PROPERTY,
+          0, OP_POP, OP_GET_LOCAL, 0, OP_RETURN),
+      LIST(Value, S("n")));
+
+  ObjFunction* get = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(get));
+  temps++;
+  get->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "get", 3);
+  temps += fillChunk(&get->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_PROPERTY, 0, OP_RETURN),
+      LIST(Value, S("n")));
+
+  ObjFunction* set = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(set));
+  temps++;
+  set->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "set", 3);
+  set->arity = 1;
+  temps += fillChunk(&set->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_LOCAL, 1, OP_SET_PROPERTY,
+          0, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, S("n")));
+
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
+          OP_CLOSURE, 3, OP_METHOD, 2, OP_CLOSURE, 5, OP_METHOD, 4,
+          OP_CLOSURE, 7, OP_METHOD, 6, OP_POP, OP_GET_GLOBAL, 9,
+          OP_CONSTANT, 10, OP_CALL, 1, OP_DEFINE_GLOBAL, 8,
+          OP_GET_GLOBAL, 11, OP_INVOKE, 12, 0, OP_PRINT, OP_GET_GLOBAL,
+          13, OP_CONSTANT, 15, OP_INVOKE, 14, 1, OP_POP, OP_GET_GLOBAL,
+          16, OP_INVOKE, 17, 0, OP_PRINT, OP_GET_GLOBAL, 19,
+          OP_GET_PROPERTY, 20, OP_DEFINE_GLOBAL, 18, OP_GET_GLOBAL, 22,
+          OP_GET_PROPERTY, 23, OP_DEFINE_GLOBAL, 21, OP_GET_GLOBAL, 24,
+          OP_CALL, 0, OP_PRINT, OP_GET_GLOBAL, 25, OP_CONSTANT, 26,
+          OP_CALL, 1, OP_POP, OP_GET_GLOBAL, 27, OP_CALL, 0, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Value, S("F"), S("F"), S("init"), OBJ_VAL(init), S("get"),
+          OBJ_VAL(get), S("set"), OBJ_VAL(set), S("f"), S("F"), N(1.0),
+          S("f"), S("get"), S("f"), S("set"), N(2.0), S("f"), S("get"),
+          S("g"), S("f"), S("get"), S("s"), S("f"), S("set"), S("g"),
+          S("s"), N(3.0), S("g")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->out.fptr);
+  EXPECT_STREQ("1\n2\n2\n3\n", ufx->out.buf);
+
+  if (ires != INTERPRET_OK) {
+    fflush(ufx->err.fptr);
+    EXPECT_STREQ("", ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesInvokeField) {
+  size_t temps = 0;
+
+  // fun blah() { print 1; }
+  ObjFunction* blah = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(blah));
+  temps++;
+  blah->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "blah", 4);
+  temps += fillChunk(&blah->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value, N(1.0)));
+
+  // class F{} var f = F(); f.blah = blah; f.blah();
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLOSURE, 1, OP_DEFINE_GLOBAL, 0, OP_CLASS, 2,
+          OP_DEFINE_GLOBAL, 2, OP_GET_GLOBAL, 3, OP_POP, OP_GET_GLOBAL,
+          5, OP_CALL, 0, OP_DEFINE_GLOBAL, 4, OP_GET_GLOBAL, 6,
+          OP_GET_GLOBAL, 8, OP_SET_PROPERTY, 7, OP_POP, OP_GET_GLOBAL,
+          9, OP_INVOKE, 10, 0, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, S("blah"), OBJ_VAL(blah), S("F"), S("F"), S("f"),
+          S("F"), S("f"), S("blah"), S("blah"), S("f"), S("blah")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->out.fptr);
+  EXPECT_STREQ("1\n", ufx->out.buf);
+
+  if (ires != INTERPRET_OK) {
+    fflush(ufx->err.fptr);
+    EXPECT_STREQ("", ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesInvokeNonInstance) {
+  size_t temps = 0;
+
+  // 0.x();
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_INVOKE, 1, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Value, N(0.0), S("x")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Only instances have methods.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesInvokeUndefinedProperty) {
+  size_t temps = 0;
+
+  // class F{} var f = F(); f.oops();
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
+          OP_POP, OP_GET_GLOBAL, 3, OP_CALL, 0, OP_DEFINE_GLOBAL, 2,
+          OP_GET_GLOBAL, 4, OP_INVOKE, 5, 0, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, S("F"), S("F"), S("f"), S("F"), S("f"), S("oops")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Undefined property 'oops'.";
   const char* findMsg = strstr(ufx->err.buf, msg);
   if (findMsg) {
     EXPECT_STRNEQ(msg, findMsg, strlen(msg));

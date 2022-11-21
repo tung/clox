@@ -22,6 +22,16 @@ static int constantInstruction(
   return offset + 2;
 }
 
+static int invokeInstruction(
+    FILE* ferr, const char* name, Chunk* chunk, int offset) {
+  uint8_t constant = chunk->code[offset + 1];
+  uint8_t argCount = chunk->code[offset + 2];
+  fprintf(ferr, "%-16s (%d args) %4d '", name, argCount, constant);
+  printValue(ferr, chunk->constants.values[constant]);
+  fprintf(ferr, "'\n");
+  return offset + 3;
+}
+
 static int simpleInstruction(FILE* ferr, const char* name, int offset) {
   fprintf(ferr, "%s\n", name);
   return offset + 1;
@@ -102,6 +112,8 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
       return jumpInstruction(ferr, "OP_LOOP", -1, chunk, offset);
     case OP_CALL:
       return byteInstruction(ferr, "OP_CALL", chunk, offset);
+    case OP_INVOKE:
+      return invokeInstruction(ferr, "OP_INVOKE", chunk, offset);
     case OP_CLOSURE: {
       offset++;
       uint8_t constant = chunk->code[offset++];
@@ -125,6 +137,8 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
     case OP_RETURN: return simpleInstruction(ferr, "OP_RETURN", offset);
     case OP_CLASS:
       return constantInstruction(ferr, "OP_CLASS", chunk, offset);
+    case OP_METHOD:
+      return constantInstruction(ferr, "OP_METHOD", chunk, offset);
     default:
       fprintf(ferr, "Unknown opcode %d\n", instruction);
       return offset + 1;
