@@ -78,7 +78,6 @@ static void vmMarkRoots(GC* gc, void* arg) {
   }
 
   markTable(gc, &vm->globals);
-  markObject(gc, (Obj*)vm->initString);
 }
 
 void initVM(VM* vm, FILE* fout, FILE* ferr) {
@@ -94,16 +93,12 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   initTable(&vm->globals, 0.75);
   initTable(&vm->strings, 0.75);
 
-  vm->initString = NULL;
-  vm->initString = copyString(&vm->gc, &vm->strings, "init", 4);
-
   defineNative(vm, "clock", clockNative);
 }
 
 void freeVM(VM* vm) {
   freeTable(&vm->gc, &vm->globals);
   freeTable(&vm->gc, &vm->strings);
-  vm->initString = NULL;
   freeGC(&vm->gc);
 }
 
@@ -157,9 +152,8 @@ static bool callValue(VM* vm, Value callee, int argCount) {
         ObjClass* klass = AS_CLASS(callee);
         vm->stackTop[-argCount - 1] =
             OBJ_VAL(newInstance(&vm->gc, klass));
-        Value initializer;
-        if (tableGet(&klass->methods, vm->initString, &initializer)) {
-          return call(vm, AS_CLOSURE(initializer), argCount);
+        if (klass->init) {
+          return call(vm, klass->init, argCount);
         } else if (argCount != 0) {
           runtimeError(
               vm, "Expected 0 arguments but got %d.", argCount);
@@ -263,6 +257,9 @@ static void defineMethod(VM* vm, ObjString* name) {
   Value method = peek(vm, 0);
   ObjClass* klass = AS_CLASS(peek(vm, 1));
   tableSet(&vm->gc, &klass->methods, name, method);
+  if (!strncmp(name->chars, "init", 4)) {
+    klass->init = AS_CLOSURE(method);
+  }
   pop(vm);
 }
 

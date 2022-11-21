@@ -43,6 +43,7 @@ ObjClass* newClass(GC* gc, ObjString* name) {
   ObjClass* klass = ALLOCATE_OBJ(gc, ObjClass, OBJ_CLASS);
   klass->name = name;
   initTable(&klass->methods, 0.75);
+  klass->init = NULL;
   return klass;
 }
 
