@@ -1074,6 +1074,80 @@ SourceToDump methods[] = {
 
 DUMP_SRC(Methods, methods, 6);
 
+SourceToDump superclasses[] = {
+  { false, "class A<", "Expect superclass name." },
+  { false, "class A<A", "A class can't inherit from itself." },
+  { false, "super", "Can't use 'super' outside of a class." },
+  { false, "class A{f(){super;}}",
+      "Can't use 'super' in a class with no superclass." },
+  { true, "class A{f(){}}class B<A{f(){super.f();}}",
+      "== f ==\n"
+      "0000    1 OP_NIL\n"
+      "0001    | OP_RETURN\n"
+      "== f ==\n"
+      "0000    1 OP_GET_LOCAL        0\n"
+      "0002    | OP_GET_UPVALUE      0\n"
+      "0004    | OP_SUPER_INVOKE  (0 args)    0 'f'\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_NIL\n"
+      "0009    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CLASS            0 'A'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'A'\n"
+      "0004    | OP_GET_GLOBAL       1 'A'\n"
+      "0006    | OP_CLOSURE          3 <fn f>\n"
+      "0008    | OP_METHOD           2 'f'\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_CLASS            4 'B'\n"
+      "0013    | OP_DEFINE_GLOBAL    4 'B'\n"
+      "0015    | OP_GET_GLOBAL       5 'A'\n"
+      "0017    | OP_GET_GLOBAL       6 'B'\n"
+      "0019    | OP_INHERIT\n"
+      "0020    | OP_GET_GLOBAL       7 'B'\n"
+      "0022    | OP_CLOSURE          9 <fn f>\n"
+      "0024      |                     local 1\n"
+      "0026    | OP_METHOD           8 'f'\n"
+      "0028    | OP_POP\n"
+      "0029    | OP_CLOSE_UPVALUE\n"
+      "0030    | OP_NIL\n"
+      "0031    | OP_RETURN\n" },
+  { true, "class A{f(){}}class B<A{f(){var ff=super.f;ff();}}",
+      "== f ==\n"
+      "0000    1 OP_NIL\n"
+      "0001    | OP_RETURN\n"
+      "== f ==\n"
+      "0000    1 OP_GET_LOCAL        0\n"
+      "0002    | OP_GET_UPVALUE      0\n"
+      "0004    | OP_GET_SUPER        0 'f'\n"
+      "0006    | OP_GET_LOCAL        1\n"
+      "0008    | OP_CALL             0\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_NIL\n"
+      "0012    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CLASS            0 'A'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'A'\n"
+      "0004    | OP_GET_GLOBAL       1 'A'\n"
+      "0006    | OP_CLOSURE          3 <fn f>\n"
+      "0008    | OP_METHOD           2 'f'\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_CLASS            4 'B'\n"
+      "0013    | OP_DEFINE_GLOBAL    4 'B'\n"
+      "0015    | OP_GET_GLOBAL       5 'A'\n"
+      "0017    | OP_GET_GLOBAL       6 'B'\n"
+      "0019    | OP_INHERIT\n"
+      "0020    | OP_GET_GLOBAL       7 'B'\n"
+      "0022    | OP_CLOSURE          9 <fn f>\n"
+      "0024      |                     local 1\n"
+      "0026    | OP_METHOD           8 'f'\n"
+      "0028    | OP_POP\n"
+      "0029    | OP_CLOSE_UPVALUE\n"
+      "0030    | OP_NIL\n"
+      "0031    | OP_RETURN\n" },
+};
+
+DUMP_SRC(Superclasses, superclasses, 6);
+
 SourceToDump error[] = {
   { false, "print 0", "Expect ';' after value." },
   { false, "print 0 1;print 2;", "Expect ';' after value." },

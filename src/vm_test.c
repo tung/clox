@@ -540,7 +540,7 @@ UTEST_F(VMSimple, ClassesInitWrongNumArgs) {
   }
 }
 
-UTEST_F(VMSimple, ClassesGetUndefinedProperty) {
+UTEST_F(VMSimple, ClassesGetMissing) {
   size_t temps = 0;
 
   // class F{} var f = F(); f.x;
@@ -777,7 +777,7 @@ UTEST_F(VMSimple, ClassesInvokeNonInstance) {
   }
 }
 
-UTEST_F(VMSimple, ClassesInvokeUndefinedProperty) {
+UTEST_F(VMSimple, ClassesInvokeMissing) {
   size_t temps = 0;
 
   // class F{} var f = F(); f.oops();
@@ -799,6 +799,223 @@ UTEST_F(VMSimple, ClassesInvokeUndefinedProperty) {
 
   fflush(ufx->err.fptr);
   const char* msg = "Undefined property 'oops'.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesSuper) {
+  // class A {
+  //   f() { print 1; }
+  //   g() { print 2; }
+  //   h() { print 3; }
+  // }
+  // class B < A {
+  //   g() { print 4; super.g(); }
+  //   h() { var Ah = super.h; print 5; Ah(); }
+  // }
+  // var b = B(); b.f(); b.g(); b.h();
+  size_t temps = 0;
+
+  ObjFunction* af = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(af));
+  temps++;
+  af->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "f", 1);
+  temps += fillChunk(&af->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value, N(1.0)));
+
+  ObjFunction* ag = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(ag));
+  temps++;
+  ag->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "g", 1);
+  temps += fillChunk(&ag->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value, N(2.0)));
+
+  ObjFunction* ah = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(ah));
+  temps++;
+  ah->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "h", 2);
+  temps += fillChunk(&ah->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Value, N(3.0)));
+
+  ObjFunction* bg = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(bg));
+  temps++;
+  bg->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "g", 1);
+  bg->upvalueCount = 1;
+  temps += fillChunk(&bg->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_GET_LOCAL, 0,
+          OP_GET_UPVALUE, 0, OP_SUPER_INVOKE, 1, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Value, N(4.0), S("g")));
+
+  ObjFunction* bh = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(bh));
+  temps++;
+  bh->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "h", 2);
+  bh->upvalueCount = 1;
+  temps += fillChunk(&bh->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_UPVALUE, 0, OP_GET_SUPER, 0,
+          OP_CONSTANT, 1, OP_PRINT, OP_GET_LOCAL, 1, OP_CALL, 0, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Value, S("h"), N(5.0)));
+
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
+          OP_CLOSURE, 3, OP_METHOD, 2, OP_CLOSURE, 5, OP_METHOD, 4,
+          OP_CLOSURE, 7, OP_METHOD, 6, OP_POP, OP_CLASS, 8,
+          OP_DEFINE_GLOBAL, 8, OP_GET_GLOBAL, 9, OP_GET_GLOBAL, 10,
+          OP_INHERIT, OP_GET_GLOBAL, 11, OP_CLOSURE, 13, 1, 1,
+          OP_METHOD, 12, OP_CLOSURE, 15, 1, 1, OP_METHOD, 14, OP_POP,
+          OP_CLOSE_UPVALUE, OP_GET_GLOBAL, 17, OP_CALL, 0,
+          OP_DEFINE_GLOBAL, 16, OP_GET_GLOBAL, 18, OP_INVOKE, 19, 0,
+          OP_POP, OP_GET_GLOBAL, 20, OP_INVOKE, 21, 0, OP_POP,
+          OP_GET_GLOBAL, 22, OP_INVOKE, 23, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Value, S("A"), S("A"), S("f"), OBJ_VAL(af), S("g"),
+          OBJ_VAL(ag), S("h"), OBJ_VAL(ah), S("B"), S("A"), S("B"),
+          S("B"), S("g"), OBJ_VAL(bg), S("h"), OBJ_VAL(bh), S("b"),
+          S("B"), S("b"), S("f"), S("b"), S("g"), S("b"), S("h")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->out.fptr);
+  EXPECT_STREQ("1\n4\n2\n5\n3\n", ufx->out.buf);
+
+  if (ires != INTERPRET_OK) {
+    fflush(ufx->err.fptr);
+    EXPECT_STREQ("", ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesSuperNonClass) {
+  size_t temps = 0;
+
+  // { var A; class B < A {} }
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_NIL, OP_CLASS, 0, OP_GET_LOCAL, 1, OP_GET_LOCAL,
+          2, OP_INHERIT, OP_GET_LOCAL, 2, OP_POP, OP_POP, OP_POP,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, S("B")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Superclass must be a class.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesSuperInvokeMissing) {
+  // {
+  //   class A {}
+  //   class B < A { f() { super.f(); } }
+  //   B().f();
+  // }
+  size_t temps = 0;
+
+  ObjFunction* f = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(f));
+  temps++;
+  f->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "f", 1);
+  f->upvalueCount = 1;
+  temps += fillChunk(&f->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_UPVALUE, 0, OP_SUPER_INVOKE,
+          0, 0, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, S("f")));
+
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLASS, 0, OP_GET_LOCAL, 1, OP_POP, OP_CLASS, 1,
+          OP_GET_LOCAL, 1, OP_GET_LOCAL, 2, OP_INHERIT, OP_GET_LOCAL, 2,
+          OP_CLOSURE, 3, 1, 3, OP_METHOD, 2, OP_POP, OP_CLOSE_UPVALUE,
+          OP_GET_LOCAL, 2, OP_CALL, 0, OP_INVOKE, 4, 0, OP_POP, OP_POP,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, S("A"), S("B"), S("f"), OBJ_VAL(f), S("f")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Undefined property 'f'.";
+  const char* findMsg = strstr(ufx->err.buf, msg);
+  if (findMsg) {
+    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
+  } else {
+    EXPECT_STREQ(msg, ufx->err.buf);
+  }
+}
+
+UTEST_F(VMSimple, ClassesSuperGetMissing) {
+  // {
+  //   class A {}
+  //   class B < A { f() { super.f; } }
+  //   B().f();
+  // }
+  size_t temps = 0;
+
+  ObjFunction* f = newFunction(&ufx->vm.gc);
+  pushTemp(&ufx->vm.gc, OBJ_VAL(f));
+  temps++;
+  f->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "f", 1);
+  f->upvalueCount = 1;
+  temps += fillChunk(&f->chunk, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_UPVALUE, 0, OP_GET_SUPER, 0,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, S("f")));
+
+  Chunk script;
+  initChunk(&script);
+  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(uint8_t, OP_CLASS, 0, OP_GET_LOCAL, 1, OP_POP, OP_CLASS, 1,
+          OP_GET_LOCAL, 1, OP_GET_LOCAL, 2, OP_INHERIT, OP_GET_LOCAL, 2,
+          OP_CLOSURE, 3, 1, 3, OP_METHOD, 2, OP_POP, OP_CLOSE_UPVALUE,
+          OP_GET_LOCAL, 2, OP_CALL, 0, OP_INVOKE, 4, 0, OP_POP, OP_POP,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Value, S("A"), S("B"), S("f"), OBJ_VAL(f), S("f")));
+
+  InterpretResult ires = interpretChunk(&ufx->vm, &script);
+  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+
+  while (temps > 0) {
+    popTemp(&ufx->vm.gc);
+    temps--;
+  }
+
+  fflush(ufx->err.fptr);
+  const char* msg = "Undefined property 'f'.";
   const char* findMsg = strstr(ufx->err.buf, msg);
   if (findMsg) {
     EXPECT_STRNEQ(msg, findMsg, strlen(msg));

@@ -196,6 +196,28 @@ UTEST_F(DisassembleChunk, OpSetProperty) {
   freeTable(&ufx->gc, &strings);
 }
 
+UTEST_F(DisassembleChunk, OpGetSuper) {
+  Table strings;
+  initTable(&strings, 0.75);
+
+  ObjString* methodOStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(methodOStr));
+
+  uint8_t method =
+      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_GET_SUPER, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, method, 123);
+
+  popTemp(&ufx->gc);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_GET_SUPER        0 'foo'\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+
+  freeTable(&ufx->gc, &strings);
+}
+
 UTEST_F(DisassembleChunk, OpJump) {
   writeChunk(&ufx->gc, &ufx->chunk, OP_JUMP, 123);
   writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
@@ -258,6 +280,29 @@ UTEST_F(DisassembleChunk, OpInvoke) {
 
   fflush(ufx->err.fptr);
   const char msg[] = "0000  123 OP_INVOKE        (0 args)    0 'foo'\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+
+  freeTable(&ufx->gc, &strings);
+}
+
+UTEST_F(DisassembleChunk, OpSuperInvoke) {
+  Table strings;
+  initTable(&strings, 0.75);
+
+  ObjString* methodOStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, OBJ_VAL(methodOStr));
+
+  uint8_t method =
+      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_SUPER_INVOKE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, method, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
+
+  popTemp(&ufx->gc);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_SUPER_INVOKE  (0 args)    0 'foo'\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 
   freeTable(&ufx->gc, &strings);
@@ -486,11 +531,12 @@ OpCodeToString simpleOps[] = {
   SIMPLE_OP(OP_PRINT),
   SIMPLE_OP(OP_CLOSE_UPVALUE),
   SIMPLE_OP(OP_RETURN),
+  SIMPLE_OP(OP_INHERIT),
   { 255, "0000  123 Unknown opcode 255\n" }
 };
 // clang-format on
 
-#define NUM_SIMPLE_OPS 17
+#define NUM_SIMPLE_OPS 18
 
 UTEST_I(DisassembleSimple, SimpleOps, NUM_SIMPLE_OPS) {
   static_assert(

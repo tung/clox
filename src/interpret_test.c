@@ -616,6 +616,58 @@ InterpretCase methods[] = {
 
 INTERPRET(Methods, methods, 13);
 
+InterpretCase superclasses[] = {
+  { INTERPRET_COMPILE_ERROR, "Expect superclass name.", "class A<" },
+  { INTERPRET_COMPILE_ERROR, "A class can't inherit from itself.",
+      "class A<A" },
+  { INTERPRET_COMPILE_ERROR, "Can't use 'super' outside of a class.",
+      "super" },
+  { INTERPRET_COMPILE_ERROR,
+      "Can't use 'super' in a class with no superclass.",
+      "class A{f(){super;}}" },
+  { INTERPRET_COMPILE_ERROR, "Expect '.' after 'super'.",
+      "class A{}class B<A{f(){super;}}" },
+  { INTERPRET_COMPILE_ERROR, "Expect superclass method name.",
+      "class A{}class B<A{f(){super.;}}" },
+  { INTERPRET_RUNTIME_ERROR, "Superclass must be a class.",
+      "var A;class B<A{}" },
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'f'.",
+      "class A {}"
+      "class B < A { f() { super.f(); } }"
+      "B().f();" },
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'f'.",
+      "class A {}"
+      "class B < A { f() { var f = super.f; } }"
+      "B().f();" },
+  { INTERPRET_OK, "1\n",
+      "class A { f() { print 1; } }"
+      "class B < A {}"
+      "B().f();" },
+  { INTERPRET_OK, "2\n",
+      "class A { f() { print 1; } }"
+      "class B < A { f() { print 2; } }"
+      "B().f();" },
+  { INTERPRET_OK, "1\n2\n",
+      "class A { f() { print 1; } }"
+      "class B < A { f() { super.f(); print 2; } }"
+      "B().f();" },
+  { INTERPRET_OK, "2\n1\n",
+      "class A { f() { print 1; } }"
+      "class B < A { f() { var f = super.f; print 2; f(); } }"
+      "B().f();" },
+  { INTERPRET_OK, "A method\n",
+      "class A { f() { print \"A method\"; } }"
+      "class B < A { f() { print \"B method\"; } g() { super.f(); } }"
+      "class C < B {}"
+      "C().g();" },
+  { INTERPRET_OK, "1\n-2\n",
+      "class A { f() { print 1; this.g(2); } g(n) { print n; } }"
+      "class B < A { g(n) { super.g(-n); } }"
+      "B().f();" },
+};
+
+INTERPRET(Superclasses, superclasses, 15);
+
 UTEST_STATE();
 
 int main(int argc, const char* argv[]) {
