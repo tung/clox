@@ -5,409 +5,696 @@
 
 #include "utest.h"
 
-#include "chunk.h"
-#include "gc.h"
 #include "list.h"
 #include "membuf.h"
 #include "memory.h"
 #include "object.h"
-#include "value.h"
 
-#define memBufSuffix(mb, constStr) \
-  ((mb).buf + (mb).size + 1 - sizeof(constStr))
 #define ufx utest_fixture
 
-#define NIL NIL_LIT
-#define B BOOL_LIT
-#define N NUMBER_LIT
+typedef enum {
+  LIT_NIL,
+  LIT_TRUE,
+  LIT_FALSE,
+  LIT_NUMBER,
+  LIT_STRING,
+  LIT_FUNCTION,
+} LitType;
 
-// We need enough of ObjString here for the VM to process them.
-// We don't need to set .obj.next since no memory management occurs
-// during interpretation for now.
+typedef struct {
+  LitType type;
+  union {
+    double number;
+    const char* string;
+    int functionIndex;
+  } as;
+} Lit;
+
+typedef struct {
+  const char* name;
+  int arity;
+  int upvalueCount;
+  int opcodeCount;
+  uint8_t* opcodes;
+  int litCount;
+  Lit* lits;
+} LitFun;
+
 // clang-format off
-#define S(str) { \
-    .type = VAL_OBJ, \
-    .as.obj = (Obj*)&(ObjString){ \
-      .obj = { .type = OBJ_STRING, .next = NULL }, \
-      .length = sizeof(str) / sizeof(str[0]) - 1, \
-      .chars = str, \
-    } \
-  }
+#define NIL { .type = LIT_NIL }
+#define B_TRUE { .type = LIT_TRUE }
+#define B_FALSE { .type = LIT_FALSE }
+#define N(n) { .type = LIT_NUMBER, .as.number = (n) }
+#define S(s) { .type = LIT_STRING, .as.string = (s) }
+#define F(f) { .type = LIT_FUNCTION, .as.functionIndex = (f) }
 // clang-format on
 
-static size_t fillChunk(Chunk* chunk, GC* gc, Table* strings,
-    size_t numOps, uint8_t* ops, size_t numVals, Value* vals) {
+static size_t fillFun(GC* gc, Table* strings, ObjFunction* fun,
+    int opcodeCount, uint8_t* opcodes, int litCount, Lit* lits,
+    int funCount, ObjFunction** funs) {
   size_t temps = 0;
 
-  for (size_t i = 0; i < numOps; ++i) {
-    writeChunk(gc, chunk, ops[i], 1);
+  for (int o = 0; o < opcodeCount; ++o) {
+    writeChunk(gc, &fun->chunk, opcodes[o], o);
   }
-  for (size_t i = 0; i < numVals; ++i) {
-    if (IS_STRING(vals[i])) {
-      // Ensure strings are interned correctly.
-      ObjString* valStr = AS_STRING(vals[i]);
-      ObjString* valStrCopy =
-          copyString(gc, strings, valStr->chars, valStr->length);
-      Value v = OBJ_VAL(valStrCopy);
-      pushTemp(gc, v);
-      temps++;
-      addConstant(gc, chunk, v);
-    } else {
-      addConstant(gc, chunk, vals[i]);
+  for (int l = 0; l < litCount; ++l) {
+    Lit* lit = &lits[l];
+    switch (lit->type) {
+      case LIT_NIL: addConstant(gc, &fun->chunk, NIL_VAL); break;
+      case LIT_TRUE:
+        addConstant(gc, &fun->chunk, BOOL_VAL(true));
+        break;
+      case LIT_FALSE:
+        addConstant(gc, &fun->chunk, BOOL_VAL(false));
+        break;
+      case LIT_NUMBER:
+        addConstant(gc, &fun->chunk, NUMBER_VAL(lit->as.number));
+        break;
+      case LIT_STRING: {
+        ObjString* str = copyString(
+            gc, strings, lit->as.string, strlen(lit->as.string));
+        pushTemp(gc, OBJ_VAL(str));
+        temps++;
+        addConstant(gc, &fun->chunk, OBJ_VAL(str));
+        break;
+      }
+      case LIT_FUNCTION:
+        assert(lit->as.functionIndex < funCount);
+        addConstant(
+            gc, &fun->chunk, OBJ_VAL(funs[lit->as.functionIndex]));
+        break;
     }
   }
 
   return temps;
 }
 
-struct VMSimple {
-  MemBuf out;
-  MemBuf err;
-  VM vm;
+typedef struct {
+  InterpretResult ires;
+  const char* msg;
+  int funCount;
+  LitFun* funs;
+  int opcodeCount;
+  uint8_t* opcodes;
+  int litCount;
+  Lit* lits;
+} VMCase;
+
+struct VM {
+  VMCase* cases;
 };
 
-UTEST_F_SETUP(VMSimple) {
-  initMemBuf(&ufx->out);
-  initMemBuf(&ufx->err);
-  initVM(&ufx->vm, ufx->out.fptr, ufx->err.fptr);
+UTEST_I_SETUP(VM) {
+  (void)utest_index;
+  (void)utest_fixture;
   ASSERT_TRUE(1);
 }
 
-UTEST_F_TEARDOWN(VMSimple) {
-  freeMemBuf(&ufx->out);
-  freeMemBuf(&ufx->err);
-  freeVM(&ufx->vm);
-  ASSERT_TRUE(1);
-}
+UTEST_I_TEARDOWN(VM) {
+  VMCase* testCase = &ufx->cases[utest_index];
 
-UTEST_F(VMSimple, Empty) {
-  ASSERT_EQ(0, ufx->vm.stackTop - ufx->vm.stack);
-}
+  MemBuf out, err;
+  VM vm;
+  initMemBuf(&out);
+  initMemBuf(&err);
+  initVM(&vm, out.fptr, err.fptr);
 
-UTEST_F(VMSimple, PushPop) {
-  push(&ufx->vm, NUMBER_VAL(1.2));
-  push(&ufx->vm, NUMBER_VAL(3.4));
-  push(&ufx->vm, NUMBER_VAL(5.6));
-  ASSERT_EQ(3, ufx->vm.stackTop - ufx->vm.stack);
-  EXPECT_VALEQ(NUMBER_VAL(5.6), pop(&ufx->vm));
-  EXPECT_VALEQ(NUMBER_VAL(3.4), pop(&ufx->vm));
-  EXPECT_VALEQ(NUMBER_VAL(1.2), pop(&ufx->vm));
-  ASSERT_EQ(0, ufx->vm.stackTop - ufx->vm.stack);
-}
-
-UTEST_F(VMSimple, UnknownOp) {
-  Chunk chunk;
-  initChunk(&chunk);
-  writeChunk(&ufx->vm.gc, &chunk, 255, 1);
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &chunk);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  fflush(ufx->err.fptr);
-  const char errMsg[] = "Unknown opcode 255\n";
-  EXPECT_STREQ(errMsg, memBufSuffix(ufx->err, errMsg));
-}
-
-UTEST_F(VMSimple, PrintScript) {
   size_t temps = 0;
 
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_LOCAL, 0, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value));
+  ObjFunction** funs = calloc(testCase->funCount, sizeof(ObjFunction*));
+  if (funs != NULL) {
+    // Create functions.
+    for (int f = 0; f < testCase->funCount; ++f) {
+      LitFun* fun = &testCase->funs[f];
+      funs[f] = newFunction(&vm.gc);
+      pushTemp(&vm.gc, OBJ_VAL(funs[f]));
+      temps++;
+      // Function is rooted and thus so is the name string.
+      funs[f]->name =
+          copyString(&vm.gc, &vm.strings, fun->name, strlen(fun->name));
+      funs[f]->arity = fun->arity;
+      funs[f]->upvalueCount = fun->upvalueCount;
+    }
 
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+    // Fill function chunks.
+    for (int f = 0; f < testCase->funCount; ++f) {
+      LitFun* litFun = &testCase->funs[f];
+      temps += fillFun(&vm.gc, &vm.strings, funs[f],
+          litFun->opcodeCount, litFun->opcodes, litFun->litCount,
+          litFun->lits, testCase->funCount, funs);
+    }
+  }
 
+  // Create "<script>" function and fill its chunk.
+  ObjFunction* scriptFun = newFunction(&vm.gc);
+  pushTemp(&vm.gc, OBJ_VAL(scriptFun));
+  temps++;
+  temps += fillFun(&vm.gc, &vm.strings, scriptFun,
+      testCase->opcodeCount, testCase->opcodes, testCase->litCount,
+      testCase->lits, testCase->funCount, funs);
+
+  // Create and push "<script>" closure onto the VM stack.
+  ObjClosure* scriptClosure = newClosure(&vm.gc, scriptFun);
+  push(&vm, OBJ_VAL(scriptClosure));
+
+  // Everything should be rooted to "<script>", so pop all temps.
   while (temps > 0) {
-    popTemp(&ufx->vm.gc);
+    popTemp(&vm.gc);
     temps--;
   }
 
-  fflush(ufx->out.fptr);
-  EXPECT_STREQ("<script>\n", ufx->out.buf);
+  // Run the pushed "<script>" closure.
+  InterpretResult ires = interpretCall(&vm, scriptClosure, 0);
+  EXPECT_EQ((InterpretResult)testCase->ires, ires);
 
-  if (ires != INTERPRET_OK) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
+  // Check output/error.
+  fflush(out.fptr);
+  fflush(err.fptr);
+  if (testCase->ires == INTERPRET_OK) {
+    EXPECT_STREQ(testCase->msg, out.buf);
+    EXPECT_STREQ("", err.buf);
+  } else {
+    const char* findMsg = strstr(err.buf, testCase->msg);
+    if (testCase->msg && testCase->msg[0] && findMsg) {
+      EXPECT_STRNEQ(testCase->msg, findMsg, strlen(testCase->msg));
+    } else {
+      EXPECT_STREQ(testCase->msg, err.buf);
+    }
   }
+
+  if (funs != NULL) {
+    free(funs);
+  }
+  freeVM(&vm);
+  freeMemBuf(&out);
+  freeMemBuf(&err);
 }
 
-UTEST_F(VMSimple, OpCall) {
-  size_t temps = 0;
+#define VM_TEST(name, data, count) \
+  UTEST_I(VM, name, count) { \
+    static_assert(sizeof(data) / sizeof(data[0]) == count, #name); \
+    utest_fixture->cases = data; \
+    ASSERT_TRUE(1); \
+  }
 
-  // fun b(n) { print n; return n + 1; }
-  ObjFunction* bFun = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(bFun));
-  temps++;
-  bFun->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "b", 1);
-  bFun->arity = 1;
-  temps += fillChunk(&bFun->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_LOCAL, 1, OP_PRINT, OP_GET_LOCAL, 1,
-          OP_CONSTANT, 0, OP_ADD, OP_RETURN),
-      LIST(Value, N(1.0)));
+UTEST(VM, Empty) {
+  MemBuf out, err;
+  VM vm;
+  initMemBuf(&out);
+  initMemBuf(&err);
+  initVM(&vm, out.fptr, err.fptr);
 
-  // fun a() { print "a"; print b(1); print "A"; }
-  ObjFunction* aFun = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(aFun));
-  temps++;
-  aFun->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "a", 1);
-  temps += fillChunk(&aFun->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_CLOSURE, 1,
-          OP_CONSTANT, 2, OP_CALL, 1, OP_PRINT, OP_CONSTANT, 3,
+  EXPECT_EQ(0, vm.stackTop - vm.stack);
+
+  freeVM(&vm);
+  freeMemBuf(&out);
+  freeMemBuf(&err);
+}
+
+UTEST(VM, PushPop) {
+  MemBuf out, err;
+  VM vm;
+  initMemBuf(&out);
+  initMemBuf(&err);
+  initVM(&vm, out.fptr, err.fptr);
+
+  push(&vm, NUMBER_VAL(1.2));
+  push(&vm, NUMBER_VAL(3.4));
+  push(&vm, NUMBER_VAL(5.6));
+  EXPECT_EQ(3, vm.stackTop - vm.stack);
+  EXPECT_VALEQ(NUMBER_VAL(5.6), pop(&vm));
+  EXPECT_VALEQ(NUMBER_VAL(3.4), pop(&vm));
+  EXPECT_VALEQ(NUMBER_VAL(1.2), pop(&vm));
+  EXPECT_EQ(0, vm.stackTop - vm.stack);
+
+  freeVM(&vm);
+  freeMemBuf(&out);
+  freeMemBuf(&err);
+}
+
+VMCase unknownOp[] = {
+  { INTERPRET_RUNTIME_ERROR, "Unknown opcode 255", LIST(LitFun),
+      LIST(uint8_t, 255), LIST(Lit) },
+};
+
+VM_TEST(UnknownOp, unknownOp, 1);
+
+VMCase printScript[] = {
+  { INTERPRET_OK, "<script>\n", LIST(LitFun),
+      LIST(uint8_t, OP_GET_LOCAL, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+};
+
+VM_TEST(PrintScript, printScript, 1);
+
+VMCase opConstant[] = {
+  { INTERPRET_OK, "nil\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, NIL) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, B_FALSE) },
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, B_TRUE) },
+  { INTERPRET_OK, "2.5\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(2.5)) },
+};
+
+VM_TEST(OpConstant, opConstant, 4);
+
+VMCase opLiterals[] = {
+  { INTERPRET_OK, "nil\n", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_PRINT, OP_NIL, OP_RETURN), LIST(Lit) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_FALSE, OP_PRINT, OP_NIL, OP_RETURN), LIST(Lit) },
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_TRUE, OP_PRINT, OP_NIL, OP_RETURN), LIST(Lit) },
+};
+
+VM_TEST(OpLiterals, opLiterals, 3);
+
+VMCase opPop[] = {
+  { INTERPRET_OK, "0\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_POP, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0), N(1.0)) },
+};
+
+VM_TEST(OpPop, opPop, 1);
+
+VMCase opLocals[] = {
+  { INTERPRET_OK, "false\ntrue\nfalse\ntrue\n", LIST(LitFun),
+      LIST(uint8_t, OP_TRUE, OP_FALSE, OP_GET_LOCAL, 1, OP_GET_LOCAL, 2,
+          OP_PRINT, OP_PRINT, OP_PRINT, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_OK, "true\ntrue\n", LIST(LitFun),
+      LIST(uint8_t, OP_FALSE, OP_TRUE, OP_SET_LOCAL, 1, OP_PRINT,
           OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value, S("a"), OBJ_VAL(bFun), N(1.0), S("A")));
+      LIST(Lit) },
+};
 
-  // print "z"; a(); print "Z";
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+VM_TEST(OpLocals, opLocals, 2);
+
+VMCase opGlobals[] = {
+  { INTERPRET_RUNTIME_ERROR, "Undefined variable 'foo'.", LIST(LitFun),
+      LIST(uint8_t, OP_GET_GLOBAL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("foo")) },
+  { INTERPRET_RUNTIME_ERROR, "Undefined variable 'foo'.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_SET_GLOBAL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("foo")) },
+  { INTERPRET_OK, "123\n456\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL,
+          0, OP_PRINT, OP_CONSTANT, 2, OP_SET_GLOBAL, 0, OP_POP,
+          OP_GET_GLOBAL, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("foo"), N(123.0), N(456.0)) },
+};
+
+VM_TEST(OpGlobals, opGlobals, 3);
+
+VMCase opEqual[] = {
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_EQUAL, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_FALSE, OP_FALSE, OP_EQUAL, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_TRUE, OP_FALSE, OP_EQUAL, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_FALSE, OP_TRUE, OP_EQUAL, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_TRUE, OP_TRUE, OP_EQUAL, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_EQUAL, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(1.0)) },
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_EQUAL, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(1.0), N(1.0)) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_EQUAL, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(1.0), N(2.0)) },
+};
+
+VM_TEST(OpEqual, opEqual, 8);
+
+VMCase opGreater[] = {
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_GREATER, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_GREATER, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_GREATER, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(1.0), N(2.0)) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(2.0), N(2.0)) },
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(3.0), N(2.0)) },
+};
+
+VM_TEST(OpGreater, opGreater, 6);
+
+VMCase opLess[] = {
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_LESS, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_LESS, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_LESS, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(1.0), N(2.0)) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(2.0), N(2.0)) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(3.0), N(2.0)) },
+};
+
+VM_TEST(OpLess, opLess, 6);
+
+VMCase opAdd[] = {
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(
+          uint8_t, OP_NIL, OP_NIL, OP_ADD, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_ADD, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_ADD, OP_PRINT),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_OK, "5\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(3.0), N(2.0)) },
+};
+
+VM_TEST(OpAdd, opAdd, 4);
+
+VMCase opAddConcat[] = {
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_ADD, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("")) },
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_ADD, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("")) },
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0), S("")) },
+  { INTERPRET_OK, "foo\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("foo"), S("")) },
+  { INTERPRET_OK, "foo\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S(""), S("foo")) },
+  { INTERPRET_OK, "foobar\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("foo"), S("bar")) },
+  { INTERPRET_OK, "foobarfoobar\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
+          2, OP_CONSTANT, 3, OP_ADD, OP_ADD, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("foo"), S("bar"), S("foo"), S("bar")) },
+};
+
+VM_TEST(OpAddConcat, opAddConcat, 7);
+
+VMCase opSubtract[] = {
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_SUBTRACT, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_SUBTRACT, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_SUBTRACT, OP_PRINT),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_OK, "1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_SUBTRACT,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(3.0), N(2.0)) },
+};
+
+VM_TEST(OpSubtract, opSubtract, 4);
+
+VMCase opMultiply[] = {
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_MULTIPLY, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_MULTIPLY, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_MULTIPLY, OP_PRINT),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_OK, "6\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(3.0), N(2.0)) },
+};
+
+VM_TEST(OpMultiply, opMultiply, 4);
+
+VMCase opDivide[] = {
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_DIVIDE, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_DIVIDE, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_DIVIDE, OP_PRINT),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_OK, "1.5\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(3.0), N(2.0)) },
+};
+
+VM_TEST(OpDivide, opDivide, 4);
+
+VMCase opNot[] = {
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_FALSE, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_TRUE, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(
+          uint8_t, OP_CONSTANT, 0, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_TRUE, OP_NOT, OP_NOT, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+};
+
+VM_TEST(OpNot, opNot, 5);
+
+VMCase opNegate[] = {
+  { INTERPRET_RUNTIME_ERROR, "Operand must be a number.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NEGATE, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_OK, "-1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(1.0)) },
+  { INTERPRET_OK, "1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(1.0)) },
+};
+
+VM_TEST(OpNegate, opNegate, 3);
+
+VMCase opJump[] = {
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_JUMP, 0, 2, OP_NIL, OP_PRINT, OP_TRUE, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit) },
+};
+
+VM_TEST(OpJump, opJump, 1);
+
+VMCase opJumpIfFalse[] = {
+  { INTERPRET_OK, "0\n2\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_JUMP_IF_FALSE,
+          0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT, 2, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0), N(1.0), N(2.0)) },
+  { INTERPRET_OK, "0\n2\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_FALSE,
+          OP_JUMP_IF_FALSE, 0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT,
+          2, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0), N(1.0), N(2.0)) },
+  { INTERPRET_OK, "0\n1\n2\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_TRUE, OP_JUMP_IF_FALSE,
+          0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT, 2, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0), N(1.0), N(2.0)) },
+};
+
+VM_TEST(OpJumpIfFalse, opJumpIfFalse, 3);
+
+VMCase opLoop[] = {
+  { INTERPRET_OK, "0\n1\n2\n3\n4\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 1, OP_CONSTANT, 1,
+          OP_LESS, OP_JUMP_IF_FALSE, 0, 15, OP_POP, OP_GET_LOCAL, 1,
+          OP_PRINT, OP_GET_LOCAL, 1, OP_CONSTANT, 2, OP_ADD,
+          OP_SET_LOCAL, 1, OP_POP, OP_LOOP, 0, 23, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(0.0), N(5.0), N(1.0)) },
+};
+
+VM_TEST(OpLoop, opLoop, 1);
+
+VMCase opCall[] = {
+  // OpCall
+  { INTERPRET_OK, "(\na\n1\n2\nA\n)\n",
+      LIST(LitFun,
+          // fun b(n) { print n; return n + 1; }
+          { "b", 1, 0,
+              LIST(uint8_t, OP_GET_LOCAL, 1, OP_PRINT, OP_GET_LOCAL, 1,
+                  OP_CONSTANT, 0, OP_ADD, OP_RETURN),
+              LIST(Lit, N(1.0)) },
+          // fun a() { print "a"; print b(1); print "A"; }
+          { "a", 0, 0,
+              LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_CLOSURE, 1,
+                  OP_CONSTANT, 2, OP_CALL, 1, OP_PRINT, OP_CONSTANT, 3,
+                  OP_PRINT, OP_NIL, OP_RETURN),
+              LIST(Lit, S("a"), F(0), N(1.0), S("A")) }),
+      // print "("; a(); print ")";
       LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_CLOSURE, 1, OP_CALL, 0,
           OP_POP, OP_CONSTANT, 2, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value, S("("), OBJ_VAL(aFun), S(")")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->out.fptr);
-  EXPECT_STREQ("(\na\n1\n2\nA\n)\n", ufx->out.buf);
-
-  if (ires != INTERPRET_OK) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, OpCallClock) {
-  size_t temps = 0;
-
-  // print clock() >= 0;
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, S("("), F(1), S(")")) },
+  // OpCallClock
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      // print clock() >= 0;
       LIST(uint8_t, OP_GET_GLOBAL, 0, OP_CALL, 0, OP_CONSTANT, 1,
           OP_LESS, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value, S("clock"), N(0.0)));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->out.fptr);
-  EXPECT_STREQ("true\n", ufx->out.buf);
-
-  if (ires != INTERPRET_OK) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, OpCallUncallableNil) {
-  size_t temps = 0;
-
-  // nil();
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_NIL, OP_CALL, 0, OP_NIL, OP_RETURN),
-      LIST(Value));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Can only call functions and classes.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, OpCallUncallableString) {
-  size_t temps = 0;
-
-  // "foo"();
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, S("clock"), N(0.0)) },
+  // OpCallUncallableNil
+  { INTERPRET_RUNTIME_ERROR, "Can only call functions and classes.",
+      LIST(LitFun),
+      // nil();
+      LIST(uint8_t, OP_NIL, OP_CALL, 0, OP_NIL, OP_RETURN), LIST(Lit) },
+  // OpCallUncallableString
+  { INTERPRET_RUNTIME_ERROR, "Can only call functions and classes.",
+      LIST(LitFun),
+      // "foo"();
       LIST(uint8_t, OP_CONSTANT, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
-      LIST(Value, S("foo")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Can only call functions and classes.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, OpCallWrongNumArgs) {
-  size_t temps = 0;
-
-  // fun a() {}
-  ObjFunction* aFun = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(aFun));
-  temps++;
-  aFun->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "a", 1);
-  temps += fillChunk(&aFun->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_NIL, OP_RETURN), LIST(Value));
-
-  // a(nil);
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, S("foo")) },
+  // OpCallWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun,
+          // fun a() {}
+          { "a", 0, 0, LIST(uint8_t, OP_NIL, OP_RETURN), LIST(Lit) }),
+      // a(nil);
       LIST(uint8_t, OP_CLOSURE, 0, OP_NIL, OP_CALL, 1, OP_NIL,
           OP_RETURN),
-      LIST(Value, OBJ_VAL(aFun)));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Expected 0 arguments but got 1.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, FunNameInErrorMsg) {
-  size_t temps = 0;
-
-  // fun myFunction() { nil(); }
-  ObjFunction* myFunction = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(myFunction));
-  temps++;
-  myFunction->name =
-      copyString(&ufx->vm.gc, &ufx->vm.strings, "myFunction", 10);
-  temps += fillChunk(&myFunction->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_NIL, OP_CALL, 0, OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value));
-
-  // myFunction();
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, F(0)) },
+  // FunNameInErrorMsg
+  { INTERPRET_RUNTIME_ERROR, "] in myFunction",
+      LIST(LitFun,
+          { "myFunction", 0, 0,
+              LIST(uint8_t, OP_NIL, OP_CALL, 0, OP_POP, OP_NIL,
+                  OP_RETURN),
+              LIST(Lit) }),
+      // myFunction();
       LIST(uint8_t, OP_CLOSURE, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
-      LIST(Value, OBJ_VAL(myFunction)));
+      LIST(Lit, F(0)) },
+};
 
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+VM_TEST(OpCall, opCall, 6);
 
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "] in myFunction";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, Closures1) {
+VMCase closures[] = {
+  // Closures1
   // {
-  //   var x;
-  //   var y = 2;
+  //   var x; var y = 2;
   //   fun f(a, b) {
   //     x = 1;
-  //     fun g() {
-  //       print a + b + x + y;
-  //     }
+  //     fun g() { print a + b + x + y; }
   //     return g;
   //   }
   //   f(3, 4)();
   // }
-  size_t temps = 0;
-
-  ObjFunction* gFun = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(gFun));
-  temps++;
-  gFun->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "g", 1);
-  gFun->upvalueCount = 4;
-  temps += fillChunk(&gFun->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_UPVALUE, 0, OP_GET_UPVALUE, 1, OP_ADD,
-          OP_GET_UPVALUE, 2, OP_ADD, OP_GET_UPVALUE, 3, OP_ADD,
-          OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value));
-
-  ObjFunction* fFun = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(fFun));
-  temps++;
-  fFun->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "f", 1);
-  fFun->arity = 2;
-  fFun->upvalueCount = 2;
-  temps += fillChunk(&fFun->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_SET_UPVALUE, 0, OP_POP,
-          OP_CLOSURE, 1, 1, 1, 1, 2, 0, 0, 0, 1, OP_GET_LOCAL, 3,
-          OP_RETURN, OP_NIL, OP_RETURN),
-      LIST(Value, N(1.0), OBJ_VAL(gFun)));
-
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+  { INTERPRET_OK, "10\n",
+      LIST(LitFun,
+          { "g", 0, 4,
+              LIST(uint8_t, OP_GET_UPVALUE, 0, OP_GET_UPVALUE, 1,
+                  OP_ADD, OP_GET_UPVALUE, 2, OP_ADD, OP_GET_UPVALUE, 3,
+                  OP_ADD, OP_PRINT, OP_NIL, OP_RETURN),
+              LIST(Lit) },
+          { "f", 2, 2,
+              LIST(uint8_t, OP_CONSTANT, 0, OP_SET_UPVALUE, 0, OP_POP,
+                  OP_CLOSURE, 1, 1, 1, 1, 2, 0, 0, 0, 1, OP_GET_LOCAL,
+                  3, OP_RETURN, OP_NIL, OP_RETURN),
+              LIST(Lit, N(1.0), F(0)) }),
       LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_CLOSURE, 1, 1, 1, 1, 2,
           OP_GET_LOCAL, 3, OP_CONSTANT, 2, OP_CONSTANT, 3, OP_CALL, 2,
           OP_CALL, 0, OP_POP, OP_POP, OP_CLOSE_UPVALUE,
           OP_CLOSE_UPVALUE, OP_NIL, OP_RETURN),
-      LIST(Value, N(2.0), OBJ_VAL(fFun), N(3.0), N(4.0)));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->out.fptr);
-  EXPECT_STREQ("10\n", ufx->out.buf);
-
-  if (ires != INTERPRET_OK) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, Closures2) {
+      LIST(Lit, N(2.0), F(1), N(3.0), N(4.0)) },
+  // Closures2
   // var f; var g; var h;
   // {
   //   var x = "x"; var y = "y"; var z = "z";
@@ -416,38 +703,20 @@ UTEST_F(VMSimple, Closures2) {
   //   fun hh() { print y; } h = hh;
   // }
   // f(); g(); h();
-  size_t temps = 0;
-
-  ObjFunction* ff = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(ff));
-  temps++;
-  ff->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "ff", 2);
-  ff->upvalueCount = 1;
-  temps += fillChunk(&ff->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value));
-
-  ObjFunction* gg = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(gg));
-  temps++;
-  gg->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "gg", 2);
-  gg->upvalueCount = 1;
-  temps += fillChunk(&gg->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value));
-
-  ObjFunction* hh = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(hh));
-  temps++;
-  hh->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "hh", 2);
-  hh->upvalueCount = 1;
-  temps += fillChunk(&hh->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value));
-
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+  { INTERPRET_OK, "z\nx\ny\n",
+      LIST(LitFun,
+          { "ff", 0, 1,
+              LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL,
+                  OP_RETURN),
+              LIST(Lit) },
+          { "gg", 0, 1,
+              LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL,
+                  OP_RETURN),
+              LIST(Lit) },
+          { "hh", 0, 1,
+              LIST(uint8_t, OP_GET_UPVALUE, 0, OP_PRINT, OP_NIL,
+                  OP_RETURN),
+              LIST(Lit) }),
       LIST(uint8_t, OP_NIL, OP_DEFINE_GLOBAL, 0, OP_NIL,
           OP_DEFINE_GLOBAL, 1, OP_NIL, OP_DEFINE_GLOBAL, 2, OP_CONSTANT,
           3, OP_CONSTANT, 4, OP_CONSTANT, 5, OP_CLOSURE, 6, 1, 3,
@@ -458,177 +727,57 @@ UTEST_F(VMSimple, Closures2) {
           OP_CLOSE_UPVALUE, OP_GET_GLOBAL, 12, OP_CALL, 0, OP_POP,
           OP_GET_GLOBAL, 13, OP_CALL, 0, OP_POP, OP_GET_GLOBAL, 14,
           OP_CALL, 0, OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, S("f"), S("g"), S("h"), S("x"), S("y"), S("z"),
-          OBJ_VAL(ff), S("f"), OBJ_VAL(gg), S("g"), OBJ_VAL(hh), S("h"),
-          S("f"), S("g"), S("h")));
+      LIST(Lit, S("f"), S("g"), S("h"), S("x"), S("y"), S("z"), F(0),
+          S("f"), F(1), S("g"), F(2), S("h"), S("f"), S("g"), S("h")) },
+};
 
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+VM_TEST(Closures, closures, 2);
 
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->out.fptr);
-  EXPECT_STREQ("z\nx\ny\n", ufx->out.buf);
-
-  if (ires != INTERPRET_OK) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesSimple) {
-  size_t temps = 0;
-
-  // class F{} var f = F(); f.x = 1; print f.x;
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+VMCase classes[] = {
+  // ClassesSimple
+  { INTERPRET_OK, "1\n", LIST(LitFun),
+      // class F{} var f = F(); f.x = 1; print f.x;
       LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 2,
           OP_CALL, 0, OP_DEFINE_GLOBAL, 1, OP_GET_GLOBAL, 3,
           OP_CONSTANT, 5, OP_SET_PROPERTY, 4, OP_POP, OP_GET_GLOBAL, 6,
           OP_GET_PROPERTY, 7, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value, S("F"), S("f"), S("F"), S("f"), S("x"), N(1.0),
-          S("f"), S("x")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->out.fptr);
-  EXPECT_STREQ("1\n", ufx->out.buf);
-
-  if (ires != INTERPRET_OK) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesInitWrongNumArgs) {
-  size_t temps = 0;
-
-  // class F{} F(nil);
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, S("F"), S("f"), S("F"), S("f"), S("x"), N(1.0), S("f"),
+          S("x")) },
+  // ClassesInitWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun),
+      // class F{} F(nil);
       LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
           OP_POP, OP_GET_GLOBAL, 2, OP_NIL, OP_CALL, 1, OP_POP, OP_NIL,
           OP_RETURN),
-      LIST(Value, S("F"), S("F"), S("F")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Expected 0 arguments but got 1.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesGetMissing) {
-  size_t temps = 0;
-
-  // class F{} var f = F(); f.x;
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, S("F"), S("F"), S("F")) },
+  // ClassesGetMissing
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.", LIST(LitFun),
+      // class F{} var f = F(); f.x;
       LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 2,
           OP_CALL, 0, OP_DEFINE_GLOBAL, 1, OP_GET_GLOBAL, 3,
           OP_GET_PROPERTY, 4, OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, S("F"), S("f"), S("F"), S("f"), S("x")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Undefined property 'x'.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesGetNonInstance) {
-  size_t temps = 0;
-
-  // 0.x;
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, S("F"), S("f"), S("F"), S("f"), S("x")) },
+  // ClassesGetNonInstance
+  { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
+      LIST(LitFun),
+      // 0.x;
       LIST(uint8_t, OP_CONSTANT, 0, OP_GET_PROPERTY, 1, OP_POP, OP_NIL,
           OP_RETURN),
-      LIST(Value, N(0.0), S("x")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Only instances have properties.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesSetNonInstance) {
-  size_t temps = 0;
-
-  // 0.x = 1;
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, N(0.0), S("x")) },
+  // ClassesSetNonInstance
+  { INTERPRET_RUNTIME_ERROR, "Only instances have fields.",
+      LIST(LitFun),
+      // 0.x = 1;
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 2, OP_SET_PROPERTY, 1,
           OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, N(0.0), S("x"), N(1.0)));
+      LIST(Lit, N(0.0), S("x"), N(1.0)) },
+};
 
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+VM_TEST(Classes, classes, 5);
 
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Only instances have fields.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesMethods) {
+VMCase classesMethods[] = {
+  // ClassesMethods
   // class F {
   //   init(n) { this.n = n; }
   //   get() { return this.n; }
@@ -639,39 +788,21 @@ UTEST_F(VMSimple, ClassesMethods) {
   // var g = f.get; var s = f.set;
   // print g();                    // 2
   // s(3); print g();              // 3
-  size_t temps = 0;
-
-  ObjFunction* init = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(init));
-  temps++;
-  init->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "init", 4);
-  init->arity = 1;
-  temps += fillChunk(&init->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_LOCAL, 1, OP_SET_PROPERTY,
-          0, OP_POP, OP_GET_LOCAL, 0, OP_RETURN),
-      LIST(Value, S("n")));
-
-  ObjFunction* get = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(get));
-  temps++;
-  get->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "get", 3);
-  temps += fillChunk(&get->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_PROPERTY, 0, OP_RETURN),
-      LIST(Value, S("n")));
-
-  ObjFunction* set = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(set));
-  temps++;
-  set->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "set", 3);
-  set->arity = 1;
-  temps += fillChunk(&set->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_LOCAL, 1, OP_SET_PROPERTY,
-          0, OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, S("n")));
-
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+  { INTERPRET_OK, "1\n2\n2\n3\n",
+      LIST(LitFun,
+          { "init", 1, 0,
+              LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_LOCAL, 1,
+                  OP_SET_PROPERTY, 0, OP_POP, OP_GET_LOCAL, 0,
+                  OP_RETURN),
+              LIST(Lit, S("n")) },
+          { "get", 0, 0,
+              LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_PROPERTY, 0,
+                  OP_RETURN),
+              LIST(Lit, S("n")) },
+          { "set", 1, 0,
+              LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_LOCAL, 1,
+                  OP_SET_PROPERTY, 0, OP_POP, OP_NIL, OP_RETURN),
+              LIST(Lit, S("n")) }),
       LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
           OP_CLOSURE, 3, OP_METHOD, 2, OP_CLOSURE, 5, OP_METHOD, 4,
           OP_CLOSURE, 7, OP_METHOD, 6, OP_POP, OP_GET_GLOBAL, 9,
@@ -684,130 +815,46 @@ UTEST_F(VMSimple, ClassesMethods) {
           OP_CALL, 0, OP_PRINT, OP_GET_GLOBAL, 25, OP_CONSTANT, 26,
           OP_CALL, 1, OP_POP, OP_GET_GLOBAL, 27, OP_CALL, 0, OP_PRINT,
           OP_NIL, OP_RETURN),
-      LIST(Value, S("F"), S("F"), S("init"), OBJ_VAL(init), S("get"),
-          OBJ_VAL(get), S("set"), OBJ_VAL(set), S("f"), S("F"), N(1.0),
-          S("f"), S("get"), S("f"), S("set"), N(2.0), S("f"), S("get"),
-          S("g"), S("f"), S("get"), S("s"), S("f"), S("set"), S("g"),
-          S("s"), N(3.0), S("g")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->out.fptr);
-  EXPECT_STREQ("1\n2\n2\n3\n", ufx->out.buf);
-
-  if (ires != INTERPRET_OK) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesInvokeField) {
-  size_t temps = 0;
-
-  // fun blah() { print 1; }
-  ObjFunction* blah = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(blah));
-  temps++;
-  blah->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "blah", 4);
-  temps += fillChunk(&blah->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value, N(1.0)));
-
-  // class F{} var f = F(); f.blah = blah; f.blah();
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, S("F"), S("F"), S("init"), F(0), S("get"), F(1),
+          S("set"), F(2), S("f"), S("F"), N(1.0), S("f"), S("get"),
+          S("f"), S("set"), N(2.0), S("f"), S("get"), S("g"), S("f"),
+          S("get"), S("s"), S("f"), S("set"), S("g"), S("s"), N(3.0),
+          S("g")) },
+  // ClassesInvokeField
+  { INTERPRET_OK, "1\n",
+      LIST(LitFun,
+          // fun blah() { print 1; }
+          { "blah", 0, 0,
+              LIST(
+                  uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+              LIST(Lit, N(1.0)) }),
+      // class F{} var f = F(); f.blah = blah; f.blah();
       LIST(uint8_t, OP_CLOSURE, 1, OP_DEFINE_GLOBAL, 0, OP_CLASS, 2,
           OP_DEFINE_GLOBAL, 2, OP_GET_GLOBAL, 3, OP_POP, OP_GET_GLOBAL,
           5, OP_CALL, 0, OP_DEFINE_GLOBAL, 4, OP_GET_GLOBAL, 6,
           OP_GET_GLOBAL, 8, OP_SET_PROPERTY, 7, OP_POP, OP_GET_GLOBAL,
           9, OP_INVOKE, 10, 0, OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, S("blah"), OBJ_VAL(blah), S("F"), S("F"), S("f"),
-          S("F"), S("f"), S("blah"), S("blah"), S("f"), S("blah")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->out.fptr);
-  EXPECT_STREQ("1\n", ufx->out.buf);
-
-  if (ires != INTERPRET_OK) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesInvokeNonInstance) {
-  size_t temps = 0;
-
-  // 0.x();
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, S("blah"), F(0), S("F"), S("F"), S("f"), S("F"), S("f"),
+          S("blah"), S("blah"), S("f"), S("blah")) },
+  // ClassesInvokeNonInstance
+  { INTERPRET_RUNTIME_ERROR, "Only instances have methods.",
+      LIST(LitFun),
+      // 0.x();
       LIST(uint8_t, OP_CONSTANT, 0, OP_INVOKE, 1, 0, OP_POP, OP_NIL,
           OP_RETURN),
-      LIST(Value, N(0.0), S("x")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Only instances have methods.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesInvokeMissing) {
-  size_t temps = 0;
-
-  // class F{} var f = F(); f.oops();
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, N(0.0), S("x")) },
+  // ClassesInvokeMissing
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'oops'.", LIST(LitFun),
       LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
           OP_POP, OP_GET_GLOBAL, 3, OP_CALL, 0, OP_DEFINE_GLOBAL, 2,
           OP_GET_GLOBAL, 4, OP_INVOKE, 5, 0, OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, S("F"), S("F"), S("f"), S("F"), S("f"), S("oops")));
+      LIST(Lit, S("F"), S("F"), S("f"), S("F"), S("f"), S("oops")) },
+};
 
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
+VM_TEST(ClassesMethods, classesMethods, 4);
 
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Undefined property 'oops'.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesSuper) {
+VMCase classesSuper[] = {
+  // ClassesSuper
   // class A {
   //   f() { print 1; }
   //   g() { print 2; }
@@ -818,57 +865,31 @@ UTEST_F(VMSimple, ClassesSuper) {
   //   h() { var Ah = super.h; print 5; Ah(); }
   // }
   // var b = B(); b.f(); b.g(); b.h();
-  size_t temps = 0;
-
-  ObjFunction* af = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(af));
-  temps++;
-  af->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "f", 1);
-  temps += fillChunk(&af->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value, N(1.0)));
-
-  ObjFunction* ag = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(ag));
-  temps++;
-  ag->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "g", 1);
-  temps += fillChunk(&ag->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value, N(2.0)));
-
-  ObjFunction* ah = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(ah));
-  temps++;
-  ah->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "h", 2);
-  temps += fillChunk(&ah->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Value, N(3.0)));
-
-  ObjFunction* bg = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(bg));
-  temps++;
-  bg->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "g", 1);
-  bg->upvalueCount = 1;
-  temps += fillChunk(&bg->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_GET_LOCAL, 0,
-          OP_GET_UPVALUE, 0, OP_SUPER_INVOKE, 1, 0, OP_POP, OP_NIL,
-          OP_RETURN),
-      LIST(Value, N(4.0), S("g")));
-
-  ObjFunction* bh = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(bh));
-  temps++;
-  bh->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "h", 2);
-  bh->upvalueCount = 1;
-  temps += fillChunk(&bh->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_UPVALUE, 0, OP_GET_SUPER, 0,
-          OP_CONSTANT, 1, OP_PRINT, OP_GET_LOCAL, 1, OP_CALL, 0, OP_POP,
-          OP_NIL, OP_RETURN),
-      LIST(Value, S("h"), N(5.0)));
-
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+  { INTERPRET_OK, "1\n4\n2\n5\n3\n",
+      LIST(LitFun,
+          { "f", 0, 0,
+              LIST(
+                  uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+              LIST(Lit, N(1.0)) },
+          { "g", 0, 0,
+              LIST(
+                  uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+              LIST(Lit, N(2.0)) },
+          { "h", 0, 0,
+              LIST(
+                  uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_RETURN),
+              LIST(Lit, N(3.0)) },
+          { "g", 0, 1,
+              LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_GET_LOCAL, 0,
+                  OP_GET_UPVALUE, 0, OP_SUPER_INVOKE, 1, 0, OP_POP,
+                  OP_NIL, OP_RETURN),
+              LIST(Lit, N(4.0), S("g")) },
+          { "h", 0, 1,
+              LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_UPVALUE, 0,
+                  OP_GET_SUPER, 0, OP_CONSTANT, 1, OP_PRINT,
+                  OP_GET_LOCAL, 1, OP_CALL, 0, OP_POP, OP_NIL,
+                  OP_RETURN),
+              LIST(Lit, S("h"), N(5.0)) }),
       LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
           OP_CLOSURE, 3, OP_METHOD, 2, OP_CLOSURE, 5, OP_METHOD, 4,
           OP_CLOSURE, 7, OP_METHOD, 6, OP_POP, OP_CLASS, 8,
@@ -880,507 +901,57 @@ UTEST_F(VMSimple, ClassesSuper) {
           OP_POP, OP_GET_GLOBAL, 20, OP_INVOKE, 21, 0, OP_POP,
           OP_GET_GLOBAL, 22, OP_INVOKE, 23, 0, OP_POP, OP_NIL,
           OP_RETURN),
-      LIST(Value, S("A"), S("A"), S("f"), OBJ_VAL(af), S("g"),
-          OBJ_VAL(ag), S("h"), OBJ_VAL(ah), S("B"), S("A"), S("B"),
-          S("B"), S("g"), OBJ_VAL(bg), S("h"), OBJ_VAL(bh), S("b"),
-          S("B"), S("b"), S("f"), S("b"), S("g"), S("b"), S("h")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->out.fptr);
-  EXPECT_STREQ("1\n4\n2\n5\n3\n", ufx->out.buf);
-
-  if (ires != INTERPRET_OK) {
-    fflush(ufx->err.fptr);
-    EXPECT_STREQ("", ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesSuperNonClass) {
-  size_t temps = 0;
-
-  // { var A; class B < A {} }
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+      LIST(Lit, S("A"), S("A"), S("f"), F(0), S("g"), F(1), S("h"),
+          F(2), S("B"), S("A"), S("B"), S("B"), S("g"), F(3), S("h"),
+          F(4), S("b"), S("B"), S("b"), S("f"), S("b"), S("g"), S("b"),
+          S("h")) },
+  // ClassesSuperNonClass
+  { INTERPRET_RUNTIME_ERROR, "Superclass must be a class.",
+      LIST(LitFun),
+      // { var A; class B < A {} }
       LIST(uint8_t, OP_NIL, OP_CLASS, 0, OP_GET_LOCAL, 1, OP_GET_LOCAL,
           2, OP_INHERIT, OP_GET_LOCAL, 2, OP_POP, OP_POP, OP_POP,
           OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, S("B")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Superclass must be a class.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesSuperInvokeMissing) {
+      LIST(Lit, S("B")) },
+  // ClassesSuperInvokeMissing
   // {
   //   class A {}
   //   class B < A { f() { super.f(); } }
   //   B().f();
   // }
-  size_t temps = 0;
-
-  ObjFunction* f = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(f));
-  temps++;
-  f->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "f", 1);
-  f->upvalueCount = 1;
-  temps += fillChunk(&f->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_UPVALUE, 0, OP_SUPER_INVOKE,
-          0, 0, OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, S("f")));
-
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'f'.",
+      LIST(LitFun,
+          { "f", 0, 1,
+              LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_UPVALUE, 0,
+                  OP_SUPER_INVOKE, 0, 0, OP_POP, OP_NIL, OP_RETURN),
+              LIST(Lit, S("f")) }),
       LIST(uint8_t, OP_CLASS, 0, OP_GET_LOCAL, 1, OP_POP, OP_CLASS, 1,
           OP_GET_LOCAL, 1, OP_GET_LOCAL, 2, OP_INHERIT, OP_GET_LOCAL, 2,
           OP_CLOSURE, 3, 1, 3, OP_METHOD, 2, OP_POP, OP_CLOSE_UPVALUE,
           OP_GET_LOCAL, 2, OP_CALL, 0, OP_INVOKE, 4, 0, OP_POP, OP_POP,
           OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, S("A"), S("B"), S("f"), OBJ_VAL(f), S("f")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Undefined property 'f'.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-UTEST_F(VMSimple, ClassesSuperGetMissing) {
+      LIST(Lit, S("A"), S("B"), S("f"), F(0), S("f")) },
+  // ClassesSuperGetMissing
   // {
   //   class A {}
   //   class B < A { f() { super.f; } }
   //   B().f();
   // }
-  size_t temps = 0;
-
-  ObjFunction* f = newFunction(&ufx->vm.gc);
-  pushTemp(&ufx->vm.gc, OBJ_VAL(f));
-  temps++;
-  f->name = copyString(&ufx->vm.gc, &ufx->vm.strings, "f", 1);
-  f->upvalueCount = 1;
-  temps += fillChunk(&f->chunk, &ufx->vm.gc, &ufx->vm.strings,
-      LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_UPVALUE, 0, OP_GET_SUPER, 0,
-          OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, S("f")));
-
-  Chunk script;
-  initChunk(&script);
-  temps += fillChunk(&script, &ufx->vm.gc, &ufx->vm.strings,
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'f'.",
+      LIST(LitFun,
+          { "f", 0, 1,
+              LIST(uint8_t, OP_GET_LOCAL, 0, OP_GET_UPVALUE, 0,
+                  OP_GET_SUPER, 0, OP_POP, OP_NIL, OP_RETURN),
+              LIST(Lit, S("f")) }),
       LIST(uint8_t, OP_CLASS, 0, OP_GET_LOCAL, 1, OP_POP, OP_CLASS, 1,
           OP_GET_LOCAL, 1, OP_GET_LOCAL, 2, OP_INHERIT, OP_GET_LOCAL, 2,
           OP_CLOSURE, 3, 1, 3, OP_METHOD, 2, OP_POP, OP_CLOSE_UPVALUE,
           OP_GET_LOCAL, 2, OP_CALL, 0, OP_INVOKE, 4, 0, OP_POP, OP_POP,
           OP_POP, OP_NIL, OP_RETURN),
-      LIST(Value, S("A"), S("B"), S("f"), OBJ_VAL(f), S("f")));
-
-  InterpretResult ires = interpretChunk(&ufx->vm, &script);
-  EXPECT_EQ((InterpretResult)INTERPRET_RUNTIME_ERROR, ires);
-
-  while (temps > 0) {
-    popTemp(&ufx->vm.gc);
-    temps--;
-  }
-
-  fflush(ufx->err.fptr);
-  const char* msg = "Undefined property 'f'.";
-  const char* findMsg = strstr(ufx->err.buf, msg);
-  if (findMsg) {
-    EXPECT_STRNEQ(msg, findMsg, strlen(msg));
-  } else {
-    EXPECT_STREQ(msg, ufx->err.buf);
-  }
-}
-
-typedef struct {
-  const char* msgSuffix;
-  InterpretResult ires;
-  int codeSize;
-  uint8_t* code;
-  int valueSize;
-  Value* values;
-} ResultFromChunk;
-
-struct VM {
-  ResultFromChunk* cases;
+      LIST(Lit, S("A"), S("B"), S("f"), F(0), S("f")) },
 };
 
-UTEST_I_SETUP(VM) {
-  (void)utest_index;
-  (void)utest_fixture;
-  ASSERT_TRUE(1);
-}
-
-UTEST_I_TEARDOWN(VM) {
-  ResultFromChunk* expected = &ufx->cases[utest_index];
-
-  MemBuf out, err;
-  VM vm;
-  Chunk chunk;
-  initMemBuf(&out);
-  initMemBuf(&err);
-  initVM(&vm, out.fptr, err.fptr);
-  initChunk(&chunk);
-
-  // Prepare the chunk.
-  for (int i = 0; i < expected->codeSize; ++i) {
-    writeChunk(&vm.gc, &chunk, expected->code[i], i >> 1);
-  }
-  writeChunk(&vm.gc, &chunk, OP_NIL, (expected->codeSize - 1) >> 1);
-  writeChunk(&vm.gc, &chunk, OP_RETURN, (expected->codeSize - 1) >> 1);
-  for (int i = 0; i < expected->valueSize; ++i) {
-    addConstant(&vm.gc, &chunk, expected->values[i]);
-  }
-
-  // Interpret the chunk.
-  InterpretResult ires = interpretChunk(&vm, &chunk);
-  EXPECT_EQ(expected->ires, ires);
-
-  fflush(out.fptr);
-  fflush(err.fptr);
-
-  // Compare output to expected output.
-  size_t msgSuffixLen = strlen(expected->msgSuffix);
-  if (strlen(out.buf) >= msgSuffixLen) {
-    EXPECT_STREQ(
-        expected->msgSuffix, out.buf + out.size - msgSuffixLen);
-  } else {
-    EXPECT_STREQ(expected->msgSuffix, out.buf);
-  }
-
-  // If INTERPRET_OK was expected but not achieved, show errors.
-  if (expected->ires == INTERPRET_OK && ires != INTERPRET_OK) {
-    EXPECT_STREQ("", err.buf);
-  }
-
-  freeMemBuf(&out);
-  freeMemBuf(&err);
-  freeVM(&vm);
-}
-
-#define VM_CASES(name, data, count) \
-  UTEST_I(VM, name, count) { \
-    static_assert(sizeof(data) / sizeof(data[0]) == count, #name); \
-    utest_fixture->cases = data; \
-    ASSERT_TRUE(1); \
-  }
-
-ResultFromChunk opConstant[] = {
-  { "nil\n", INTERPRET_OK, LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT),
-      LIST(Value, NIL) },
-  { "false\n", INTERPRET_OK, LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT),
-      LIST(Value, B(false)) },
-  { "true\n", INTERPRET_OK, LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT),
-      LIST(Value, B(true)) },
-  { "2.5\n", INTERPRET_OK, LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT),
-      LIST(Value, N(2.5)) },
-};
-
-VM_CASES(OpConstant, opConstant, 4);
-
-ResultFromChunk opLiterals[] = {
-  { "false\n", INTERPRET_OK, LIST(uint8_t, OP_FALSE, OP_PRINT),
-      LIST(Value) },
-  { "nil\n", INTERPRET_OK, LIST(uint8_t, OP_NIL, OP_PRINT),
-      LIST(Value) },
-  { "true\n", INTERPRET_OK, LIST(uint8_t, OP_TRUE, OP_PRINT),
-      LIST(Value) },
-};
-
-VM_CASES(OpLiterals, opLiterals, 3);
-
-ResultFromChunk opPop[] = {
-  { "0\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_POP, OP_PRINT),
-      LIST(Value, N(0.0), N(1.0)) },
-};
-
-VM_CASES(OpPop, opPop, 1);
-
-ResultFromChunk opLocals[] = {
-  { "false\ntrue\nfalse\ntrue\n", INTERPRET_OK,
-      LIST(uint8_t, OP_TRUE, OP_FALSE, OP_GET_LOCAL, 1, OP_GET_LOCAL, 2,
-          OP_PRINT, OP_PRINT, OP_PRINT, OP_PRINT),
-      LIST(Value) },
-  { "true\ntrue\n", INTERPRET_OK,
-      LIST(uint8_t, OP_FALSE, OP_TRUE, OP_SET_LOCAL, 1, OP_PRINT,
-          OP_PRINT),
-      LIST(Value) },
-};
-
-VM_CASES(OpLocals, opLocals, 2);
-
-ResultFromChunk opGlobals[] = {
-  { "", INTERPRET_RUNTIME_ERROR, LIST(uint8_t, OP_GET_GLOBAL, 0),
-      LIST(Value, S("foo")) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_SET_GLOBAL, 0), LIST(Value, S("foo")) },
-  { "123\n456\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL,
-          0, OP_PRINT, OP_CONSTANT, 2, OP_SET_GLOBAL, 0, OP_POP,
-          OP_GET_GLOBAL, 0, OP_PRINT),
-      LIST(Value, S("foo"), N(123.0), N(456.0)) },
-};
-
-VM_CASES(OpGlobals, opGlobals, 3);
-
-ResultFromChunk opEqual[] = {
-  { "true\n", INTERPRET_OK,
-      LIST(uint8_t, OP_NIL, OP_NIL, OP_EQUAL, OP_PRINT), LIST(Value) },
-  { "true\n", INTERPRET_OK,
-      LIST(uint8_t, OP_FALSE, OP_FALSE, OP_EQUAL, OP_PRINT),
-      LIST(Value) },
-  { "false\n", INTERPRET_OK,
-      LIST(uint8_t, OP_TRUE, OP_FALSE, OP_EQUAL, OP_PRINT),
-      LIST(Value) },
-  { "false\n", INTERPRET_OK,
-      LIST(uint8_t, OP_FALSE, OP_TRUE, OP_EQUAL, OP_PRINT),
-      LIST(Value) },
-  { "true\n", INTERPRET_OK,
-      LIST(uint8_t, OP_TRUE, OP_TRUE, OP_EQUAL, OP_PRINT),
-      LIST(Value) },
-  { "false\n", INTERPRET_OK,
-      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_EQUAL, OP_PRINT),
-      LIST(Value, N(1.0)) },
-  { "true\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_EQUAL, OP_PRINT),
-      LIST(Value, N(1.0), N(1.0)) },
-  { "false\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_EQUAL, OP_PRINT),
-      LIST(Value, N(1.0), N(2.0)) },
-};
-
-VM_CASES(OpEqual, opEqual, 8);
-
-ResultFromChunk opGreater[] = {
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_NIL, OP_GREATER, OP_PRINT),
-      LIST(Value) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_GREATER, OP_PRINT),
-      LIST(Value, N(0.0)) },
-  { "false\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER,
-          OP_PRINT),
-      LIST(Value, N(1.0), N(2.0)) },
-  { "false\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER,
-          OP_PRINT),
-      LIST(Value, N(2.0), N(2.0)) },
-  { "true\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER,
-          OP_PRINT),
-      LIST(Value, N(3.0), N(2.0)) },
-};
-
-VM_CASES(OpGreater, opGreater, 5);
-
-ResultFromChunk opLess[] = {
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_NIL, OP_LESS, OP_PRINT), LIST(Value) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_LESS, OP_PRINT),
-      LIST(Value, N(0.0)) },
-  { "true\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_PRINT),
-      LIST(Value, N(1.0), N(2.0)) },
-  { "false\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_PRINT),
-      LIST(Value, N(2.0), N(2.0)) },
-  { "false\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_PRINT),
-      LIST(Value, N(3.0), N(2.0)) },
-};
-
-VM_CASES(OpLess, opLess, 5);
-
-ResultFromChunk opAdd[] = {
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_NIL, OP_ADD, OP_PRINT), LIST(Value) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_ADD, OP_PRINT),
-      LIST(Value, N(0.0)) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_ADD, OP_PRINT),
-      LIST(Value, N(0.0)) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_ADD, OP_PRINT),
-      LIST(Value, N(0.0)) },
-  { "5\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT),
-      LIST(Value, N(3.0), N(2.0)) },
-};
-
-VM_CASES(OpAdd, opAdd, 5);
-
-ResultFromChunk opAddConcat[] = {
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_ADD, OP_PRINT),
-      LIST(Value, S("")) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_ADD, OP_PRINT),
-      LIST(Value, S("")) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT),
-      LIST(Value, N(0.0), S("")) },
-  { "foo\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT),
-      LIST(Value, S("foo"), S("")) },
-  { "foo\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT),
-      LIST(Value, S(""), S("foo")) },
-  { "foobar\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_PRINT),
-      LIST(Value, S("foo"), S("bar")) },
-  { "foobarfoobar\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
-          2, OP_CONSTANT, 3, OP_ADD, OP_ADD, OP_PRINT),
-      LIST(Value, S("foo"), S("bar"), S("foo"), S("bar")) },
-};
-
-VM_CASES(OpAddConcat, opAddConcat, 7);
-
-ResultFromChunk opSubtract[] = {
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_NIL, OP_SUBTRACT, OP_PRINT),
-      LIST(Value) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_SUBTRACT, OP_PRINT),
-      LIST(Value, N(0.0)) },
-  { "1\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_SUBTRACT,
-          OP_PRINT),
-      LIST(Value, N(3.0), N(2.0)) },
-};
-
-VM_CASES(OpSubtract, opSubtract, 3);
-
-ResultFromChunk opMultiply[] = {
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_NIL, OP_MULTIPLY, OP_PRINT),
-      LIST(Value) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_MULTIPLY, OP_PRINT),
-      LIST(Value, N(0.0)) },
-  { "6\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY,
-          OP_PRINT),
-      LIST(Value, N(3.0), N(2.0)) },
-};
-
-VM_CASES(OpMultiply, opMultiply, 3);
-
-ResultFromChunk opDivide[] = {
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_NIL, OP_DIVIDE, OP_PRINT), LIST(Value) },
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_DIVIDE, OP_PRINT),
-      LIST(Value, N(0.0)) },
-  { "1.5\n", INTERPRET_OK,
-      LIST(
-          uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE, OP_PRINT),
-      LIST(Value, N(3.0), N(2.0)) },
-};
-
-VM_CASES(OpDivide, opDivide, 3);
-
-ResultFromChunk opNot[] = {
-  { "true\n", INTERPRET_OK, LIST(uint8_t, OP_NIL, OP_NOT, OP_PRINT),
-      LIST(Value) },
-  { "true\n", INTERPRET_OK, LIST(uint8_t, OP_FALSE, OP_NOT, OP_PRINT),
-      LIST(Value) },
-  { "false\n", INTERPRET_OK, LIST(uint8_t, OP_TRUE, OP_NOT, OP_PRINT),
-      LIST(Value) },
-  { "false\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NOT, OP_PRINT),
-      LIST(Value, N(0.0)) },
-  { "true\n", INTERPRET_OK,
-      LIST(uint8_t, OP_TRUE, OP_NOT, OP_NOT, OP_PRINT), LIST(Value) },
-};
-
-VM_CASES(OpNot, opNot, 5);
-
-ResultFromChunk opNegate[] = {
-  { "", INTERPRET_RUNTIME_ERROR,
-      LIST(uint8_t, OP_NIL, OP_NEGATE, OP_PRINT), LIST(Value) },
-  { "-1\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_PRINT),
-      LIST(Value, N(1.0)) },
-  { "1\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE, OP_PRINT),
-      LIST(Value, N(1.0)) },
-};
-
-VM_CASES(OpNegate, opNegate, 3);
-
-ResultFromChunk opJump[] = {
-  { "true\n", INTERPRET_OK,
-      LIST(uint8_t, OP_JUMP, 0, 2, OP_NIL, OP_PRINT, OP_TRUE, OP_PRINT),
-      LIST(Value) },
-};
-
-VM_CASES(OpJump, opJump, 1);
-
-ResultFromChunk opJumpIfFalse[] = {
-  { "0\n2\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_JUMP_IF_FALSE,
-          0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT, 2, OP_PRINT),
-      LIST(Value, N(0.0), N(1.0), N(2.0)) },
-  { "0\n2\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_FALSE,
-          OP_JUMP_IF_FALSE, 0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT,
-          2, OP_PRINT),
-      LIST(Value, N(0.0), N(1.0), N(2.0)) },
-  { "0\n1\n2\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_TRUE, OP_JUMP_IF_FALSE,
-          0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT, 2, OP_PRINT),
-      LIST(Value, N(0.0), N(1.0), N(2.0)) },
-};
-
-VM_CASES(OpJumpIfFalse, opJumpIfFalse, 3);
-
-ResultFromChunk opLoop[] = {
-  { "0\n1\n2\n3\n4\n", INTERPRET_OK,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 1, OP_CONSTANT, 1,
-          OP_LESS, OP_JUMP_IF_FALSE, 0, 15, OP_POP, OP_GET_LOCAL, 1,
-          OP_PRINT, OP_GET_LOCAL, 1, OP_CONSTANT, 2, OP_ADD,
-          OP_SET_LOCAL, 1, OP_POP, OP_LOOP, 0, 23, OP_POP),
-      LIST(Value, N(0.0), N(5.0), N(1.0)) },
-};
-
-VM_CASES(OpLoop, opLoop, 1);
+VM_TEST(ClassesSuper, classesSuper, 4);
 
 UTEST_STATE();
 

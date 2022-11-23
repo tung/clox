@@ -45,7 +45,8 @@ void initVM(VM* vm, FILE* fout, FILE* ferr);
 void freeVM(VM* vm);
 void push(VM* vm, Value value);
 Value pop(VM* vm);
-InterpretResult interpretChunk(VM* vm, Chunk* chunk);
+InterpretResult interpretCall(
+    VM* vm, ObjClosure* closure, int argCount);
 InterpretResult interpret(VM* vm, const char* source);
 
 extern bool debugTraceExecution;

@@ -13,22 +13,6 @@
 
 #define ufx utest_fixture
 
-#define N NUMBER_LIT
-
-// We need enough of ObjString here to work with printObject in
-// object.c.  We don't need to set .obj.next since it's only needed for
-// the VM.
-// clang-format off
-#define S(str) { \
-    .type = VAL_OBJ, \
-    .as.obj = (Obj*)&(ObjString){ \
-      .obj = { .type = OBJ_STRING, .next = NULL }, \
-      .length = sizeof(str) / sizeof(str[0]) - 1, \
-      .chars = str, \
-    } \
-  }
-// clang-format on
-
 typedef struct {
   const char* src;
   bool result;
@@ -38,270 +22,12 @@ typedef struct {
   Value* values;
 } SourceToChunk;
 
-struct CompileExpr {
-  SourceToChunk* cases;
-};
-
-UTEST_I_SETUP(CompileExpr) {
-  (void)utest_index;
-  (void)utest_fixture;
-  ASSERT_TRUE(1);
-}
-
-UTEST_I_TEARDOWN(CompileExpr) {
-  SourceToChunk* expected = &ufx->cases[utest_index];
-
-  // Fixture setup.
-  GC gc;
-  Table strings;
-  MemBuf out, err;
-  initGC(&gc);
-  initTable(&strings, 0.75);
-  initMemBuf(&out);
-  initMemBuf(&err);
-
-  // Prepare expected/actual err memstreams.
-  MemBuf xErr, aErr;
-  initMemBuf(&xErr);
-  initMemBuf(&aErr);
-
-  // If success is expected, assemble, dump and free our expected chunk.
-  if (expected->result) {
-    Chunk expectChunk;
-    initChunk(&expectChunk);
-    for (int i = 0; i < expected->codeSize; ++i) {
-      writeChunk(&gc, &expectChunk, expected->code[i], 1);
-    }
-    writeChunk(&gc, &expectChunk, OP_PRINT, 1);
-    writeChunk(&gc, &expectChunk, OP_NIL, 1);
-    writeChunk(&gc, &expectChunk, OP_RETURN, 1);
-    for (int i = 0; i < expected->valueSize; ++i) {
-      addConstant(&gc, &expectChunk, expected->values[i]);
-    }
-    disassembleChunk(xErr.fptr, &expectChunk, "CompileExpr");
-    freeChunk(&gc, &expectChunk);
-  }
-
-  // Prepare expression as "print ${expr};" for compile function.
-  char srcBuf[256];
-  snprintf(srcBuf, sizeof(srcBuf) - 1, "print %s;", expected->src);
-  srcBuf[sizeof(srcBuf) - 1] = '\0';
-
-  ObjFunction* result =
-      compile(out.fptr, err.fptr, srcBuf, &gc, &strings);
-
-  EXPECT_EQ(expected->result, !!result);
-
-  // If success was expected but not achieved, print any compile errors.
-  if (expected->result && !result) {
-    fflush(err.fptr);
-    EXPECT_STREQ("", err.buf);
-  }
-
-  // If compile succeeded, dump the actual chunk.
-  if (result) {
-    disassembleChunk(aErr.fptr, &result->chunk, "CompileExpr");
-  }
-
-  // Compare err memstreams.
-  fflush(xErr.fptr);
-  fflush(aErr.fptr);
-  EXPECT_STREQ(xErr.buf, aErr.buf);
-
-  // Clean up memstreams.
-  freeMemBuf(&xErr);
-  freeMemBuf(&aErr);
-
-  // Fixture teardown.
-  freeTable(&gc, &strings);
-  freeGC(&gc);
-  freeMemBuf(&out);
-  freeMemBuf(&err);
-}
-
 #define COMPILE_EXPRS(name, data, count) \
   UTEST_I(CompileExpr, name, count) { \
     static_assert(sizeof(data) / sizeof(data[0]) == count, #name); \
     utest_fixture->cases = data; \
     ASSERT_TRUE(1); \
   }
-
-SourceToChunk exprErrors[] = {
-  { "", false, LIST(uint8_t), LIST(Value) },
-  { "#", false, LIST(uint8_t), LIST(Value) },
-  { "1 1", false, LIST(uint8_t), LIST(Value) },
-};
-
-COMPILE_EXPRS(Errors, exprErrors, 3);
-
-SourceToChunk exprLiteral[] = {
-  { "false", true, LIST(uint8_t, OP_FALSE), LIST(Value) },
-  { "nil", true, LIST(uint8_t, OP_NIL), LIST(Value) },
-  { "true", true, LIST(uint8_t, OP_TRUE), LIST(Value) },
-};
-
-COMPILE_EXPRS(Literal, exprLiteral, 3);
-
-SourceToChunk exprNumber[] = {
-  { "123", true, LIST(uint8_t, OP_CONSTANT, 0), LIST(Value, N(123.0)) },
-};
-
-COMPILE_EXPRS(Number, exprNumber, 1);
-
-SourceToChunk exprString[] = {
-  { "\"\"", true, LIST(uint8_t, OP_CONSTANT, 0), LIST(Value, S("")) },
-  { "\"foo\"", true, LIST(uint8_t, OP_CONSTANT, 0),
-      LIST(Value, S("foo")) },
-};
-
-COMPILE_EXPRS(String, exprString, 2);
-
-SourceToChunk exprVarGet[] = {
-  { "foo", true, LIST(uint8_t, OP_GET_GLOBAL, 0),
-      LIST(Value, S("foo")) },
-};
-
-COMPILE_EXPRS(VarGet, exprVarGet, 1);
-
-SourceToChunk exprVarSet[] = {
-  { "foo = 0", true, LIST(uint8_t, OP_CONSTANT, 1, OP_SET_GLOBAL, 0),
-      LIST(Value, S("foo"), N(0.0)) },
-  { "foo + bar = 0", false, LIST(uint8_t), LIST(Value) },
-};
-
-COMPILE_EXPRS(VarSet, exprVarSet, 2);
-
-SourceToChunk exprUnary[] = {
-  { "-1", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE),
-      LIST(Value, N(1.0)) },
-  { "--1", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE),
-      LIST(Value, N(1.0)) },
-  { "!false", true, LIST(uint8_t, OP_FALSE, OP_NOT), LIST(Value) },
-  { "!!false", true, LIST(uint8_t, OP_FALSE, OP_NOT, OP_NOT),
-      LIST(Value) },
-};
-
-COMPILE_EXPRS(Unary, exprUnary, 4);
-
-SourceToChunk exprGrouping[] = {
-  { "(", false, LIST(uint8_t), LIST(Value) },
-  { "(1)", true, LIST(uint8_t, OP_CONSTANT, 0), LIST(Value, N(1.0)) },
-  { "(-1)", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE),
-      LIST(Value, N(1.0)) },
-  { "-(1)", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE),
-      LIST(Value, N(1.0)) },
-  { "-(-1)", true, LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_NEGATE),
-      LIST(Value, N(1.0)) },
-};
-
-COMPILE_EXPRS(Grouping, exprGrouping, 5);
-
-SourceToChunk exprBinaryNums[] = {
-  { "3 + 2", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD),
-      LIST(Value, N(3.0), N(2.0)) },
-  { "3 - 2", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_SUBTRACT),
-      LIST(Value, N(3.0), N(2.0)) },
-  { "3 * 2", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY),
-      LIST(Value, N(3.0), N(2.0)) },
-  { "3 / 2", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE),
-      LIST(Value, N(3.0), N(2.0)) },
-  { "4 + 3 - 2 + 1 - 0", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
-          2, OP_SUBTRACT, OP_CONSTANT, 3, OP_ADD, OP_CONSTANT, 4,
-          OP_SUBTRACT),
-      LIST(Value, N(4.0), N(3.0), N(2.0), N(1.0), N(0.0)) },
-  { "4 / 3 * 2 / 1 * 0", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_DIVIDE,
-          OP_CONSTANT, 2, OP_MULTIPLY, OP_CONSTANT, 3, OP_DIVIDE,
-          OP_CONSTANT, 4, OP_MULTIPLY),
-      LIST(Value, N(4.0), N(3.0), N(2.0), N(1.0), N(0.0)) },
-  { "3 * 2 + 1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MULTIPLY,
-          OP_CONSTANT, 2, OP_ADD),
-      LIST(Value, N(3.0), N(2.0), N(1.0)) },
-  { "3 + 2 * 1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
-          OP_MULTIPLY, OP_ADD),
-      LIST(Value, N(3.0), N(2.0), N(1.0)) },
-  { "(-1 + 2) * 3 - -4", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_NEGATE, OP_CONSTANT, 1, OP_ADD,
-          OP_CONSTANT, 2, OP_MULTIPLY, OP_CONSTANT, 3, OP_NEGATE,
-          OP_SUBTRACT),
-      LIST(Value, N(1.0), N(2.0), N(3.0), N(4.0)) },
-};
-
-COMPILE_EXPRS(BinaryNums, exprBinaryNums, 9);
-
-SourceToChunk exprBinaryCompare[] = {
-  { "true != true", true,
-      LIST(uint8_t, OP_TRUE, OP_TRUE, OP_EQUAL, OP_NOT), LIST(Value) },
-  { "true == true", true, LIST(uint8_t, OP_TRUE, OP_TRUE, OP_EQUAL),
-      LIST(Value) },
-  { "0 > 1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER),
-      LIST(Value, N(0.0), N(1.0)) },
-  { "0 >= 1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS, OP_NOT),
-      LIST(Value, N(0.0), N(1.0)) },
-  { "0 < 1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_LESS),
-      LIST(Value, N(0.0), N(1.0)) },
-  { "0 <= 1", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GREATER, OP_NOT),
-      LIST(Value, N(0.0), N(1.0)) },
-  { "0 + 1 < 2 == true", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
-          2, OP_LESS, OP_TRUE, OP_EQUAL),
-      LIST(Value, N(0.0), N(1.0), N(2.0)) },
-  { "true == 0 < 1 + 2", true,
-      LIST(uint8_t, OP_TRUE, OP_CONSTANT, 0, OP_CONSTANT, 1,
-          OP_CONSTANT, 2, OP_ADD, OP_LESS, OP_EQUAL),
-      LIST(Value, N(0.0), N(1.0), N(2.0)) },
-};
-
-COMPILE_EXPRS(BinaryCompare, exprBinaryCompare, 8);
-
-SourceToChunk exprConcatStrings[] = {
-  { "\"\" + \"\"", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD),
-      LIST(Value, S(""), S("")) },
-  { "\"foo\" + \"bar\"", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD),
-      LIST(Value, S("foo"), S("bar")) },
-  { "\"foo\" + \"bar\" + \"baz\"", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_ADD, OP_CONSTANT,
-          2, OP_ADD),
-      LIST(Value, S("foo"), S("bar"), S("baz")) },
-};
-
-COMPILE_EXPRS(ConcatStrings, exprConcatStrings, 3);
-
-SourceToChunk exprLogical[] = {
-  { "true and false", true,
-      LIST(uint8_t, OP_TRUE, OP_JUMP_IF_FALSE, 0, 2, OP_POP, OP_FALSE),
-      LIST(Value) },
-  { "false or true", true,
-      LIST(uint8_t, OP_FALSE, OP_JUMP_IF_FALSE, 0, 3, OP_JUMP, 0, 2,
-          OP_POP, OP_TRUE),
-      LIST(Value) },
-  { "0 == 1 and 2 or 3", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_EQUAL,
-          OP_JUMP_IF_FALSE, 0, 3, OP_POP, OP_CONSTANT, 2,
-          OP_JUMP_IF_FALSE, 0, 3, OP_JUMP, 0, 3, OP_POP, OP_CONSTANT,
-          3),
-      LIST(Value, N(0.0), N(1.0), N(2.0), N(3.0)) },
-  { "0 or 1 and 2 == 3", true,
-      LIST(uint8_t, OP_CONSTANT, 0, OP_JUMP_IF_FALSE, 0, 3, OP_JUMP, 0,
-          12, OP_POP, OP_CONSTANT, 1, OP_JUMP_IF_FALSE, 0, 6, OP_POP,
-          OP_CONSTANT, 2, OP_CONSTANT, 3, OP_EQUAL),
-      LIST(Value, N(0.0), N(1.0), N(2.0), N(3.0)) },
-};
-
-COMPILE_EXPRS(Logical, exprLogical, 4);
 
 static void dump(MemBuf* out, ObjFunction* fun) {
   for (int i = 0; i < fun->chunk.constants.count; ++i) {
@@ -375,6 +101,414 @@ UTEST_I_TEARDOWN(DumpSrc) {
     utest_fixture->cases = data; \
     ASSERT_TRUE(1); \
   }
+
+SourceToDump literals[] = {
+  { true, "false;",
+      "== <script> ==\n"
+      "0000    1 OP_FALSE\n"
+      "0001    | OP_POP\n"
+      "0002    | OP_NIL\n"
+      "0003    | OP_RETURN\n" },
+  { true, "nil;",
+      "== <script> ==\n"
+      "0000    1 OP_NIL\n"
+      "0001    | OP_POP\n"
+      "0002    | OP_NIL\n"
+      "0003    | OP_RETURN\n" },
+  { true, "true;",
+      "== <script> ==\n"
+      "0000    1 OP_TRUE\n"
+      "0001    | OP_POP\n"
+      "0002    | OP_NIL\n"
+      "0003    | OP_RETURN\n" },
+};
+
+DUMP_SRC(Literals, literals, 3);
+
+SourceToDump numbers[] = {
+  { true, "123;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '123'\n"
+      "0002    | OP_POP\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n" },
+};
+
+DUMP_SRC(Numbers, numbers, 1);
+
+SourceToDump strings[] = {
+  { true, "\"\";",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 ''\n"
+      "0002    | OP_POP\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n" },
+  { true, "\"foo\";",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 'foo'\n"
+      "0002    | OP_POP\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n" },
+};
+
+DUMP_SRC(Strings, strings, 2);
+
+SourceToDump varGet[] = {
+  { true, "foo;",
+      "== <script> ==\n"
+      "0000    1 OP_GET_GLOBAL       0 'foo'\n"
+      "0002    | OP_POP\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n" },
+};
+
+DUMP_SRC(VarGet, varGet, 1);
+
+SourceToDump varSet[] = {
+  { false, "foo + bar = 0;", "Invalid assignment target." },
+  { true, "foo = 0;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         1 '0'\n"
+      "0002    | OP_SET_GLOBAL       0 'foo'\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
+};
+
+DUMP_SRC(VarSet, varSet, 2);
+
+SourceToDump unary[] = {
+  { true, "-1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_NEGATE\n"
+      "0003    | OP_POP\n"
+      "0004    | OP_NIL\n"
+      "0005    | OP_RETURN\n" },
+  { true, "--1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_NEGATE\n"
+      "0003    | OP_NEGATE\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
+  { true, "!false;",
+      "== <script> ==\n"
+      "0000    1 OP_FALSE\n"
+      "0001    | OP_NOT\n"
+      "0002    | OP_POP\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n" },
+  { true, "!!false;",
+      "== <script> ==\n"
+      "0000    1 OP_FALSE\n"
+      "0001    | OP_NOT\n"
+      "0002    | OP_NOT\n"
+      "0003    | OP_POP\n"
+      "0004    | OP_NIL\n"
+      "0005    | OP_RETURN\n" },
+};
+
+DUMP_SRC(Unary, unary, 4);
+
+SourceToDump grouping[] = {
+  { false, "(;", "Expect expression." },
+  { true, "(1);",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_POP\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n" },
+  { true, "(-1);",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_NEGATE\n"
+      "0003    | OP_POP\n"
+      "0004    | OP_NIL\n"
+      "0005    | OP_RETURN\n" },
+  { true, "-(1);",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_NEGATE\n"
+      "0003    | OP_POP\n"
+      "0004    | OP_NIL\n"
+      "0005    | OP_RETURN\n" },
+  { true, "-(-1);",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_NEGATE\n"
+      "0003    | OP_NEGATE\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
+};
+
+DUMP_SRC(Grouping, grouping, 5);
+
+SourceToDump binaryNums[] = {
+  { true, "3 + 2;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '3'\n"
+      "0002    | OP_CONSTANT         1 '2'\n"
+      "0004    | OP_ADD\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "3 - 2;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '3'\n"
+      "0002    | OP_CONSTANT         1 '2'\n"
+      "0004    | OP_SUBTRACT\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "3 * 2;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '3'\n"
+      "0002    | OP_CONSTANT         1 '2'\n"
+      "0004    | OP_MULTIPLY\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "3 / 2;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '3'\n"
+      "0002    | OP_CONSTANT         1 '2'\n"
+      "0004    | OP_DIVIDE\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "4 + 3 - 2 + 1 - 0;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '4'\n"
+      "0002    | OP_CONSTANT         1 '3'\n"
+      "0004    | OP_ADD\n"
+      "0005    | OP_CONSTANT         2 '2'\n"
+      "0007    | OP_SUBTRACT\n"
+      "0008    | OP_CONSTANT         3 '1'\n"
+      "0010    | OP_ADD\n"
+      "0011    | OP_CONSTANT         4 '0'\n"
+      "0013    | OP_SUBTRACT\n"
+      "0014    | OP_POP\n"
+      "0015    | OP_NIL\n"
+      "0016    | OP_RETURN\n" },
+  { true, "4 / 3 * 2 / 1 * 0;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '4'\n"
+      "0002    | OP_CONSTANT         1 '3'\n"
+      "0004    | OP_DIVIDE\n"
+      "0005    | OP_CONSTANT         2 '2'\n"
+      "0007    | OP_MULTIPLY\n"
+      "0008    | OP_CONSTANT         3 '1'\n"
+      "0010    | OP_DIVIDE\n"
+      "0011    | OP_CONSTANT         4 '0'\n"
+      "0013    | OP_MULTIPLY\n"
+      "0014    | OP_POP\n"
+      "0015    | OP_NIL\n"
+      "0016    | OP_RETURN\n" },
+  { true, "3 * 2 + 1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '3'\n"
+      "0002    | OP_CONSTANT         1 '2'\n"
+      "0004    | OP_MULTIPLY\n"
+      "0005    | OP_CONSTANT         2 '1'\n"
+      "0007    | OP_ADD\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
+  { true, "3 + 2 * 1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '3'\n"
+      "0002    | OP_CONSTANT         1 '2'\n"
+      "0004    | OP_CONSTANT         2 '1'\n"
+      "0006    | OP_MULTIPLY\n"
+      "0007    | OP_ADD\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
+  { true, "(-1 + 2) * 3 - -4;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_NEGATE\n"
+      "0003    | OP_CONSTANT         1 '2'\n"
+      "0005    | OP_ADD\n"
+      "0006    | OP_CONSTANT         2 '3'\n"
+      "0008    | OP_MULTIPLY\n"
+      "0009    | OP_CONSTANT         3 '4'\n"
+      "0011    | OP_NEGATE\n"
+      "0012    | OP_SUBTRACT\n"
+      "0013    | OP_POP\n"
+      "0014    | OP_NIL\n"
+      "0015    | OP_RETURN\n" },
+};
+
+DUMP_SRC(BinaryNums, binaryNums, 9);
+
+SourceToDump binaryCompare[] = {
+  { true, "true != true;",
+      "== <script> ==\n"
+      "0000    1 OP_TRUE\n"
+      "0001    | OP_TRUE\n"
+      "0002    | OP_EQUAL\n"
+      "0003    | OP_NOT\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
+  { true, "true == true;",
+      "== <script> ==\n"
+      "0000    1 OP_TRUE\n"
+      "0001    | OP_TRUE\n"
+      "0002    | OP_EQUAL\n"
+      "0003    | OP_POP\n"
+      "0004    | OP_NIL\n"
+      "0005    | OP_RETURN\n" },
+  { true, "0 > 1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_CONSTANT         1 '1'\n"
+      "0004    | OP_GREATER\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "0 >= 1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_CONSTANT         1 '1'\n"
+      "0004    | OP_LESS\n"
+      "0005    | OP_NOT\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_NIL\n"
+      "0008    | OP_RETURN\n" },
+  { true, "0 < 1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_CONSTANT         1 '1'\n"
+      "0004    | OP_LESS\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "0 <= 1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_CONSTANT         1 '1'\n"
+      "0004    | OP_GREATER\n"
+      "0005    | OP_NOT\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_NIL\n"
+      "0008    | OP_RETURN\n" },
+  { true, "0 + 1 < 2 == true;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_CONSTANT         1 '1'\n"
+      "0004    | OP_ADD\n"
+      "0005    | OP_CONSTANT         2 '2'\n"
+      "0007    | OP_LESS\n"
+      "0008    | OP_TRUE\n"
+      "0009    | OP_EQUAL\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_NIL\n"
+      "0012    | OP_RETURN\n" },
+  { true, "true == 0 < 1 + 2;",
+      "== <script> ==\n"
+      "0000    1 OP_TRUE\n"
+      "0001    | OP_CONSTANT         0 '0'\n"
+      "0003    | OP_CONSTANT         1 '1'\n"
+      "0005    | OP_CONSTANT         2 '2'\n"
+      "0007    | OP_ADD\n"
+      "0008    | OP_LESS\n"
+      "0009    | OP_EQUAL\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_NIL\n"
+      "0012    | OP_RETURN\n" },
+};
+
+DUMP_SRC(BinaryCompare, binaryCompare, 8);
+
+SourceToDump concatStrings[] = {
+  { true, "\"\" + \"\";",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 ''\n"
+      "0002    | OP_CONSTANT         1 ''\n"
+      "0004    | OP_ADD\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "\"foo\" + \"bar\";",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 'foo'\n"
+      "0002    | OP_CONSTANT         1 'bar'\n"
+      "0004    | OP_ADD\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "\"foo\" + \"bar\" + \"baz\";",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 'foo'\n"
+      "0002    | OP_CONSTANT         1 'bar'\n"
+      "0004    | OP_ADD\n"
+      "0005    | OP_CONSTANT         2 'baz'\n"
+      "0007    | OP_ADD\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
+};
+
+DUMP_SRC(ConcatStrings, concatStrings, 3);
+
+SourceToDump logical[] = {
+  { true, "true and false;",
+      "== <script> ==\n"
+      "0000    1 OP_TRUE\n"
+      "0001    | OP_JUMP_IF_FALSE    1 -> 6\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_FALSE\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_NIL\n"
+      "0008    | OP_RETURN\n" },
+  { true, "false or true;",
+      "== <script> ==\n"
+      "0000    1 OP_FALSE\n"
+      "0001    | OP_JUMP_IF_FALSE    1 -> 7\n"
+      "0004    | OP_JUMP             4 -> 9\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_TRUE\n"
+      "0009    | OP_POP\n"
+      "0010    | OP_NIL\n"
+      "0011    | OP_RETURN\n" },
+  { true, "0 == 1 and 2 or 3;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_CONSTANT         1 '1'\n"
+      "0004    | OP_EQUAL\n"
+      "0005    | OP_JUMP_IF_FALSE    5 -> 11\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_CONSTANT         2 '2'\n"
+      "0011    | OP_JUMP_IF_FALSE   11 -> 17\n"
+      "0014    | OP_JUMP            14 -> 20\n"
+      "0017    | OP_POP\n"
+      "0018    | OP_CONSTANT         3 '3'\n"
+      "0020    | OP_POP\n"
+      "0021    | OP_NIL\n"
+      "0022    | OP_RETURN\n" },
+  { true, "0 or 1 and 2 == 3;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_JUMP_IF_FALSE    2 -> 8\n"
+      "0005    | OP_JUMP             5 -> 20\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_CONSTANT         1 '1'\n"
+      "0011    | OP_JUMP_IF_FALSE   11 -> 20\n"
+      "0014    | OP_POP\n"
+      "0015    | OP_CONSTANT         2 '2'\n"
+      "0017    | OP_CONSTANT         3 '3'\n"
+      "0019    | OP_EQUAL\n"
+      "0020    | OP_POP\n"
+      "0021    | OP_NIL\n"
+      "0022    | OP_RETURN\n" },
+};
+
+DUMP_SRC(Logical, logical, 4);
 
 SourceToDump functions[] = {
   { false, "fun", "Expect function name." },
@@ -1149,14 +1283,17 @@ SourceToDump superclasses[] = {
 DUMP_SRC(Superclasses, superclasses, 6);
 
 SourceToDump error[] = {
+  { false, "print ;", "Expect expression." },
+  { false, "print #", "Unexpected character." },
   { false, "print 0", "Expect ';' after value." },
+  { false, "print 0 1", "Expect ';' after value." },
   { false, "print 0 1;print 2;", "Expect ';' after value." },
   { false, "print 0 1 print 2;", "Expect ';' after value." },
   { false, "0", "Expect ';' after expression." },
   { false, "{", "Expect '}' after block." },
 };
 
-DUMP_SRC(Error, error, 5);
+DUMP_SRC(Error, error, 8);
 
 UTEST_STATE();
 

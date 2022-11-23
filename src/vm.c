@@ -571,17 +571,9 @@ static InterpretResult run(VM* vm) {
 #undef BINARY_OP
 }
 
-InterpretResult interpretChunk(VM* vm, Chunk* chunk) {
-  ObjFunction* function = newFunction(&vm->gc);
-  freeChunk(&vm->gc, &function->chunk);
-  function->chunk = *chunk;
-
-  push(vm, OBJ_VAL(function));
-  ObjClosure* closure = newClosure(&vm->gc, function);
-  pop(vm);
-  push(vm, OBJ_VAL(closure));
-  call(vm, closure, 0);
-
+InterpretResult interpretCall(
+    VM* vm, ObjClosure* closure, int argCount) {
+  call(vm, closure, argCount);
   return run(vm);
 }
 
