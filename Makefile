@@ -309,7 +309,7 @@ report: $(report_loc)
 
 # Generate a coverage report from *.gcda stats and *.gcno files.
 $(report_loc): $(objs_dir) $(wildcard $(objs_dir)*.gcda) | $(report_dir)
-	$(GCOVR) $(test_srcs:%=-e "%") --html-details "$(report_loc)" -r "$(src_dir)" "$(objs_dir)"
+	$(GCOVR) $(test_srcs:%=-e "%") --exclude-branches-by-pattern '.* NEXT;' --html-details "$(report_loc)" -r "$(src_dir)" "$(objs_dir)"
 
 # Ensure the report directory exists for report generation.
 $(report_dir): | $(mode_dir)

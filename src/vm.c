@@ -12,6 +12,10 @@
 #include "memory.h"
 #include "object.h"
 
+#ifndef THREADED_CODE
+#define THREADED_CODE 1
+#endif
+
 bool debugTraceExecution = false;
 
 static Value clockNative(int argCount, Value* args) {
@@ -286,6 +290,20 @@ static void concatenate(VM* vm) {
   push(vm, OBJ_VAL(result));
 }
 
+// GCOV_EXCL_START
+static void trace(VM* vm, CallFrame* frame) {
+  fprintf(vm->ferr, "          ");
+  for (Value* slot = vm->stack; slot < vm->stackTop; slot++) {
+    fprintf(vm->ferr, "[ ");
+    printValue(vm->ferr, *slot);
+    fprintf(vm->ferr, " ]");
+  }
+  fprintf(vm->ferr, "\n");
+  disassembleInstruction(vm->ferr, &frame->closure->function->chunk,
+      (int)(frame->ip - frame->closure->function->chunk.code));
+}
+// GCOV_EXCL_STOP
+
 static InterpretResult run(VM* vm) {
   CallFrame* frame = &vm->frames[vm->frameCount - 1];
 
@@ -309,43 +327,117 @@ static InterpretResult run(VM* vm) {
     push(vm, valueType(a op b)); \
   } while (false)
 
-  for (;;) {
+#if THREADED_CODE == 1
+
+#define JUMP_ENTRY(op) [op] = &&CASE_##op
+  static void* jumps[MAX_OPCODES] = {
+    JUMP_ENTRY(OP_CONSTANT),
+    JUMP_ENTRY(OP_NIL),
+    JUMP_ENTRY(OP_TRUE),
+    JUMP_ENTRY(OP_FALSE),
+    JUMP_ENTRY(OP_POP),
+    JUMP_ENTRY(OP_GET_LOCAL),
+    JUMP_ENTRY(OP_SET_LOCAL),
+    JUMP_ENTRY(OP_GET_GLOBAL),
+    JUMP_ENTRY(OP_DEFINE_GLOBAL),
+    JUMP_ENTRY(OP_SET_GLOBAL),
+    JUMP_ENTRY(OP_GET_UPVALUE),
+    JUMP_ENTRY(OP_SET_UPVALUE),
+    JUMP_ENTRY(OP_GET_PROPERTY),
+    JUMP_ENTRY(OP_SET_PROPERTY),
+    JUMP_ENTRY(OP_GET_SUPER),
+    JUMP_ENTRY(OP_EQUAL),
+    JUMP_ENTRY(OP_GREATER),
+    JUMP_ENTRY(OP_LESS),
+    JUMP_ENTRY(OP_ADD),
+    JUMP_ENTRY(OP_SUBTRACT),
+    JUMP_ENTRY(OP_MULTIPLY),
+    JUMP_ENTRY(OP_DIVIDE),
+    JUMP_ENTRY(OP_NOT),
+    JUMP_ENTRY(OP_NEGATE),
+    JUMP_ENTRY(OP_PRINT),
+    JUMP_ENTRY(OP_JUMP),
+    JUMP_ENTRY(OP_JUMP_IF_FALSE),
+    JUMP_ENTRY(OP_LOOP),
+    JUMP_ENTRY(OP_CALL),
+    JUMP_ENTRY(OP_INVOKE),
+    JUMP_ENTRY(OP_SUPER_INVOKE),
+    JUMP_ENTRY(OP_CLOSURE),
+    JUMP_ENTRY(OP_CLOSE_UPVALUE),
+    JUMP_ENTRY(OP_RETURN),
+    JUMP_ENTRY(OP_CLASS),
+    JUMP_ENTRY(OP_INHERIT),
+    JUMP_ENTRY(OP_METHOD),
+  };
+#undef JUMP_ENTRY
+  for (size_t i = 0; i < MAX_OPCODES; ++i) {
+    assert(jumps[i] != NULL); // GCOV_EXCL_LINE
+  }
+#define FOR(c)
+#define SWITCH(c) NEXT;
+#define CASE(c) CASE_##c:
+#define DEFAULT CASE_##DEFAULT:
+#define NEXT \
+  do { \
+    if (debugTraceExecution) \
+      trace(vm, frame); \
+    uint8_t op = READ_BYTE(); \
+    if (op >= MAX_OPCODES) \
+      goto CASE_DEFAULT; \
+    goto* jumps[op]; \
+  } while (0)
+
+#else
+
+#define FOR(c) for (c)
+#define SWITCH(c) switch (c)
+#define CASE(c) case c:
+#define DEFAULT default:
+#define NEXT break
+
+#endif
+
+  FOR(;;) {
+#if THREADED_CODE != 1
     // GCOV_EXCL_START
     if (debugTraceExecution) {
-      fprintf(vm->ferr, "          ");
-      for (Value* slot = vm->stack; slot < vm->stackTop; slot++) {
-        fprintf(vm->ferr, "[ ");
-        printValue(vm->ferr, *slot);
-        fprintf(vm->ferr, " ]");
-      }
-      fprintf(vm->ferr, "\n");
-      disassembleInstruction(vm->ferr, &frame->closure->function->chunk,
-          (int)(frame->ip - frame->closure->function->chunk.code));
+      trace(vm, frame);
     }
     // GCOV_EXCL_STOP
-
-    uint8_t instruction;
-    switch (instruction = READ_BYTE()) {
-      case OP_CONSTANT: {
+#endif
+    SWITCH(READ_BYTE()) {
+      CASE(OP_CONSTANT) {
         Value constant = READ_CONSTANT();
         push(vm, constant);
-        break;
+        NEXT;
       }
-      case OP_NIL: push(vm, NIL_VAL); break;
-      case OP_TRUE: push(vm, BOOL_VAL(true)); break;
-      case OP_FALSE: push(vm, BOOL_VAL(false)); break;
-      case OP_POP: pop(vm); break;
-      case OP_GET_LOCAL: {
+      CASE(OP_NIL) {
+        push(vm, NIL_VAL);
+        NEXT;
+      }
+      CASE(OP_TRUE) {
+        push(vm, BOOL_VAL(true));
+        NEXT;
+      }
+      CASE(OP_FALSE) {
+        push(vm, BOOL_VAL(false));
+        NEXT;
+      }
+      CASE(OP_POP) {
+        pop(vm);
+        NEXT;
+      }
+      CASE(OP_GET_LOCAL) {
         uint8_t slot = READ_BYTE();
         push(vm, frame->slots[slot]);
-        break;
+        NEXT;
       }
-      case OP_SET_LOCAL: {
+      CASE(OP_SET_LOCAL) {
         uint8_t slot = READ_BYTE();
         frame->slots[slot] = peek(vm, 0);
-        break;
+        NEXT;
       }
-      case OP_GET_GLOBAL: {
+      CASE(OP_GET_GLOBAL) {
         ObjString* name = READ_STRING();
         Value value;
         if (!tableGet(&vm->globals, name, &value)) {
@@ -353,34 +445,34 @@ static InterpretResult run(VM* vm) {
           return INTERPRET_RUNTIME_ERROR;
         }
         push(vm, value);
-        break;
+        NEXT;
       }
-      case OP_DEFINE_GLOBAL: {
+      CASE(OP_DEFINE_GLOBAL) {
         ObjString* name = READ_STRING();
         tableSet(&vm->gc, &vm->globals, name, peek(vm, 0));
         pop(vm);
-        break;
+        NEXT;
       }
-      case OP_SET_GLOBAL: {
+      CASE(OP_SET_GLOBAL) {
         ObjString* name = READ_STRING();
         if (tableSet(&vm->gc, &vm->globals, name, peek(vm, 0))) {
           tableDelete(&vm->globals, name);
           runtimeError(vm, "Undefined variable '%s'.", name->chars);
           return INTERPRET_RUNTIME_ERROR;
         }
-        break;
+        NEXT;
       }
-      case OP_GET_UPVALUE: {
+      CASE(OP_GET_UPVALUE) {
         uint8_t slot = READ_BYTE();
         push(vm, *frame->closure->upvalues[slot]->location);
-        break;
+        NEXT;
       }
-      case OP_SET_UPVALUE: {
+      CASE(OP_SET_UPVALUE) {
         uint8_t slot = READ_BYTE();
         *frame->closure->upvalues[slot]->location = peek(vm, 0);
-        break;
+        NEXT;
       }
-      case OP_GET_PROPERTY: {
+      CASE(OP_GET_PROPERTY) {
         if (!IS_INSTANCE(peek(vm, 0))) {
           runtimeError(vm, "Only instances have properties.");
           return INTERPRET_RUNTIME_ERROR;
@@ -393,15 +485,15 @@ static InterpretResult run(VM* vm) {
         if (tableGet(&instance->fields, name, &value)) {
           pop(vm); // Instance.
           push(vm, value);
-          break;
+          NEXT;
         }
 
         if (!bindMethod(vm, instance->klass, name)) {
           return INTERPRET_RUNTIME_ERROR;
         }
-        break;
+        NEXT;
       }
-      case OP_SET_PROPERTY: {
+      CASE(OP_SET_PROPERTY) {
         if (!IS_INSTANCE(peek(vm, 1))) {
           runtimeError(vm, "Only instances have fields.");
           return INTERPRET_RUNTIME_ERROR;
@@ -413,26 +505,32 @@ static InterpretResult run(VM* vm) {
         Value value = pop(vm);
         pop(vm);
         push(vm, value);
-        break;
+        NEXT;
       }
-      case OP_GET_SUPER: {
+      CASE(OP_GET_SUPER) {
         ObjString* name = READ_STRING();
         ObjClass* superclass = AS_CLASS(pop(vm));
 
         if (!bindMethod(vm, superclass, name)) {
           return INTERPRET_RUNTIME_ERROR;
         }
-        break;
+        NEXT;
       }
-      case OP_EQUAL: {
+      CASE(OP_EQUAL) {
         Value b = pop(vm);
         Value a = pop(vm);
         push(vm, BOOL_VAL(valuesEqual(a, b)));
-        break;
+        NEXT;
       }
-      case OP_GREATER: BINARY_OP(BOOL_VAL, >); break;
-      case OP_LESS: BINARY_OP(BOOL_VAL, <); break;
-      case OP_ADD: {
+      CASE(OP_GREATER) {
+        BINARY_OP(BOOL_VAL, >);
+        NEXT;
+      }
+      CASE(OP_LESS) {
+        BINARY_OP(BOOL_VAL, <);
+        NEXT;
+      }
+      CASE(OP_ADD) {
         if (IS_STRING(peek(vm, 0)) && IS_STRING(peek(vm, 1))) {
           concatenate(vm);
         } else if (IS_NUMBER(peek(vm, 0)) && IS_NUMBER(peek(vm, 1))) {
@@ -444,59 +542,72 @@ static InterpretResult run(VM* vm) {
               vm, "Operands must be two numbers or two strings.");
           return INTERPRET_RUNTIME_ERROR;
         }
-        break;
+        NEXT;
       }
-      case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break;
-      case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;
-      case OP_DIVIDE: BINARY_OP(NUMBER_VAL, /); break;
-      case OP_NOT: push(vm, BOOL_VAL(isFalsey(pop(vm)))); break;
-      case OP_NEGATE:
+      CASE(OP_SUBTRACT) {
+        BINARY_OP(NUMBER_VAL, -);
+        NEXT;
+      }
+      CASE(OP_MULTIPLY) {
+        BINARY_OP(NUMBER_VAL, *);
+        NEXT;
+      }
+      CASE(OP_DIVIDE) {
+        BINARY_OP(NUMBER_VAL, /);
+        NEXT;
+      }
+      CASE(OP_NOT) {
+        push(vm, BOOL_VAL(isFalsey(pop(vm))));
+        NEXT;
+      }
+      CASE(OP_NEGATE) {
         if (!IS_NUMBER(peek(vm, 0))) {
           runtimeError(vm, "Operand must be a number.");
           return INTERPRET_RUNTIME_ERROR;
         }
         push(vm, NUMBER_VAL(-AS_NUMBER(pop(vm))));
-        break;
-      case OP_PRINT: {
+        NEXT;
+      }
+      CASE(OP_PRINT) {
         printValue(vm->fout, pop(vm));
         fprintf(vm->fout, "\n");
-        break;
+        NEXT;
       }
-      case OP_JUMP: {
+      CASE(OP_JUMP) {
         uint16_t offset = READ_SHORT();
         frame->ip += offset;
-        break;
+        NEXT;
       }
-      case OP_JUMP_IF_FALSE: {
+      CASE(OP_JUMP_IF_FALSE) {
         uint16_t offset = READ_SHORT();
         if (isFalsey(peek(vm, 0))) {
           frame->ip += offset;
         }
-        break;
+        NEXT;
       }
-      case OP_LOOP: {
+      CASE(OP_LOOP) {
         uint16_t offset = READ_SHORT();
         frame->ip -= offset;
-        break;
+        NEXT;
       }
-      case OP_CALL: {
+      CASE(OP_CALL) {
         int argCount = READ_BYTE();
         if (!callValue(vm, peek(vm, argCount), argCount)) {
           return INTERPRET_RUNTIME_ERROR;
         }
         frame = &vm->frames[vm->frameCount - 1];
-        break;
+        NEXT;
       }
-      case OP_INVOKE: {
+      CASE(OP_INVOKE) {
         ObjString* method = READ_STRING();
         int argCount = READ_BYTE();
         if (!invoke(vm, method, argCount)) {
           return INTERPRET_RUNTIME_ERROR;
         }
         frame = &vm->frames[vm->frameCount - 1];
-        break;
+        NEXT;
       }
-      case OP_SUPER_INVOKE: {
+      CASE(OP_SUPER_INVOKE) {
         ObjString* method = READ_STRING();
         int argCount = READ_BYTE();
         ObjClass* superclass = AS_CLASS(pop(vm));
@@ -504,9 +615,9 @@ static InterpretResult run(VM* vm) {
           return INTERPRET_RUNTIME_ERROR;
         }
         frame = &vm->frames[vm->frameCount - 1];
-        break;
+        NEXT;
       }
-      case OP_CLOSURE: {
+      CASE(OP_CLOSURE) {
         ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
         ObjClosure* closure = newClosure(&vm->gc, function);
         push(vm, OBJ_VAL(closure));
@@ -520,13 +631,14 @@ static InterpretResult run(VM* vm) {
             closure->upvalues[i] = frame->closure->upvalues[index];
           }
         }
-        break;
+        NEXT;
       }
-      case OP_CLOSE_UPVALUE:
+      CASE(OP_CLOSE_UPVALUE) {
         closeUpvalues(vm, vm->stackTop - 1);
         pop(vm);
-        break;
-      case OP_RETURN: {
+        NEXT;
+      }
+      CASE(OP_RETURN) {
         Value result = pop(vm);
         closeUpvalues(vm, frame->slots);
         vm->frameCount--;
@@ -538,12 +650,13 @@ static InterpretResult run(VM* vm) {
         vm->stackTop = frame->slots;
         push(vm, result);
         frame = &vm->frames[vm->frameCount - 1];
-        break;
+        NEXT;
       }
-      case OP_CLASS:
+      CASE(OP_CLASS) {
         push(vm, OBJ_VAL(newClass(&vm->gc, READ_STRING())));
-        break;
-      case OP_INHERIT: {
+        NEXT;
+      }
+      CASE(OP_INHERIT) {
         Value superclass = peek(vm, 1);
         if (!IS_CLASS(superclass)) {
           runtimeError(vm, "Superclass must be a class.");
@@ -554,15 +667,24 @@ static InterpretResult run(VM* vm) {
         tableAddAll(&vm->gc, &AS_CLASS(superclass)->methods,
             &subclass->methods);
         pop(vm); // Subclass.
-        break;
+        NEXT;
       }
-      case OP_METHOD: defineMethod(vm, READ_STRING()); break;
-      default: {
-        fprintf(vm->ferr, "Unknown opcode %d\n", instruction);
+      CASE(OP_METHOD) {
+        defineMethod(vm, READ_STRING());
+        NEXT;
+      }
+      DEFAULT {
+        fprintf(vm->ferr, "Unknown opcode %d\n", frame->ip[-1]);
         return INTERPRET_RUNTIME_ERROR;
       }
     }
   }
+
+#undef FOR
+#undef SWITCH
+#undef CASE
+#undef DEFAULT
+#undef NEXT
 
 #undef READ_BYTE
 #undef READ_CONSTANT
