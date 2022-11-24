@@ -121,6 +121,40 @@ UTEST_F(Table, SetGetLots) {
   }
 }
 
+UTEST_F(Table, SetGetCollisions) {
+  // Assume eight entries will fill a table with maxLoad = 1.0.
+  ufx->t.maxLoad = 1.0;
+  // All of these should return 0 when sent to hashString().
+  const char* strs[8] = {
+    "  5,b`>",
+    "! 6.]~C",
+    "\"!s&uL ",
+    "# !dKJV",
+    "  Fq*G{",
+    "! lxuz/",
+    "# $}W=}",
+    "  Y[N{>",
+  };
+  ObjString* oStrs[ARRAY_SIZE(strs)];
+
+  for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
+    oStrs[i] =
+        copyString(&ufx->gc, &ufx->strings, strs[i], strlen(strs[i]));
+    EXPECT_EQ((uint32_t)0, oStrs[i]->hash);
+    pushTemp(&ufx->gc, OBJ_VAL(oStrs[i]));
+    EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, oStrs[i], NUMBER_VAL(i)));
+  }
+
+  EXPECT_EQ((int)ARRAY_SIZE(strs), ufx->t.count);
+
+  for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
+    Value v;
+    EXPECT_TRUE(tableGet(&ufx->t, oStrs[i], &v));
+    popTemp(&ufx->gc);
+    EXPECT_VALEQ(NUMBER_VAL(i), v);
+  }
+}
+
 UTEST_F(Table, FullTableGetMissing) {
   // Assume eight entries will fill a table with maxLoad = 1.0.
   ufx->t.maxLoad = 1.0;
