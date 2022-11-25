@@ -66,8 +66,8 @@ typedef struct {
 struct ObjString {
   Obj obj;
   int length;
-  char* chars;
   uint32_t hash;
+  char* chars;
 };
 
 typedef struct ObjUpvalue {
