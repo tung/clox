@@ -62,6 +62,7 @@ typedef enum {
   VAL_NIL,
   VAL_NUMBER,
   VAL_OBJ,
+  VAL_TINY_STR,
 } ValueType;
 
 typedef struct {
@@ -70,18 +71,26 @@ typedef struct {
     bool boolean;
     double number;
     Obj* obj;
+    struct {
+      char length;
+      char chars[sizeof(double) - sizeof(char)];
+    } tinyStr;
   } as;
 } Value;
+
+#define TINY_STR_MAX_CHARS ((int)sizeof((Value){}.as.tinyStr.chars))
 
 // clang-format off
 #define IS_BOOL(value)    ((value).type == VAL_BOOL)
 #define IS_NIL(value)     ((value).type == VAL_NIL)
 #define IS_NUMBER(value)  ((value).type == VAL_NUMBER)
 #define IS_OBJ(value)     ((value).type == VAL_OBJ)
+#define IS_TINY_STR(value) ((value).type == VAL_TINY_STR)
 
 #define AS_BOOL(value)    ((value).as.boolean)
 #define AS_NUMBER(value)  ((value).as.number)
 #define AS_OBJ(value)     ((value).as.obj)
+#define AS_TINY_STR(value) ((value).as.tinyStr)
 
 #define BOOL_VAL(value)   (Value)BOOL_LIT(value)
 #define NIL_VAL           (Value)NIL_LIT

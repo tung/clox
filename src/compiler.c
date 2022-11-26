@@ -260,7 +260,8 @@ static ObjFunction* endCompiler(Parser* parser) {
   // GCOV_EXCL_START
   if (debugPrintCode && !parser->hadError) {
     disassembleChunk(parser->ferr, currentChunk(parser),
-        function->name != NULL ? function->name->chars : "<script>");
+        !IS_NIL(function->name) ? strChars(&function->name)
+                                : "<script>");
   }
   // GCOV_EXCL_STOP
 
@@ -298,8 +299,8 @@ static void statement(Parser* parser);
 
 static uint8_t identifierConstant(Parser* parser, Token* name) {
   return makeConstant(parser,
-      OBJ_VAL(copyString(
-          parser->gc, parser->strings, name->start, name->length)));
+      copyString(
+          parser->gc, parser->strings, name->start, name->length));
 }
 
 static bool identifiersEqual(Token* a, Token* b) {
@@ -548,8 +549,8 @@ static void string(Parser* parser, bool canAssign) {
   (void)canAssign;
 
   emitConstant(parser,
-      OBJ_VAL(copyString(parser->gc, parser->strings,
-          parser->previous.start + 1, parser->previous.length - 2)));
+      copyString(parser->gc, parser->strings,
+          parser->previous.start + 1, parser->previous.length - 2));
 }
 
 static void namedVariable(Parser* parser, Token name, bool canAssign) {

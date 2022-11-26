@@ -44,10 +44,10 @@ static void runtimeError(VM* vm, const char* format, ...) {
     size_t instruction = frame->ip - function->chunk.code - 1;
     fprintf(
         vm->ferr, "[line %d] in ", function->chunk.lines[instruction]);
-    if (function->name == NULL) {
+    if (!IS_NIL(function->name)) {
       fprintf(vm->ferr, "script\n");
     } else {
-      fprintf(vm->ferr, "%s()\n", function->name->chars);
+      fprintf(vm->ferr, "%s()\n", strChars(&function->name));
     }
   }
 
@@ -55,9 +55,7 @@ static void runtimeError(VM* vm, const char* format, ...) {
 }
 
 static void defineNative(VM* vm, const char* name, NativeFn function) {
-  push(vm,
-      OBJ_VAL(
-          copyString(&vm->gc, &vm->strings, name, (int)strlen(name))));
+  push(vm, copyString(&vm->gc, &vm->strings, name, (int)strlen(name)));
   push(vm, OBJ_VAL(newNative(&vm->gc, function)));
   tableSet(
       &vm->gc, &vm->globals, AS_STRING(vm->stack[0]), vm->stack[1]);
@@ -82,7 +80,7 @@ static void vmMarkRoots(GC* gc, void* arg) {
   }
 
   markTable(gc, &vm->globals);
-  markObject(gc, (Obj*)vm->initString);
+  markValue(gc, vm->initString);
 }
 
 void initVM(VM* vm, FILE* fout, FILE* ferr) {
@@ -98,7 +96,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   initTable(&vm->globals, 0.75);
   initTable(&vm->strings, 0.75);
 
-  vm->initString = NULL;
+  vm->initString = NIL_VAL;
   vm->initString = copyString(&vm->gc, &vm->strings, "init", 4);
 
   defineNative(vm, "clock", clockNative);
@@ -107,7 +105,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
 void freeVM(VM* vm) {
   freeTable(&vm->gc, &vm->globals);
   freeTable(&vm->gc, &vm->strings);
-  vm->initString = NULL;
+  vm->initString = NIL_VAL;
   freeGC(&vm->gc);
 }
 
@@ -190,7 +188,7 @@ static bool invokeFromClass(
     VM* vm, ObjClass* klass, ObjString* name, int argCount) {
   Value method;
   if (!tableGet(&klass->methods, name, &method)) {
-    runtimeError(vm, "Undefined property '%s'.", name->chars);
+    runtimeError(vm, "Undefined property '%s'.", strChars(name));
     return false;
   }
   return call(vm, AS_CLOSURE(method), argCount);
@@ -218,7 +216,7 @@ static bool invoke(VM* vm, ObjString* name, int argCount) {
 static bool bindMethod(VM* vm, ObjClass* klass, ObjString* name) {
   Value method;
   if (!tableGet(&klass->methods, name, &method)) {
-    runtimeError(vm, "Undefined property '%s'.", name->chars);
+    runtimeError(vm, "Undefined property '%s'.", strChars(name));
     return false;
   }
 
@@ -275,19 +273,13 @@ static bool isFalsey(Value value) {
 }
 
 static void concatenate(VM* vm) {
-  ObjString* b = AS_STRING(peek(vm, 0));
-  ObjString* a = AS_STRING(peek(vm, 1));
-
-  int length = a->length + b->length;
-  char* chars = ALLOCATE(&vm->gc, char, length + 1);
-  memcpy(chars, a->chars, a->length);
-  memcpy(chars + a->length, b->chars, b->length);
-  chars[length] = '\0';
-
-  ObjString* result = takeString(&vm->gc, &vm->strings, chars, length);
+  Value b = peek(vm, 0);
+  Value a = peek(vm, 1);
+  Value result = concatStrings(&vm->gc, &vm->strings, strChars(&a),
+      strLen(a), strChars(&b), strLen(b));
   pop(vm);
   pop(vm);
-  push(vm, OBJ_VAL(result));
+  push(vm, result);
 }
 
 // GCOV_EXCL_START
@@ -441,7 +433,7 @@ static InterpretResult run(VM* vm) {
         ObjString* name = READ_STRING();
         Value value;
         if (!tableGet(&vm->globals, name, &value)) {
-          runtimeError(vm, "Undefined variable '%s'.", name->chars);
+          runtimeError(vm, "Undefined variable '%s'.", strChars(name));
           return INTERPRET_RUNTIME_ERROR;
         }
         push(vm, value);
@@ -457,7 +449,7 @@ static InterpretResult run(VM* vm) {
         ObjString* name = READ_STRING();
         if (tableSet(&vm->gc, &vm->globals, name, peek(vm, 0))) {
           tableDelete(&vm->globals, name);
-          runtimeError(vm, "Undefined variable '%s'.", name->chars);
+          runtimeError(vm, "Undefined variable '%s'.", strChars(name));
           return INTERPRET_RUNTIME_ERROR;
         }
         NEXT;

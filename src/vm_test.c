@@ -301,9 +301,16 @@ VMCase opGlobals[] = {
   { INTERPRET_RUNTIME_ERROR, "Undefined variable 'foo'.", LIST(LitFun),
       LIST(uint8_t, OP_GET_GLOBAL, 0, OP_NIL, OP_RETURN),
       LIST(Lit, S("foo")) },
+  { INTERPRET_RUNTIME_ERROR, "Undefined variable 'f1234567'.",
+      LIST(LitFun), LIST(uint8_t, OP_GET_GLOBAL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("f1234567")) },
   { INTERPRET_RUNTIME_ERROR, "Undefined variable 'foo'.", LIST(LitFun),
       LIST(uint8_t, OP_NIL, OP_SET_GLOBAL, 0, OP_NIL, OP_RETURN),
       LIST(Lit, S("foo")) },
+  { INTERPRET_RUNTIME_ERROR, "Undefined variable 'f1234567'.",
+      LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_SET_GLOBAL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("f1234567")) },
   { INTERPRET_OK, "123\n456\n", LIST(LitFun),
       LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL,
           0, OP_PRINT, OP_CONSTANT, 2, OP_SET_GLOBAL, 0, OP_POP,
@@ -311,7 +318,7 @@ VMCase opGlobals[] = {
       LIST(Lit, S("foo"), N(123.0), N(456.0)) },
 };
 
-VM_TEST(OpGlobals, opGlobals, 3);
+VM_TEST(OpGlobals, opGlobals, 5);
 
 VMCase opEqual[] = {
   { INTERPRET_OK, "true\n", LIST(LitFun),
@@ -734,6 +741,13 @@ VMCase closures[] = {
 VM_TEST(Closures, closures, 2);
 
 VMCase classes[] = {
+  // ClassesPrint
+  { INTERPRET_OK, "A1234567\nA1234567 instance\n", LIST(LitFun),
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
+          OP_POP, OP_GET_GLOBAL, 2, OP_PRINT, OP_GET_GLOBAL, 3, OP_CALL,
+          0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("A1234567"), S("A1234567"), S("A1234567"),
+          S("A1234567")) },
   // ClassesSimple
   { INTERPRET_OK, "1\n", LIST(LitFun),
       // class F{} var f = F(); f.x = 1; print f.x;
@@ -774,7 +788,7 @@ VMCase classes[] = {
       LIST(Lit, N(0.0), S("x"), N(1.0)) },
 };
 
-VM_TEST(Classes, classes, 5);
+VM_TEST(Classes, classes, 6);
 
 VMCase classesMethods[] = {
   // ClassesMethods

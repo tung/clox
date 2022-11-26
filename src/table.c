@@ -132,11 +132,10 @@ void tableAddAll(GC* gc, Table* from, Table* to) {
   }
 }
 
-ObjString* tableFindString(
-    Table* table, const char* chars, int length, uint32_t hash) {
-  if (table->count == 0) {
-    return NULL;
-  }
+ObjString* tableFindConcatStrings(Table* table, const char* a, int aLen,
+    const char* b, int bLen, uint32_t hash) {
+  int length = aLen + bLen;
+  assert(length >= 0); // GCOV_EXCL_LINE
 
   uint32_t index = hash & (table->capacity - 1);
   for (int i = 0; i < table->capacity; i++) {
@@ -146,9 +145,10 @@ ObjString* tableFindString(
       if (IS_NIL(entry->value)) {
         return NULL;
       }
-    } else if (entry->key->length == length &&
-        entry->key->hash == hash &&
-        memcmp(entry->key->chars, chars, length) == 0) {
+    } else if (entry->key->hash == hash &&
+        entry->key->length == length &&
+        !memcmp(strChars(entry->key), a, length) &&
+        !memcmp(strChars(entry->key) + aLen, b, bLen)) {
       // We found it.
       return entry->key;
     }

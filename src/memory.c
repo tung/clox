@@ -166,7 +166,9 @@ static void freeObject(GC* gc, Obj* object) {
     case OBJ_NATIVE: FREE(gc, ObjNative, object); break;
     case OBJ_STRING: {
       ObjString* string = (ObjString*)object;
-      FREE_ARRAY(gc, char, string->chars, string->length + 1);
+      if (string->length >= (int)sizeof(char*)) {
+        FREE_ARRAY(gc, char, string->chars.ptr, string->length + 1);
+      }
       FREE(gc, ObjString, object);
       break;
     }

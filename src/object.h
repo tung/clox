@@ -28,7 +28,7 @@
 #define AS_INSTANCE(value)     ((ObjInstance*)AS_OBJ(value))
 #define AS_NATIVE(value)       (((ObjNative*)AS_OBJ(value))->function)
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
-#define AS_CSTRING(value)      (((ObjString*)AS_OBJ(value))->chars)
+#define AS_CSTRING(value)      strChars((ObjString*)AS_OBJ(value))
 // clang-format on
 
 typedef enum {
@@ -53,7 +53,7 @@ typedef struct {
   int arity;
   int upvalueCount;
   Chunk chunk;
-  ObjString* name;
+  Value name;
 } ObjFunction;
 
 typedef Value (*NativeFn)(int argCount, Value* args);
@@ -67,8 +67,13 @@ struct ObjString {
   Obj obj;
   int length;
   uint32_t hash;
-  char* chars;
+  union {
+    char small[sizeof(char*)];
+    char* ptr;
+  } chars;
 };
+
+#define SMALL_STR_MAX_CHARS ((int)sizeof((ObjString){}.chars.small))
 
 typedef struct ObjUpvalue {
   Obj obj;
@@ -86,7 +91,7 @@ typedef struct {
 
 typedef struct {
   Obj obj;
-  ObjString* name;
+  Value name;
   Table methods;
 } ObjClass;
 
@@ -104,19 +109,37 @@ typedef struct {
 
 ObjBoundMethod* newBoundMethod(
     GC* gc, Value receiver, ObjClosure* method);
-ObjClass* newClass(GC* gc, ObjString* name);
+ObjClass* newClass(GC* gc, Value name);
 ObjClosure* newClosure(GC* gc, ObjFunction* function);
 ObjFunction* newFunction(GC* gc);
 ObjInstance* newInstance(GC* gc, ObjClass* klass);
 ObjNative* newNative(GC* gc, NativeFn function);
-ObjString* takeString(GC* gc, Table* strings, char* chars, int length);
-ObjString* copyString(
-    GC* gc, Table* strings, const char* chars, int length);
+Value concatStrings(GC* gc, Table* strings, const char* a, int aLen,
+    const char* b, int bLen);
+Value copyString(GC* gc, Table* strings, const char* chars, int length);
 ObjUpvalue* newUpvalue(GC* gc, Value* slot);
 void printObject(FILE* fout, Value value);
 
 static inline bool isObjType(Value value, ObjType type) {
   return IS_OBJ(value) && AS_OBJ(value)->type == type;
+}
+
+static inline int strLen(Value str) {
+  return IS_TINY_STR(str) ? AS_TINY_STR(str).length
+                          : AS_STRING(str)->length;
+}
+
+static inline char* strChars(Value* str) {
+  if (str->type == VAL_TINY_STR) {
+    return (char*)&str->as.tinyStr.chars;
+  } else {
+    ObjString* oStr = (ObjString*)str->as.obj;
+    if (oStr->length < SMALL_STR_MAX_CHARS) {
+      return (char*)&oStr->chars.small;
+    } else {
+      return oStr->chars.ptr;
+    }
+  }
 }
 
 #endif
