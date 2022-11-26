@@ -44,10 +44,11 @@ static void runtimeError(VM* vm, const char* format, ...) {
     size_t instruction = frame->ip - function->chunk.code - 1;
     fprintf(
         vm->ferr, "[line %d] in ", function->chunk.lines[instruction]);
-    if (function->name == NULL) {
+    if (IS_NIL(function->name)) {
       fprintf(vm->ferr, "script\n");
     } else {
-      fprintf(vm->ferr, "%s()\n", function->name->chars);
+      printValue(vm->ferr, function->name);
+      fprintf(vm->ferr, "()\n");
     }
   }
 
@@ -55,12 +56,9 @@ static void runtimeError(VM* vm, const char* format, ...) {
 }
 
 static void defineNative(VM* vm, const char* name, NativeFn function) {
-  push(vm,
-      OBJ_VAL(
-          copyString(&vm->gc, &vm->strings, name, (int)strlen(name))));
+  push(vm, copyString(&vm->gc, &vm->strings, name, (int)strlen(name)));
   push(vm, OBJ_VAL(newNative(&vm->gc, function)));
-  tableSet(
-      &vm->gc, &vm->globals, AS_STRING(vm->stack[0]), vm->stack[1]);
+  tableSet(&vm->gc, &vm->globals, vm->stack[0], vm->stack[1]);
   pop(vm);
   pop(vm);
 }
@@ -82,7 +80,7 @@ static void vmMarkRoots(GC* gc, void* arg) {
   }
 
   markTable(gc, &vm->globals);
-  markObject(gc, (Obj*)vm->initString);
+  markValue(gc, vm->initString);
 }
 
 void initVM(VM* vm, FILE* fout, FILE* ferr) {
@@ -98,7 +96,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   initTable(&vm->globals, 0.75);
   initTable(&vm->strings, 0.75);
 
-  vm->initString = NULL;
+  vm->initString = NIL_VAL;
   vm->initString = copyString(&vm->gc, &vm->strings, "init", 4);
 
   defineNative(vm, "clock", clockNative);
@@ -107,7 +105,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
 void freeVM(VM* vm) {
   freeTable(&vm->gc, &vm->globals);
   freeTable(&vm->gc, &vm->strings);
-  vm->initString = NULL;
+  vm->initString = NIL_VAL;
   freeGC(&vm->gc);
 }
 
@@ -187,16 +185,17 @@ static bool callValue(VM* vm, Value callee, int argCount) {
 }
 
 static bool invokeFromClass(
-    VM* vm, ObjClass* klass, ObjString* name, int argCount) {
+    VM* vm, ObjClass* klass, Value name, int argCount) {
   Value method;
   if (!tableGet(&klass->methods, name, &method)) {
-    runtimeError(vm, "Undefined property '%s'.", name->chars);
+    runtimeError(vm, "Undefined property '%s'.",
+        IS_STRING(name) ? AS_CSTRING(name) : valueType(name));
     return false;
   }
   return call(vm, AS_CLOSURE(method), argCount);
 }
 
-static bool invoke(VM* vm, ObjString* name, int argCount) {
+static bool invoke(VM* vm, Value name, int argCount) {
   Value receiver = peek(vm, argCount);
 
   if (!IS_INSTANCE(receiver)) {
@@ -215,10 +214,11 @@ static bool invoke(VM* vm, ObjString* name, int argCount) {
   return invokeFromClass(vm, instance->klass, name, argCount);
 }
 
-static bool bindMethod(VM* vm, ObjClass* klass, ObjString* name) {
+static bool bindMethod(VM* vm, ObjClass* klass, Value name) {
   Value method;
   if (!tableGet(&klass->methods, name, &method)) {
-    runtimeError(vm, "Undefined property '%s'.", name->chars);
+    runtimeError(vm, "Undefined property '%s'.",
+        IS_STRING(name) ? AS_CSTRING(name) : valueType(name));
     return false;
   }
 
@@ -263,7 +263,7 @@ static void closeUpvalues(VM* vm, Value* last) {
   }
 }
 
-static void defineMethod(VM* vm, ObjString* name) {
+static void defineMethod(VM* vm, Value name) {
   Value method = peek(vm, 0);
   ObjClass* klass = AS_CLASS(peek(vm, 1));
   tableSet(&vm->gc, &klass->methods, name, method);
@@ -284,10 +284,10 @@ static void concatenate(VM* vm) {
   memcpy(chars + a->length, b->chars, b->length);
   chars[length] = '\0';
 
-  ObjString* result = takeString(&vm->gc, &vm->strings, chars, length);
+  Value result = takeString(&vm->gc, &vm->strings, chars, length);
   pop(vm);
   pop(vm);
-  push(vm, OBJ_VAL(result));
+  push(vm, result);
 }
 
 // GCOV_EXCL_START
@@ -315,7 +315,6 @@ static InterpretResult run(VM* vm) {
 #define READ_CONSTANT() \
   (frame->closure->function->chunk.constants.values[READ_BYTE()])
 
-#define READ_STRING() AS_STRING(READ_CONSTANT())
 #define BINARY_OP(valueType, op) \
   do { \
     if (!IS_NUMBER(peek(vm, 0)) || !IS_NUMBER(peek(vm, 1))) { \
@@ -438,26 +437,28 @@ static InterpretResult run(VM* vm) {
         NEXT;
       }
       CASE(OP_GET_GLOBAL) {
-        ObjString* name = READ_STRING();
+        Value name = READ_CONSTANT();
         Value value;
         if (!tableGet(&vm->globals, name, &value)) {
-          runtimeError(vm, "Undefined variable '%s'.", name->chars);
+          runtimeError(vm, "Undefined variable '%s'.",
+              IS_STRING(name) ? AS_CSTRING(name) : valueType(name));
           return INTERPRET_RUNTIME_ERROR;
         }
         push(vm, value);
         NEXT;
       }
       CASE(OP_DEFINE_GLOBAL) {
-        ObjString* name = READ_STRING();
+        Value name = READ_CONSTANT();
         tableSet(&vm->gc, &vm->globals, name, peek(vm, 0));
         pop(vm);
         NEXT;
       }
       CASE(OP_SET_GLOBAL) {
-        ObjString* name = READ_STRING();
+        Value name = READ_CONSTANT();
         if (tableSet(&vm->gc, &vm->globals, name, peek(vm, 0))) {
           tableDelete(&vm->globals, name);
-          runtimeError(vm, "Undefined variable '%s'.", name->chars);
+          runtimeError(vm, "Undefined variable '%s'.",
+              IS_STRING(name) ? AS_CSTRING(name) : valueType(name));
           return INTERPRET_RUNTIME_ERROR;
         }
         NEXT;
@@ -479,7 +480,7 @@ static InterpretResult run(VM* vm) {
         }
 
         ObjInstance* instance = AS_INSTANCE(peek(vm, 0));
-        ObjString* name = READ_STRING();
+        Value name = READ_CONSTANT();
 
         Value value;
         if (tableGet(&instance->fields, name, &value)) {
@@ -501,14 +502,14 @@ static InterpretResult run(VM* vm) {
 
         ObjInstance* instance = AS_INSTANCE(peek(vm, 1));
         tableSet(
-            &vm->gc, &instance->fields, READ_STRING(), peek(vm, 0));
+            &vm->gc, &instance->fields, READ_CONSTANT(), peek(vm, 0));
         Value value = pop(vm);
         pop(vm);
         push(vm, value);
         NEXT;
       }
       CASE(OP_GET_SUPER) {
-        ObjString* name = READ_STRING();
+        Value name = READ_CONSTANT();
         ObjClass* superclass = AS_CLASS(pop(vm));
 
         if (!bindMethod(vm, superclass, name)) {
@@ -599,7 +600,7 @@ static InterpretResult run(VM* vm) {
         NEXT;
       }
       CASE(OP_INVOKE) {
-        ObjString* method = READ_STRING();
+        Value method = READ_CONSTANT();
         int argCount = READ_BYTE();
         if (!invoke(vm, method, argCount)) {
           return INTERPRET_RUNTIME_ERROR;
@@ -608,7 +609,7 @@ static InterpretResult run(VM* vm) {
         NEXT;
       }
       CASE(OP_SUPER_INVOKE) {
-        ObjString* method = READ_STRING();
+        Value method = READ_CONSTANT();
         int argCount = READ_BYTE();
         ObjClass* superclass = AS_CLASS(pop(vm));
         if (!invokeFromClass(vm, superclass, method, argCount)) {
@@ -653,7 +654,7 @@ static InterpretResult run(VM* vm) {
         NEXT;
       }
       CASE(OP_CLASS) {
-        push(vm, OBJ_VAL(newClass(&vm->gc, READ_STRING())));
+        push(vm, OBJ_VAL(newClass(&vm->gc, READ_CONSTANT())));
         NEXT;
       }
       CASE(OP_INHERIT) {
@@ -670,7 +671,7 @@ static InterpretResult run(VM* vm) {
         NEXT;
       }
       CASE(OP_METHOD) {
-        defineMethod(vm, READ_STRING());
+        defineMethod(vm, READ_CONSTANT());
         NEXT;
       }
       DEFAULT {
@@ -689,7 +690,6 @@ static InterpretResult run(VM* vm) {
 #undef READ_BYTE
 #undef READ_CONSTANT
 #undef READ_SHORT
-#undef READ_STRING
 #undef BINARY_OP
 }
 

@@ -39,7 +39,7 @@ ObjBoundMethod* newBoundMethod(
   return bound;
 }
 
-ObjClass* newClass(GC* gc, ObjString* name) {
+ObjClass* newClass(GC* gc, Value name) {
   ObjClass* klass = ALLOCATE_OBJ(gc, ObjClass, OBJ_CLASS);
   klass->name = name;
   initTable(&klass->methods, 0.75);
@@ -64,7 +64,7 @@ ObjFunction* newFunction(GC* gc) {
   ObjFunction* function = ALLOCATE_OBJ(gc, ObjFunction, OBJ_FUNCTION);
   function->arity = 0;
   function->upvalueCount = 0;
-  function->name = NULL;
+  function->name = NIL_VAL;
   initChunk(&function->chunk);
   return function;
 }
@@ -82,17 +82,18 @@ ObjNative* newNative(GC* gc, NativeFn function) {
   return native;
 }
 
-static ObjString* allocateString(
+static Value allocateString(
     GC* gc, Table* strings, char* chars, int length, uint32_t hash) {
   ObjString* string = ALLOCATE_OBJ(gc, ObjString, OBJ_STRING);
   string->length = length;
   string->chars = chars;
   string->hash = hash;
 
-  pushTemp(gc, OBJ_VAL(string));
-  tableSet(gc, strings, string, NIL_VAL);
+  Value stringValue = OBJ_VAL(string);
+  pushTemp(gc, stringValue);
+  tableSet(gc, strings, stringValue, NIL_VAL);
   popTemp(gc);
-  return string;
+  return stringValue;
 }
 
 static uint32_t hashString(const char* key, int length) {
@@ -104,10 +105,10 @@ static uint32_t hashString(const char* key, int length) {
   return hash;
 }
 
-ObjString* takeString(GC* gc, Table* strings, char* chars, int length) {
+Value takeString(GC* gc, Table* strings, char* chars, int length) {
   uint32_t hash = hashString(chars, length);
-  ObjString* interned = tableFindString(strings, chars, length, hash);
-  if (interned != NULL) {
+  Value interned = tableFindString(strings, chars, length, hash);
+  if (!IS_NIL(interned)) {
     FREE_ARRAY(gc, char, chars, length + 1);
     return interned;
   }
@@ -115,11 +116,11 @@ ObjString* takeString(GC* gc, Table* strings, char* chars, int length) {
   return allocateString(gc, strings, chars, length, hash);
 }
 
-ObjString* copyString(
+Value copyString(
     GC* gc, Table* strings, const char* chars, int length) {
   uint32_t hash = hashString(chars, length);
-  ObjString* interned = tableFindString(strings, chars, length, hash);
-  if (interned != NULL) {
+  Value interned = tableFindString(strings, chars, length, hash);
+  if (!IS_NIL(interned)) {
     return interned;
   }
 
@@ -138,11 +139,13 @@ ObjUpvalue* newUpvalue(GC* gc, Value* slot) {
 }
 
 static void printFunction(FILE* fout, ObjFunction* function) {
-  if (function->name == NULL) {
+  if (IS_NIL(function->name)) {
     fprintf(fout, "<script>");
     return;
   }
-  fprintf(fout, "<fn %s>", function->name->chars);
+  fprintf(fout, "<fn ");
+  printValue(fout, function->name);
+  fprintf(fout, ">");
 }
 
 void printObject(FILE* fout, Value value) {
@@ -150,19 +153,31 @@ void printObject(FILE* fout, Value value) {
     case OBJ_BOUND_METHOD:
       printFunction(fout, AS_BOUND_METHOD(value)->method->function);
       break;
-    case OBJ_CLASS:
-      fprintf(fout, "%s", AS_CLASS(value)->name->chars);
-      break;
+    case OBJ_CLASS: printValue(fout, AS_CLASS(value)->name); break;
     case OBJ_CLOSURE:
       printFunction(fout, AS_CLOSURE(value)->function);
       break;
     case OBJ_FUNCTION: printFunction(fout, AS_FUNCTION(value)); break;
     case OBJ_INSTANCE:
-      fprintf(
-          fout, "%s instance", AS_INSTANCE(value)->klass->name->chars);
+      printValue(fout, AS_INSTANCE(value)->klass->name);
+      fprintf(fout, " instance");
       break;
     case OBJ_NATIVE: fprintf(fout, "<native fn>"); break;
     case OBJ_STRING: fprintf(fout, "%s", AS_CSTRING(value)); break;
     case OBJ_UPVALUE: fprintf(fout, "upvalue"); break;
   }
+}
+
+const char* objectType(Value value) {
+  switch (OBJ_TYPE(value)) {
+    case OBJ_BOUND_METHOD: return "bound method";
+    case OBJ_CLASS: return "class";
+    case OBJ_CLOSURE: return "closure";
+    case OBJ_FUNCTION: return "function";
+    case OBJ_INSTANCE: return "instance";
+    case OBJ_NATIVE: return "native";
+    case OBJ_STRING: return "string";
+    case OBJ_UPVALUE: return "upvalue";
+  }
+  return "???"; // GCOV_EXCL_LINE: Unreachable.
 }

@@ -70,11 +70,10 @@ UTEST_F(DisassembleChunk, OpGetGlobal) {
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
+  Value fooStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, fooStr);
 
-  uint8_t global =
-      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  uint8_t global = addConstant(&ufx->gc, &ufx->chunk, fooStr);
   writeChunk(&ufx->gc, &ufx->chunk, OP_GET_GLOBAL, 123);
   writeChunk(&ufx->gc, &ufx->chunk, global, 123);
 
@@ -92,11 +91,10 @@ UTEST_F(DisassembleChunk, OpDefineGlobal) {
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
+  Value fooStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, fooStr);
 
-  uint8_t global =
-      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  uint8_t global = addConstant(&ufx->gc, &ufx->chunk, fooStr);
   writeChunk(&ufx->gc, &ufx->chunk, OP_DEFINE_GLOBAL, 123);
   writeChunk(&ufx->gc, &ufx->chunk, global, 123);
 
@@ -114,11 +112,10 @@ UTEST_F(DisassembleChunk, OpSetGlobal) {
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
+  Value fooStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, fooStr);
 
-  uint8_t global =
-      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  uint8_t global = addConstant(&ufx->gc, &ufx->chunk, fooStr);
   writeChunk(&ufx->gc, &ufx->chunk, OP_SET_GLOBAL, 123);
   writeChunk(&ufx->gc, &ufx->chunk, global, 123);
 
@@ -156,11 +153,10 @@ UTEST_F(DisassembleChunk, OpGetProperty) {
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
+  Value fooStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, fooStr);
 
-  uint8_t global =
-      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  uint8_t global = addConstant(&ufx->gc, &ufx->chunk, fooStr);
   writeChunk(&ufx->gc, &ufx->chunk, OP_GET_PROPERTY, 123);
   writeChunk(&ufx->gc, &ufx->chunk, global, 123);
 
@@ -178,11 +174,10 @@ UTEST_F(DisassembleChunk, OpSetProperty) {
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
+  Value fooStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, fooStr);
 
-  uint8_t global =
-      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  uint8_t global = addConstant(&ufx->gc, &ufx->chunk, fooStr);
   writeChunk(&ufx->gc, &ufx->chunk, OP_SET_PROPERTY, 123);
   writeChunk(&ufx->gc, &ufx->chunk, global, 123);
 
@@ -200,11 +195,10 @@ UTEST_F(DisassembleChunk, OpGetSuper) {
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* methodOStr = copyString(&ufx->gc, &strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(methodOStr));
+  Value fooStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, fooStr);
 
-  uint8_t method =
-      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
+  uint8_t method = addConstant(&ufx->gc, &ufx->chunk, fooStr);
   writeChunk(&ufx->gc, &ufx->chunk, OP_GET_SUPER, 123);
   writeChunk(&ufx->gc, &ufx->chunk, method, 123);
 
@@ -266,11 +260,10 @@ UTEST_F(DisassembleChunk, OpInvoke) {
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* methodOStr = copyString(&ufx->gc, &strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(methodOStr));
+  Value fooStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, fooStr);
 
-  uint8_t method =
-      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
+  uint8_t method = addConstant(&ufx->gc, &ufx->chunk, fooStr);
   writeChunk(&ufx->gc, &ufx->chunk, OP_INVOKE, 123);
   writeChunk(&ufx->gc, &ufx->chunk, method, 123);
   writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
@@ -289,11 +282,10 @@ UTEST_F(DisassembleChunk, OpSuperInvoke) {
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* methodOStr = copyString(&ufx->gc, &strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(methodOStr));
+  Value fooStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, fooStr);
 
-  uint8_t method =
-      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
+  uint8_t method = addConstant(&ufx->gc, &ufx->chunk, fooStr);
   writeChunk(&ufx->gc, &ufx->chunk, OP_SUPER_INVOKE, 123);
   writeChunk(&ufx->gc, &ufx->chunk, method, 123);
   writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
@@ -362,11 +354,10 @@ UTEST_F(DisassembleChunk, OpClass) {
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
+  Value fooStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, fooStr);
 
-  uint8_t global =
-      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
+  uint8_t global = addConstant(&ufx->gc, &ufx->chunk, fooStr);
   writeChunk(&ufx->gc, &ufx->chunk, OP_CLASS, 123);
   writeChunk(&ufx->gc, &ufx->chunk, global, 123);
 
@@ -384,11 +375,10 @@ UTEST_F(DisassembleChunk, OpMethod) {
   Table strings;
   initTable(&strings, 0.75);
 
-  ObjString* methodOStr = copyString(&ufx->gc, &strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(methodOStr));
+  Value fooStr = copyString(&ufx->gc, &strings, "foo", 3);
+  pushTemp(&ufx->gc, fooStr);
 
-  uint8_t method =
-      addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
+  uint8_t method = addConstant(&ufx->gc, &ufx->chunk, fooStr);
   writeChunk(&ufx->gc, &ufx->chunk, OP_METHOD, 123);
   writeChunk(&ufx->gc, &ufx->chunk, method, 123);
 

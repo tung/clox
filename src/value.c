@@ -71,3 +71,34 @@ bool valuesEqual(Value a, Value b) {
   }
 #endif
 }
+
+uint32_t hashValue(Value v) {
+  if (IS_STRING(v)) {
+    return AS_STRING(v)->hash;
+  } else if (IS_NUMBER(v)) {
+    union {
+      double d;
+      struct {
+        uint32_t u1;
+        uint32_t u2;
+      };
+    } pun = { .d = AS_NUMBER(v) };
+    return pun.u1 ^ pun.u2;
+  } else if (IS_BOOL(v)) {
+    return AS_BOOL(v);
+  }
+  return 0; // Unsupported type.
+}
+
+const char* valueType(Value v) {
+  if (IS_BOOL(v)) {
+    return "bool";
+  } else if (IS_NIL(v)) {
+    return "nil";
+  } else if (IS_NUMBER(v)) {
+    return "number";
+  } else if (IS_OBJ(v)) {
+    return objectType(v);
+  }
+  return "???"; // GCOV_EXCL_LINE: Unreachable.
+}

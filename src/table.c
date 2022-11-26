@@ -21,13 +21,13 @@ void freeTable(GC* gc, Table* table) {
   initTable(table, table->maxLoad);
 }
 
-static Entry* findEntry(Entry* entries, int capacity, ObjString* key) {
-  uint32_t index = key->hash & (capacity - 1);
+static Entry* findEntry(Entry* entries, int capacity, Value key) {
+  uint32_t index = hashValue(key) & (capacity - 1);
   Entry* tombstone = NULL;
 
   for (int i = 0; i < capacity; i++) {
     Entry* entry = &entries[index];
-    if (entry->key == NULL) {
+    if (IS_NIL(entry->key)) {
       if (IS_NIL(entry->value)) {
         // Empty entry.
         return tombstone != NULL ? tombstone : entry;
@@ -37,7 +37,7 @@ static Entry* findEntry(Entry* entries, int capacity, ObjString* key) {
           tombstone = entry;
         }
       }
-    } else if (entry->key == key) {
+    } else if (valuesEqual(entry->key, key)) {
       // We found the key.
       return entry;
     }
@@ -49,13 +49,13 @@ static Entry* findEntry(Entry* entries, int capacity, ObjString* key) {
   return tombstone;
 }
 
-bool tableGet(Table* table, ObjString* key, Value* value) {
+bool tableGet(Table* table, Value key, Value* value) {
   if (table->count == 0) {
     return false;
   }
 
   Entry* entry = findEntry(table->entries, table->capacity, key);
-  if (entry == NULL || entry->key == NULL) {
+  if (entry == NULL || IS_NIL(entry->key)) {
     return false;
   }
 
@@ -66,14 +66,14 @@ bool tableGet(Table* table, ObjString* key, Value* value) {
 static void adjustCapacity(GC* gc, Table* table, int capacity) {
   Entry* entries = ALLOCATE(gc, Entry, capacity);
   for (int i = 0; i < capacity; i++) {
-    entries[i].key = NULL;
+    entries[i].key = NIL_VAL;
     entries[i].value = NIL_VAL;
   }
 
   table->count = 0;
   for (int i = 0; i < table->capacity; i++) {
     Entry* entry = &table->entries[i];
-    if (entry->key == NULL) {
+    if (IS_NIL(entry->key)) {
       continue;
     }
 
@@ -89,14 +89,16 @@ static void adjustCapacity(GC* gc, Table* table, int capacity) {
   table->capacity = capacity;
 }
 
-bool tableSet(GC* gc, Table* table, ObjString* key, Value value) {
+bool tableSet(GC* gc, Table* table, Value key, Value value) {
+  assert(!IS_NIL(key)); // GCOV_EXCL_LINE
+
   if (table->count + 1 > table->capacity * table->maxLoad) {
     int capacity = GROW_CAPACITY(table->capacity);
     adjustCapacity(gc, table, capacity);
   }
 
   Entry* entry = findEntry(table->entries, table->capacity, key);
-  bool isNewKey = entry->key == NULL;
+  bool isNewKey = IS_NIL(entry->key);
   if (isNewKey && IS_NIL(entry->value)) {
     table->count++;
   }
@@ -106,19 +108,19 @@ bool tableSet(GC* gc, Table* table, ObjString* key, Value value) {
   return isNewKey;
 }
 
-bool tableDelete(Table* table, ObjString* key) {
+bool tableDelete(Table* table, Value key) {
   if (table->count == 0) {
     return false;
   }
 
   // Find the entry.
   Entry* entry = findEntry(table->entries, table->capacity, key);
-  if (entry->key == NULL) {
+  if (IS_NIL(entry->key)) {
     return false;
   }
 
   // Place a tombstone in the entry.
-  entry->key = NULL;
+  entry->key = NIL_VAL;
   entry->value = BOOL_VAL(true);
   return true;
 }
@@ -126,43 +128,41 @@ bool tableDelete(Table* table, ObjString* key) {
 void tableAddAll(GC* gc, Table* from, Table* to) {
   for (int i = 0; i < from->capacity; i++) {
     Entry* entry = &from->entries[i];
-    if (entry->key != NULL) {
+    if (!IS_NIL(entry->key)) {
       tableSet(gc, to, entry->key, entry->value);
     }
   }
 }
 
-ObjString* tableFindString(
+Value tableFindString(
     Table* table, const char* chars, int length, uint32_t hash) {
-  if (table->count == 0) {
-    return NULL;
-  }
-
   uint32_t index = hash & (table->capacity - 1);
   for (int i = 0; i < table->capacity; i++) {
     Entry* entry = &table->entries[index];
-    if (entry->key == NULL) {
+    if (IS_NIL(entry->key)) {
       // Stop if we find an empty non-tombstone entry.
       if (IS_NIL(entry->value)) {
-        return NULL;
+        return NIL_VAL;
       }
-    } else if (entry->key->length == length &&
-        entry->key->hash == hash &&
-        memcmp(entry->key->chars, chars, length) == 0) {
-      // We found it.
-      return entry->key;
+    } else if (IS_STRING(entry->key)) {
+      ObjString* keyStr = AS_STRING(entry->key);
+      if (keyStr->hash == hash && keyStr->length == length &&
+          !memcmp(keyStr->chars, chars, length)) {
+        // We found it.
+        return entry->key;
+      }
     }
 
     index = (index + 1) & (table->capacity - 1);
   }
 
-  return NULL;
+  return NIL_VAL;
 }
 
 void tableRemoveWhite(Table* table) {
   for (int i = 0; i < table->capacity; i++) {
     Entry* entry = &table->entries[i];
-    if (entry->key != NULL && !entry->key->obj.isMarked) {
+    if (IS_OBJ(entry->key) && !AS_OBJ(entry->key)->isMarked) {
       tableDelete(table, entry->key);
     }
   }
@@ -171,7 +171,7 @@ void tableRemoveWhite(Table* table) {
 void markTable(GC* gc, Table* table) {
   for (int i = 0; i < table->capacity; i++) {
     Entry* entry = &table->entries[i];
-    markObject(gc, (Obj*)entry->key);
+    markValue(gc, entry->key);
     markValue(gc, entry->value);
   }
 }

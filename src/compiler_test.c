@@ -36,7 +36,7 @@ static void dump(MemBuf* out, ObjFunction* fun) {
     }
   }
   disassembleChunk(out->fptr, &fun->chunk,
-      fun->name ? fun->name->chars : "<script>");
+      IS_STRING(fun->name) ? AS_CSTRING(fun->name) : "<script>");
 }
 
 typedef struct {

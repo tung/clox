@@ -53,7 +53,7 @@ typedef struct {
   int arity;
   int upvalueCount;
   Chunk chunk;
-  ObjString* name;
+  Value name;
 } ObjFunction;
 
 typedef Value (*NativeFn)(int argCount, Value* args);
@@ -86,7 +86,7 @@ typedef struct {
 
 typedef struct {
   Obj obj;
-  ObjString* name;
+  Value name;
   Table methods;
 } ObjClass;
 
@@ -104,16 +104,16 @@ typedef struct {
 
 ObjBoundMethod* newBoundMethod(
     GC* gc, Value receiver, ObjClosure* method);
-ObjClass* newClass(GC* gc, ObjString* name);
+ObjClass* newClass(GC* gc, Value name);
 ObjClosure* newClosure(GC* gc, ObjFunction* function);
 ObjFunction* newFunction(GC* gc);
 ObjInstance* newInstance(GC* gc, ObjClass* klass);
 ObjNative* newNative(GC* gc, NativeFn function);
-ObjString* takeString(GC* gc, Table* strings, char* chars, int length);
-ObjString* copyString(
-    GC* gc, Table* strings, const char* chars, int length);
+Value takeString(GC* gc, Table* strings, char* chars, int length);
+Value copyString(GC* gc, Table* strings, const char* chars, int length);
 ObjUpvalue* newUpvalue(GC* gc, Value* slot);
 void printObject(FILE* fout, Value value);
+const char* objectType(Value value);
 
 static inline bool isObjType(Value value, ObjType type) {
   return IS_OBJ(value) && AS_OBJ(value)->type == type;

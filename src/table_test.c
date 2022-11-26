@@ -32,10 +32,10 @@ UTEST_F(Table, InitFree) {
 }
 
 UTEST_F(Table, GetSetDelete) {
-  ObjString* foo = copyString(&ufx->gc, &ufx->strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(foo));
-  ObjString* bar = copyString(&ufx->gc, &ufx->strings, "bar", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(bar));
+  Value foo = copyString(&ufx->gc, &ufx->strings, "foo", 3);
+  pushTemp(&ufx->gc, foo);
+  Value bar = copyString(&ufx->gc, &ufx->strings, "bar", 3);
+  pushTemp(&ufx->gc, bar);
   Value fooValue, barValue;
 
   // No keys in an empty table.
@@ -72,12 +72,12 @@ UTEST_F(Table, AddAll) {
   Table t2;
   initTable(&t2, 1.0);
 
-  ObjString* foo = copyString(&ufx->gc, &ufx->strings, "foo", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(foo));
-  ObjString* bar = copyString(&ufx->gc, &ufx->strings, "bar", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(bar));
-  ObjString* baz = copyString(&ufx->gc, &ufx->strings, "baz", 3);
-  pushTemp(&ufx->gc, OBJ_VAL(baz));
+  Value foo = copyString(&ufx->gc, &ufx->strings, "foo", 3);
+  pushTemp(&ufx->gc, foo);
+  Value bar = copyString(&ufx->gc, &ufx->strings, "bar", 3);
+  pushTemp(&ufx->gc, bar);
+  Value baz = copyString(&ufx->gc, &ufx->strings, "baz", 3);
+  pushTemp(&ufx->gc, baz);
 
   EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, foo, NUMBER_VAL(1.0)));
   EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, bar, NUMBER_VAL(2.0)));
@@ -103,19 +103,19 @@ UTEST_F(Table, AddAll) {
 
 UTEST_F(Table, SetGetLots) {
   const char* strs[] = { "a", "b", "c", "d", "e", "f", "g", "h", "i" };
-  ObjString* oStrs[ARRAY_SIZE(strs)];
+  Value vStrs[ARRAY_SIZE(strs)];
 
   for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
-    oStrs[i] = copyString(&ufx->gc, &ufx->strings, strs[i], 1);
-    pushTemp(&ufx->gc, OBJ_VAL(oStrs[i]));
-    EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, oStrs[i], NUMBER_VAL(i)));
+    vStrs[i] = copyString(&ufx->gc, &ufx->strings, strs[i], 1);
+    pushTemp(&ufx->gc, vStrs[i]);
+    EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, vStrs[i], NUMBER_VAL(i)));
   }
 
   EXPECT_EQ(9, ufx->t.count);
 
   for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
     Value v;
-    EXPECT_TRUE(tableGet(&ufx->t, oStrs[i], &v));
+    EXPECT_TRUE(tableGet(&ufx->t, vStrs[i], &v));
     popTemp(&ufx->gc);
     EXPECT_VALEQ(NUMBER_VAL(i), v);
   }
@@ -135,21 +135,21 @@ UTEST_F(Table, SetGetCollisions) {
     "# $}W=}",
     "  Y[N{>",
   };
-  ObjString* oStrs[ARRAY_SIZE(strs)];
+  Value vStrs[ARRAY_SIZE(strs)];
 
   for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
-    oStrs[i] =
+    vStrs[i] =
         copyString(&ufx->gc, &ufx->strings, strs[i], strlen(strs[i]));
-    EXPECT_EQ((uint32_t)0, oStrs[i]->hash);
-    pushTemp(&ufx->gc, OBJ_VAL(oStrs[i]));
-    EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, oStrs[i], NUMBER_VAL(i)));
+    EXPECT_EQ((uint32_t)0, hashValue(vStrs[i]));
+    pushTemp(&ufx->gc, vStrs[i]);
+    EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, vStrs[i], NUMBER_VAL(i)));
   }
 
   EXPECT_EQ((int)ARRAY_SIZE(strs), ufx->t.count);
 
   for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
     Value v;
-    EXPECT_TRUE(tableGet(&ufx->t, oStrs[i], &v));
+    EXPECT_TRUE(tableGet(&ufx->t, vStrs[i], &v));
     popTemp(&ufx->gc);
     EXPECT_VALEQ(NUMBER_VAL(i), v);
   }
@@ -160,28 +160,28 @@ UTEST_F(Table, FullTableGetMissing) {
   ufx->t.maxLoad = 1.0;
   const char* strs[8] = { "a", "b", "c", "d", "e", "f", "g", "h" };
 
-  ObjString* a = copyString(&ufx->gc, &ufx->strings, strs[0], 1);
-  pushTemp(&ufx->gc, OBJ_VAL(a));
-  ObjString* b = copyString(&ufx->gc, &ufx->strings, strs[1], 1);
-  pushTemp(&ufx->gc, OBJ_VAL(b));
+  Value a = copyString(&ufx->gc, &ufx->strings, strs[0], 1);
+  pushTemp(&ufx->gc, a);
+  Value b = copyString(&ufx->gc, &ufx->strings, strs[1], 1);
+  pushTemp(&ufx->gc, b);
   EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, a, NUMBER_VAL(0.0)));
   EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, b, NUMBER_VAL(1.0)));
   for (size_t i = 2; i < ARRAY_SIZE(strs); ++i) {
-    ObjString* oStr = copyString(&ufx->gc, &ufx->strings, strs[i], 1);
-    pushTemp(&ufx->gc, OBJ_VAL(oStr));
-    EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, oStr, NUMBER_VAL(i)));
+    Value vStr = copyString(&ufx->gc, &ufx->strings, strs[i], 1);
+    pushTemp(&ufx->gc, vStr);
+    EXPECT_TRUE(tableSet(&ufx->gc, &ufx->t, vStr, NUMBER_VAL(i)));
   }
 
   // Check that the table is indeed full.
   EXPECT_EQ(ufx->t.capacity, ufx->t.count);
 
   const char missingStr[] = "z";
-  ObjString* missingOStr =
+  Value missingVStr =
       copyString(&ufx->gc, &ufx->strings, missingStr, 1);
-  pushTemp(&ufx->gc, OBJ_VAL(missingOStr));
+  pushTemp(&ufx->gc, missingVStr);
   Value missingValue;
 
-  EXPECT_FALSE(tableGet(&ufx->t, missingOStr, &missingValue));
+  EXPECT_FALSE(tableGet(&ufx->t, missingVStr, &missingValue));
 
   // Delete a couple of entries and do it again.
   EXPECT_TRUE(tableDelete(&ufx->t, a));
@@ -190,7 +190,7 @@ UTEST_F(Table, FullTableGetMissing) {
   // Recheck that the table is full.
   EXPECT_EQ(ufx->t.capacity, ufx->t.count);
 
-  EXPECT_FALSE(tableGet(&ufx->t, missingOStr, &missingValue));
+  EXPECT_FALSE(tableGet(&ufx->t, missingVStr, &missingValue));
 
   for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
     popTemp(&ufx->gc);

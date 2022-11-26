@@ -8,7 +8,7 @@
 typedef struct GC GC;
 
 typedef struct {
-  ObjString* key;
+  Value key;
   Value value;
 } Entry;
 
@@ -21,11 +21,11 @@ typedef struct {
 
 void initTable(Table* table, double maxLoad);
 void freeTable(GC* gc, Table* table);
-bool tableGet(Table* table, ObjString* key, Value* value);
-bool tableSet(GC* gc, Table* table, ObjString* key, Value value);
-bool tableDelete(Table* table, ObjString* key);
+bool tableGet(Table* table, Value key, Value* value);
+bool tableSet(GC* gc, Table* table, Value key, Value value);
+bool tableDelete(Table* table, Value key);
 void tableAddAll(GC* gc, Table* from, Table* to);
-ObjString* tableFindString(
+Value tableFindString(
     Table* table, const char* chars, int length, uint32_t hash);
 void tableRemoveWhite(Table* table);
 void markTable(GC* gc, Table* table);

@@ -148,15 +148,43 @@ UTEST(Value, StringsEqual) {
   initGC(&gc);
   initTable(&strings, 0.75);
 
-  ObjString* empty = copyString(&gc, &strings, "", 0);
-  ObjString* foo = copyString(&gc, &strings, "foo", 3);
-  ObjString* bar = copyString(&gc, &strings, "bar", 3);
-  ObjString* blah = copyString(&gc, &strings, "blah", 4);
+  size_t temps = 0;
 
-  EXPECT_VALEQ(OBJ_VAL(empty), OBJ_VAL(empty));
-  EXPECT_VALEQ(OBJ_VAL(foo), OBJ_VAL(foo));
-  EXPECT_VALEQ(OBJ_VAL(bar), OBJ_VAL(bar));
-  EXPECT_VALEQ(OBJ_VAL(blah), OBJ_VAL(blah));
+  Value empty1 = copyString(&gc, &strings, "", 0);
+  pushTemp(&gc, empty1);
+  temps++;
+  Value foo1 = copyString(&gc, &strings, "foo", 3);
+  pushTemp(&gc, foo1);
+  temps++;
+  Value bar1 = copyString(&gc, &strings, "bar", 3);
+  pushTemp(&gc, bar1);
+  temps++;
+  Value blah1 = copyString(&gc, &strings, "blah", 4);
+  pushTemp(&gc, blah1);
+  temps++;
+
+  Value empty2 = copyString(&gc, &strings, "", 0);
+  pushTemp(&gc, empty1);
+  temps++;
+  Value foo2 = copyString(&gc, &strings, "foo", 3);
+  pushTemp(&gc, foo1);
+  temps++;
+  Value bar2 = copyString(&gc, &strings, "bar", 3);
+  pushTemp(&gc, bar1);
+  temps++;
+  Value blah2 = copyString(&gc, &strings, "blah", 4);
+  pushTemp(&gc, blah1);
+  temps++;
+
+  EXPECT_VALEQ(empty1, empty2);
+  EXPECT_VALEQ(foo1, foo2);
+  EXPECT_VALEQ(bar1, bar2);
+  EXPECT_VALEQ(blah1, blah2);
+
+  while (temps > 0) {
+    popTemp(&gc);
+    temps--;
+  }
 
   freeTable(&gc, &strings);
   freeGC(&gc);
@@ -168,15 +196,104 @@ UTEST(Value, StringsUnequal) {
   initGC(&gc);
   initTable(&strings, 0.75);
 
-  ObjString* empty = copyString(&gc, &strings, "", 0);
-  ObjString* foo = copyString(&gc, &strings, "foo", 3);
-  ObjString* bar = copyString(&gc, &strings, "bar", 3);
-  ObjString* blah = copyString(&gc, &strings, "blah", 4);
+  Value empty = copyString(&gc, &strings, "", 0);
+  Value foo = copyString(&gc, &strings, "foo", 3);
+  Value bar = copyString(&gc, &strings, "bar", 3);
+  Value blah = copyString(&gc, &strings, "blah", 4);
 
-  EXPECT_VALNE(OBJ_VAL(empty), OBJ_VAL(foo));
-  EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(empty));
-  EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(bar));
-  EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(blah));
+  EXPECT_VALNE(empty, foo);
+  EXPECT_VALNE(foo, empty);
+  EXPECT_VALNE(foo, bar);
+  EXPECT_VALNE(foo, blah);
+
+  freeTable(&gc, &strings);
+  freeGC(&gc);
+}
+
+UTEST(Value, Hash) {
+  GC gc;
+  Table strings;
+  initGC(&gc);
+  initTable(&strings, 0.75);
+
+  Value fooStr = copyString(&gc, &strings, "foo", 3);
+  EXPECT_EQ(2851307223u, hashValue(fooStr));
+  EXPECT_EQ(1079951360u, hashValue(NUMBER_VAL(123.0)));
+  EXPECT_EQ(0u, hashValue(BOOL_VAL(false)));
+  EXPECT_EQ(1u, hashValue(BOOL_VAL(true)));
+  EXPECT_EQ(0u, hashValue(NIL_VAL));
+
+  freeTable(&gc, &strings);
+  freeGC(&gc);
+}
+
+UTEST(Value, Type) {
+  EXPECT_STREQ("bool", valueType(BOOL_VAL(false)));
+  EXPECT_STREQ("bool", valueType(BOOL_VAL(true)));
+  EXPECT_STREQ("nil", valueType(NIL_VAL));
+  EXPECT_STREQ("number", valueType(NUMBER_VAL(123.0)));
+}
+
+UTEST(Value, ObjectType) {
+  GC gc;
+  Table strings;
+  initGC(&gc);
+  initTable(&strings, 0.75);
+
+  size_t temps = 0;
+
+  Value fooStr = copyString(&gc, &strings, "foo", 3);
+  pushTemp(&gc, fooStr);
+  temps++;
+
+  ObjFunction* fooFun = newFunction(&gc);
+  Value fooFunVal = OBJ_VAL(fooFun);
+  pushTemp(&gc, fooFunVal);
+  temps++;
+
+  ObjClosure* fooClo = newClosure(&gc, fooFun);
+  Value fooCloVal = OBJ_VAL(fooClo);
+  pushTemp(&gc, fooCloVal);
+  temps++;
+
+  ObjBoundMethod* fooBound = newBoundMethod(&gc, fooStr, fooClo);
+  Value fooBoundVal = OBJ_VAL(fooBound);
+  pushTemp(&gc, fooBoundVal);
+  temps++;
+
+  ObjClass* fooClass = newClass(&gc, fooStr);
+  Value fooClassVal = OBJ_VAL(fooClass);
+  pushTemp(&gc, fooClassVal);
+  temps++;
+
+  ObjInstance* fooInst = newInstance(&gc, fooClass);
+  Value fooInstVal = OBJ_VAL(fooInst);
+  pushTemp(&gc, fooInstVal);
+  temps++;
+
+  ObjNative* fooNative = newNative(&gc, NULL);
+  Value fooNativeVal = OBJ_VAL(fooNative);
+  pushTemp(&gc, fooNativeVal);
+  temps++;
+
+  ObjUpvalue* fooUpVal = newUpvalue(&gc, &fooStr);
+  Value fooUpValVal = OBJ_VAL(fooUpVal);
+  pushTemp(&gc, fooUpValVal);
+  temps++;
+
+  EXPECT_STREQ("string", valueType(fooStr));
+  EXPECT_STREQ("function", valueType(fooFunVal));
+  EXPECT_STREQ("closure", valueType(fooCloVal));
+  EXPECT_STREQ("bound method", valueType(fooBoundVal));
+  EXPECT_STREQ("class", valueType(fooClassVal));
+  EXPECT_STREQ("instance", valueType(fooInstVal));
+  EXPECT_STREQ("native", valueType(fooNativeVal));
+  EXPECT_STREQ("upvalue", valueType(fooUpValVal));
+
+  while (temps > 0) {
+    popTemp(&gc);
+    temps--;
+  }
 
   freeTable(&gc, &strings);
   freeGC(&gc);

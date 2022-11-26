@@ -71,11 +71,11 @@ static size_t fillFun(GC* gc, Table* strings, ObjFunction* fun,
         addConstant(gc, &fun->chunk, NUMBER_VAL(lit->as.number));
         break;
       case LIT_STRING: {
-        ObjString* str = copyString(
+        Value str = copyString(
             gc, strings, lit->as.string, strlen(lit->as.string));
-        pushTemp(gc, OBJ_VAL(str));
+        pushTemp(gc, str);
         temps++;
-        addConstant(gc, &fun->chunk, OBJ_VAL(str));
+        addConstant(gc, &fun->chunk, str);
         break;
       }
       case LIT_FUNCTION:
@@ -301,9 +301,15 @@ VMCase opGlobals[] = {
   { INTERPRET_RUNTIME_ERROR, "Undefined variable 'foo'.", LIST(LitFun),
       LIST(uint8_t, OP_GET_GLOBAL, 0, OP_NIL, OP_RETURN),
       LIST(Lit, S("foo")) },
+  { INTERPRET_RUNTIME_ERROR, "Undefined variable 'bool'.", LIST(LitFun),
+      LIST(uint8_t, OP_GET_GLOBAL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, B_TRUE) },
   { INTERPRET_RUNTIME_ERROR, "Undefined variable 'foo'.", LIST(LitFun),
       LIST(uint8_t, OP_NIL, OP_SET_GLOBAL, 0, OP_NIL, OP_RETURN),
       LIST(Lit, S("foo")) },
+  { INTERPRET_RUNTIME_ERROR, "Undefined variable 'bool'.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_SET_GLOBAL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, B_TRUE) },
   { INTERPRET_OK, "123\n456\n", LIST(LitFun),
       LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL,
           0, OP_PRINT, OP_CONSTANT, 2, OP_SET_GLOBAL, 0, OP_POP,
@@ -311,7 +317,7 @@ VMCase opGlobals[] = {
       LIST(Lit, S("foo"), N(123.0), N(456.0)) },
 };
 
-VM_TEST(OpGlobals, opGlobals, 3);
+VM_TEST(OpGlobals, opGlobals, 5);
 
 VMCase opEqual[] = {
   { INTERPRET_OK, "true\n", LIST(LitFun),
@@ -758,6 +764,12 @@ VMCase classes[] = {
           OP_CALL, 0, OP_DEFINE_GLOBAL, 1, OP_GET_GLOBAL, 3,
           OP_GET_PROPERTY, 4, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("F"), S("f"), S("F"), S("f"), S("x")) },
+  // ClassesGetBadType
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'bool'.", LIST(LitFun),
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
+          OP_POP, OP_GET_GLOBAL, 2, OP_CALL, 0, OP_GET_PROPERTY, 3,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("F"), S("F"), S("F"), B_TRUE) },
   // ClassesGetNonInstance
   { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
       LIST(LitFun),
@@ -774,7 +786,7 @@ VMCase classes[] = {
       LIST(Lit, N(0.0), S("x"), N(1.0)) },
 };
 
-VM_TEST(Classes, classes, 5);
+VM_TEST(Classes, classes, 6);
 
 VMCase classesMethods[] = {
   // ClassesMethods
@@ -849,9 +861,15 @@ VMCase classesMethods[] = {
           OP_POP, OP_GET_GLOBAL, 3, OP_CALL, 0, OP_DEFINE_GLOBAL, 2,
           OP_GET_GLOBAL, 4, OP_INVOKE, 5, 0, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("F"), S("F"), S("f"), S("F"), S("f"), S("oops")) },
+  // ClassesInvokeBadType
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'bool'.", LIST(LitFun),
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 1,
+          OP_POP, OP_GET_GLOBAL, 3, OP_CALL, 0, OP_DEFINE_GLOBAL, 2,
+          OP_GET_GLOBAL, 4, OP_INVOKE, 5, 0, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("F"), S("F"), S("f"), S("F"), S("f"), B_TRUE) },
 };
 
-VM_TEST(ClassesMethods, classesMethods, 4);
+VM_TEST(ClassesMethods, classesMethods, 5);
 
 VMCase classesSuper[] = {
   // ClassesSuper

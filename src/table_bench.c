@@ -32,7 +32,7 @@ UBENCH_EX_F(Table, SetGetDelete) {
 
   static_assert(COUNT <= 26 * 26 * 26, "Table.SetGetDelete");
 
-  ObjString* oStrs[COUNT];
+  Value vStrs[COUNT];
   char baseStr[] = "aaa";
   size_t temps = 0;
 
@@ -40,24 +40,24 @@ UBENCH_EX_F(Table, SetGetDelete) {
     baseStr[0] = 'a' + i / (26 * 26);
     baseStr[1] = 'a' + (i % (26 * 26)) / 26;
     baseStr[2] = 'a' + i % 26;
-    oStrs[i] = copyString(&ufx->gc, &ufx->strings, baseStr, 3);
-    pushTemp(&ufx->gc, OBJ_VAL(oStrs[i]));
+    vStrs[i] = copyString(&ufx->gc, &ufx->strings, baseStr, 3);
+    pushTemp(&ufx->gc, vStrs[i]);
     temps++;
   }
 
   UBENCH_DO_BENCHMARK() {
     for (size_t i = 0; i < COUNT; ++i) {
-      tableSet(&ufx->gc, &ufx->t, oStrs[i], NUMBER_VAL(i));
+      tableSet(&ufx->gc, &ufx->t, vStrs[i], NUMBER_VAL(i));
     }
 
     for (size_t i = 0; i < COUNT; ++i) {
       Value v;
-      tableGet(&ufx->t, oStrs[i], &v);
+      tableGet(&ufx->t, vStrs[i], &v);
       UBENCH_DO_NOTHING(&v);
     }
 
     for (size_t i = 0; i < COUNT; ++i) {
-      tableDelete(&ufx->t, oStrs[i]);
+      tableDelete(&ufx->t, vStrs[i]);
     }
   }
 

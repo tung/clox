@@ -106,6 +106,8 @@ void writeValueArray(GC* gc, ValueArray* array, Value value);
 void freeValueArray(GC* gc, ValueArray* array);
 void printValue(FILE* fout, Value value);
 bool valuesEqual(Value a, Value b);
+uint32_t hashValue(Value v);
+const char* valueType(Value v);
 
 #define EXPECT_VALEQ(x, y) \
   UTEST_SURPRESS_WARNING_BEGIN do { \
