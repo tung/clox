@@ -109,7 +109,8 @@ ObjClosure* newClosure(GC* gc, ObjFunction* function);
 ObjFunction* newFunction(GC* gc);
 ObjInstance* newInstance(GC* gc, ObjClass* klass);
 ObjNative* newNative(GC* gc, NativeFn function);
-ObjString* takeString(GC* gc, Table* strings, char* chars, int length);
+ObjString* concatStrings(GC* gc, Table* strings, const char* a,
+    int aLen, uint32_t aHash, const char* b, int bLen);
 ObjString* copyString(
     GC* gc, Table* strings, const char* chars, int length);
 ObjUpvalue* newUpvalue(GC* gc, Value* slot);

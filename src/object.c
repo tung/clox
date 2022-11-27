@@ -82,21 +82,18 @@ ObjNative* newNative(GC* gc, NativeFn function) {
   return native;
 }
 
-static ObjString* allocateString(
-    GC* gc, Table* strings, char* chars, int length, uint32_t hash) {
+static ObjString* allocateString(GC* gc) {
   ObjString* string = ALLOCATE_OBJ(gc, ObjString, OBJ_STRING);
-  string->length = length;
-  string->chars = chars;
-  string->hash = hash;
-
-  pushTemp(gc, OBJ_VAL(string));
-  tableSet(gc, strings, string, NIL_VAL);
-  popTemp(gc);
+  string->length = 0;
+  string->hash = 0u;
+  string->chars = NULL;
   return string;
 }
 
-static uint32_t hashString(const char* key, int length) {
-  uint32_t hash = 2166136261u;
+#define INIT_HASH 2166136261u
+
+static uint32_t hashAnotherString(
+    uint32_t hash, const char* key, int length) {
   for (int i = 0; i < length; ++i) {
     hash ^= (uint8_t)key[i];
     hash *= 16777619;
@@ -104,29 +101,37 @@ static uint32_t hashString(const char* key, int length) {
   return hash;
 }
 
-ObjString* takeString(GC* gc, Table* strings, char* chars, int length) {
-  uint32_t hash = hashString(chars, length);
-  ObjString* interned = tableFindString(strings, chars, length, hash);
-  if (interned != NULL) {
-    FREE_ARRAY(gc, char, chars, length + 1);
-    return interned;
+ObjString* concatStrings(GC* gc, Table* strings, const char* a,
+    int aLen, uint32_t aHash, const char* b, int bLen) {
+  assert(aLen + bLen >= 0); // GCOV_EXCL_LINE
+
+  uint32_t hash = hashAnotherString(aHash, b, bLen);
+  Entry* entry =
+      tableJoinedStringsEntry(gc, strings, a, aLen, b, bLen, hash);
+  if (entry->key != NULL) {
+    // Concatenated string already interned.
+    return entry->key;
   }
 
-  return allocateString(gc, strings, chars, length, hash);
+  int length = aLen + bLen;
+  char* heapChars = ALLOCATE(gc, char, length + 1);
+  memcpy(heapChars, a, aLen);
+  memcpy(heapChars + aLen, b, bLen);
+  heapChars[length] = '\0';
+
+  ObjString* string = allocateString(gc);
+  string->length = length;
+  string->hash = hash;
+  string->chars = heapChars;
+
+  tableSetEntry(strings, entry, string, NIL_VAL);
+  return string;
 }
 
 ObjString* copyString(
     GC* gc, Table* strings, const char* chars, int length) {
-  uint32_t hash = hashString(chars, length);
-  ObjString* interned = tableFindString(strings, chars, length, hash);
-  if (interned != NULL) {
-    return interned;
-  }
-
-  char* heapChars = ALLOCATE(gc, char, length + 1);
-  memcpy(heapChars, chars, length);
-  heapChars[length] = '\0';
-  return allocateString(gc, strings, heapChars, length, hash);
+  uint32_t hash = hashAnotherString(INIT_HASH, chars, length);
+  return concatStrings(gc, strings, chars, length, hash, "", 0);
 }
 
 ObjUpvalue* newUpvalue(GC* gc, Value* slot) {

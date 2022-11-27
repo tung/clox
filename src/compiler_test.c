@@ -425,7 +425,7 @@ SourceToDump binaryCompare[] = {
 
 DUMP_SRC(BinaryCompare, binaryCompare, 8);
 
-SourceToDump concatStrings[] = {
+SourceToDump addStrings[] = {
   { true, "\"\" + \"\";",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 ''\n"
@@ -454,7 +454,7 @@ SourceToDump concatStrings[] = {
       "0010    | OP_RETURN\n" },
 };
 
-DUMP_SRC(ConcatStrings, concatStrings, 3);
+DUMP_SRC(AddStrings, addStrings, 3);
 
 SourceToDump logical[] = {
   { true, "true and false;",

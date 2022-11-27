@@ -126,9 +126,9 @@ UTEST_F(Table, SetGetCollisions) {
   ufx->t.maxLoad = 1.0;
   // All of these should return 0 when sent to hashString().
   const char* strs[8] = {
+    "!l`V[[",
     "  5,b`>",
     "! 6.]~C",
-    "\"!s&uL ",
     "# !dKJV",
     "  Fq*G{",
     "! lxuz/",

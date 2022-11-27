@@ -89,13 +89,11 @@ static void adjustCapacity(GC* gc, Table* table, int capacity) {
   table->capacity = capacity;
 }
 
-bool tableSet(GC* gc, Table* table, ObjString* key, Value value) {
-  if (table->count + 1 > table->capacity * table->maxLoad) {
-    int capacity = GROW_CAPACITY(table->capacity);
-    adjustCapacity(gc, table, capacity);
-  }
+bool tableSetEntry(
+    Table* table, Entry* entry, ObjString* key, Value value) {
+  assert(entry >= table->entries); // GCOV_EXCL_LINE
+  assert(entry < table->entries + table->capacity); // GCOV_EXCL_LINE
 
-  Entry* entry = findEntry(table->entries, table->capacity, key);
   bool isNewKey = entry->key == NULL;
   if (isNewKey && IS_NIL(entry->value)) {
     table->count++;
@@ -104,6 +102,15 @@ bool tableSet(GC* gc, Table* table, ObjString* key, Value value) {
   entry->key = key;
   entry->value = value;
   return isNewKey;
+}
+
+bool tableSet(GC* gc, Table* table, ObjString* key, Value value) {
+  if (table->count + 1 > table->capacity * table->maxLoad) {
+    int capacity = GROW_CAPACITY(table->capacity);
+    adjustCapacity(gc, table, capacity);
+  }
+  Entry* entry = findEntry(table->entries, table->capacity, key);
+  return tableSetEntry(table, entry, key, value);
 }
 
 bool tableDelete(Table* table, ObjString* key) {
@@ -132,31 +139,41 @@ void tableAddAll(GC* gc, Table* from, Table* to) {
   }
 }
 
-ObjString* tableFindString(
-    Table* table, const char* chars, int length, uint32_t hash) {
-  if (table->count == 0) {
-    return NULL;
+Entry* tableJoinedStringsEntry(GC* gc, Table* table, const char* a,
+    int aLen, const char* b, int bLen, uint32_t hash) {
+  if (table->count + 1 > table->capacity * table->maxLoad) {
+    int capacity = GROW_CAPACITY(table->capacity);
+    adjustCapacity(gc, table, capacity);
   }
 
+  int length = aLen + bLen;
   uint32_t index = hash & (table->capacity - 1);
+  Entry* tombstone = NULL;
+
   for (int i = 0; i < table->capacity; i++) {
     Entry* entry = &table->entries[index];
     if (entry->key == NULL) {
-      // Stop if we find an empty non-tombstone entry.
       if (IS_NIL(entry->value)) {
-        return NULL;
+        // Return an unused entry.
+        return tombstone != NULL ? tombstone : entry;
+      } else {
+        if (tombstone == NULL) {
+          tombstone = entry;
+        }
       }
-    } else if (entry->key->length == length &&
-        entry->key->hash == hash &&
-        memcmp(entry->key->chars, chars, length) == 0) {
+    } else if (entry->key->hash == hash &&
+        entry->key->length == length &&
+        !memcmp(entry->key->chars, a, aLen) &&
+        !memcmp(entry->key->chars + aLen, b, bLen)) {
       // We found it.
-      return entry->key;
+      return entry;
     }
 
     index = (index + 1) & (table->capacity - 1);
   }
 
-  return NULL;
+  assert(tombstone != NULL); // GCOV_EXCL_LINE
+  return tombstone;
 }
 
 void tableRemoveWhite(Table* table) {
