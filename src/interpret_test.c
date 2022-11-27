@@ -342,10 +342,12 @@ InterpretCase strings[] = {
   { INTERPRET_OK, "foo\n", "print \"\"+\"foo\";" },
   { INTERPRET_OK, "foo\n", "print \"foo\"+\"\";" },
   { INTERPRET_OK, "foobar\n", "print \"foo\"+\"bar\";" },
+  { INTERPRET_OK, "1234567887654321\n1234567887654321\n",
+      "print \"1234567887654321\";print \"12345678\"+\"87654321\";" },
   { INTERPRET_OK, "true\n", "print \"foobar\"==\"foo\"+\"bar\";" },
 };
 
-INTERPRET(Strings, strings, 6);
+INTERPRET(Strings, strings, 7);
 
 InterpretCase functions[] = {
   { INTERPRET_COMPILE_ERROR, "Expect function name.", "fun" },
@@ -558,13 +560,15 @@ InterpretCase classes[] = {
   { INTERPRET_RUNTIME_ERROR, "Only instances have fields.", "0.x=1;" },
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
       "class F{}var f=F();f.x;" },
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'x1234567'.",
+      "class F{}var f=F();f.x1234567;" },
   { INTERPRET_OK, "F\n", "class F{}print F;" },
   { INTERPRET_OK, "F instance\n", "class F{}print F();" },
   { INTERPRET_OK, "1\n1\n",
       "class F{}var f=F();print f.x=1;print f.x;" },
 };
 
-INTERPRET(Classes, classes, 11);
+INTERPRET(Classes, classes, 12);
 
 InterpretCase methods[] = {
   { INTERPRET_COMPILE_ERROR, "Expect method name.", "class F{0}" },
@@ -580,6 +584,8 @@ InterpretCase methods[] = {
   { INTERPRET_RUNTIME_ERROR, "Only instances have methods.", "0.x();" },
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
       "class F{}F().x();" },
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'x1234567'.",
+      "class F{}F().x1234567();" },
   { INTERPRET_OK, "<fn x>\n", "class F{x(){}}print F().x;" },
   { INTERPRET_OK, "0\n1\n",
       "class F{x(n){print n;return n+1;}}print F().x(0);" },
@@ -614,7 +620,7 @@ InterpretCase methods[] = {
       "F().blah();" },
 };
 
-INTERPRET(Methods, methods, 13);
+INTERPRET(Methods, methods, 14);
 
 InterpretCase superclasses[] = {
   { INTERPRET_COMPILE_ERROR, "Expect superclass name.", "class A<" },

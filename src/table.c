@@ -161,12 +161,16 @@ Entry* tableJoinedStringsEntry(GC* gc, Table* table, const char* a,
           tombstone = entry;
         }
       }
-    } else if (entry->key->hash == hash &&
-        entry->key->length == length &&
-        !memcmp(entry->key->chars, a, aLen) &&
-        !memcmp(entry->key->chars + aLen, b, bLen)) {
-      // We found it.
-      return entry;
+    } else {
+      ObjString* key = entry->key;
+      if (key->hash == hash && key->length == length) {
+        const char* keyChars = strChars(key);
+        if (!memcmp(keyChars, a, aLen) &&
+            !memcmp(keyChars + aLen, b, bLen)) {
+          // We found it.
+          return entry;
+        }
+      }
     }
 
     index = (index + 1) & (table->capacity - 1);

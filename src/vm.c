@@ -47,7 +47,7 @@ static void runtimeError(VM* vm, const char* format, ...) {
     if (function->name == NULL) {
       fprintf(vm->ferr, "script\n");
     } else {
-      fprintf(vm->ferr, "%s()\n", function->name->chars);
+      fprintf(vm->ferr, "%s()\n", strChars(function->name));
     }
   }
 
@@ -190,7 +190,7 @@ static bool invokeFromClass(
     VM* vm, ObjClass* klass, ObjString* name, int argCount) {
   Value method;
   if (!tableGet(&klass->methods, name, &method)) {
-    runtimeError(vm, "Undefined property '%s'.", name->chars);
+    runtimeError(vm, "Undefined property '%s'.", strChars(name));
     return false;
   }
   return call(vm, AS_CLOSURE(method), argCount);
@@ -218,7 +218,7 @@ static bool invoke(VM* vm, ObjString* name, int argCount) {
 static bool bindMethod(VM* vm, ObjClass* klass, ObjString* name) {
   Value method;
   if (!tableGet(&klass->methods, name, &method)) {
-    runtimeError(vm, "Undefined property '%s'.", name->chars);
+    runtimeError(vm, "Undefined property '%s'.", strChars(name));
     return false;
   }
 
@@ -277,8 +277,8 @@ static bool isFalsey(Value value) {
 static void concatenate(VM* vm) {
   ObjString* b = AS_STRING(peek(vm, 0));
   ObjString* a = AS_STRING(peek(vm, 1));
-  ObjString* result = concatStrings(&vm->gc, &vm->strings, a->chars,
-      a->length, a->hash, b->chars, b->length);
+  ObjString* result = concatStrings(&vm->gc, &vm->strings, strChars(a),
+      a->length, a->hash, strChars(b), b->length);
   pop(vm);
   pop(vm);
   push(vm, OBJ_VAL(result));
@@ -435,7 +435,7 @@ static InterpretResult run(VM* vm) {
         ObjString* name = READ_STRING();
         Value value;
         if (!tableGet(&vm->globals, name, &value)) {
-          runtimeError(vm, "Undefined variable '%s'.", name->chars);
+          runtimeError(vm, "Undefined variable '%s'.", strChars(name));
           return INTERPRET_RUNTIME_ERROR;
         }
         push(vm, value);
@@ -451,7 +451,7 @@ static InterpretResult run(VM* vm) {
         ObjString* name = READ_STRING();
         if (tableSet(&vm->gc, &vm->globals, name, peek(vm, 0))) {
           tableDelete(&vm->globals, name);
-          runtimeError(vm, "Undefined variable '%s'.", name->chars);
+          runtimeError(vm, "Undefined variable '%s'.", strChars(name));
           return INTERPRET_RUNTIME_ERROR;
         }
         NEXT;

@@ -260,7 +260,7 @@ static ObjFunction* endCompiler(Parser* parser) {
   // GCOV_EXCL_START
   if (debugPrintCode && !parser->hadError) {
     disassembleChunk(parser->ferr, currentChunk(parser),
-        function->name != NULL ? function->name->chars : "<script>");
+        function->name != NULL ? strChars(function->name) : "<script>");
   }
   // GCOV_EXCL_STOP
 
