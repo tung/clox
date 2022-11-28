@@ -51,8 +51,8 @@ static inline double valueToNum(Value value) {
 
 static inline Value numToValue(double num) {
   Value value;
-  memcpy(&value, &num, sizeof(double));
-  return value;
+  memcpy(&value, &num, sizeof(double)); // GCOV_EXCL_LINE
+  return value; // GCOV_EXCL_LINE
 }
 
 #else

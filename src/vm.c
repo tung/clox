@@ -16,6 +16,10 @@
 #define THREADED_CODE 1
 #endif
 
+#define PUSH(vm, value) *(vm)->stackTop++ = (value)
+#define POP(vm) (--(vm)->stackTop)
+#define POP_PUSH(vm, value) ((vm)->stackTop[-1] = (value))
+
 bool debugTraceExecution = false;
 
 static Value clockNative(int argCount, Value* args) {
@@ -55,14 +59,14 @@ static void runtimeError(VM* vm, const char* format, ...) {
 }
 
 static void defineNative(VM* vm, const char* name, NativeFn function) {
-  push(vm,
+  PUSH(vm,
       OBJ_VAL(
           copyString(&vm->gc, &vm->strings, name, (int)strlen(name))));
-  push(vm, OBJ_VAL(newNative(&vm->gc, function)));
+  PUSH(vm, OBJ_VAL(newNative(&vm->gc, function)));
   tableSet(
       &vm->gc, &vm->globals, AS_STRING(vm->stack[0]), vm->stack[1]);
-  pop(vm);
-  pop(vm);
+  POP(vm);
+  POP(vm);
 }
 
 static void vmMarkRoots(GC* gc, void* arg) {
@@ -113,19 +117,14 @@ void freeVM(VM* vm) {
 }
 
 void push(VM* vm, Value value) {
-  assert(vm->stackTop < vm->stack + STACK_MAX); // GCOV_EXCL_LINE
-  *vm->stackTop = value;
-  vm->stackTop++;
+  PUSH(vm, value);
 }
 
 Value pop(VM* vm) {
-  assert(vm->stackTop > vm->stack); // GCOV_EXCL_LINE
-  vm->stackTop--;
-  return *vm->stackTop;
+  return *POP(vm);
 }
 
 static Value peek(VM* vm, int distance) {
-  assert(distance < vm->stackTop - vm->stack); // GCOV_EXCL_LINE
   return vm->stackTop[-1 - distance];
 }
 
@@ -191,7 +190,7 @@ static bool callValue(VM* vm, Value callee, int argCount) {
         NativeFn native = AS_NATIVE(callee);
         Value result = native(argCount, vm->stackTop - argCount);
         vm->stackTop -= argCount + 1;
-        push(vm, result);
+        PUSH(vm, result);
         return true;
       }
       default: break; // Non-callable object type.
@@ -239,8 +238,7 @@ static bool bindMethod(VM* vm, ObjClass* klass, ObjString* name) {
 
   ObjBoundMethod* bound =
       newBoundMethod(&vm->gc, peek(vm, 0), AS_OBJ(method));
-  pop(vm);
-  push(vm, OBJ_VAL(bound));
+  POP_PUSH(vm, OBJ_VAL(bound));
   return true;
 }
 
@@ -282,7 +280,7 @@ static void defineMethod(VM* vm, ObjString* name) {
   Value method = peek(vm, 0);
   ObjClass* klass = AS_CLASS(peek(vm, 1));
   tableSet(&vm->gc, &klass->methods, name, method);
-  pop(vm);
+  POP(vm);
 }
 
 static bool isFalsey(Value value) {
@@ -294,9 +292,8 @@ static void concatenate(VM* vm) {
   ObjString* a = AS_STRING(peek(vm, 1));
   ObjString* result = concatStrings(&vm->gc, &vm->strings, strChars(a),
       a->length, a->hash, strChars(b), b->length);
-  pop(vm);
-  pop(vm);
-  push(vm, OBJ_VAL(result));
+  POP(vm);
+  POP_PUSH(vm, OBJ_VAL(result));
 }
 
 // GCOV_EXCL_START
@@ -331,9 +328,8 @@ static InterpretResult run(VM* vm) {
       runtimeError(vm, "Operands must be numbers."); \
       return INTERPRET_RUNTIME_ERROR; \
     } \
-    double b = AS_NUMBER(pop(vm)); \
-    double a = AS_NUMBER(pop(vm)); \
-    push(vm, valueType(a op b)); \
+    double b = AS_NUMBER(*POP(vm)); \
+    POP_PUSH(vm, valueType(AS_NUMBER(peek(vm, 0)) op b)); \
   } while (false)
 
 #if THREADED_CODE == 1
@@ -417,28 +413,28 @@ static InterpretResult run(VM* vm) {
     SWITCH(READ_BYTE()) {
       CASE(OP_CONSTANT) {
         Value constant = READ_CONSTANT();
-        push(vm, constant);
+        PUSH(vm, constant);
         NEXT;
       }
       CASE(OP_NIL) {
-        push(vm, NIL_VAL);
+        PUSH(vm, NIL_VAL);
         NEXT;
       }
       CASE(OP_TRUE) {
-        push(vm, BOOL_VAL(true));
+        PUSH(vm, BOOL_VAL(true));
         NEXT;
       }
       CASE(OP_FALSE) {
-        push(vm, BOOL_VAL(false));
+        PUSH(vm, BOOL_VAL(false));
         NEXT;
       }
       CASE(OP_POP) {
-        pop(vm);
+        POP(vm);
         NEXT;
       }
       CASE(OP_GET_LOCAL) {
         uint8_t slot = READ_BYTE();
-        push(vm, frame->slots[slot]);
+        PUSH(vm, frame->slots[slot]);
         NEXT;
       }
       CASE(OP_SET_LOCAL) {
@@ -453,13 +449,13 @@ static InterpretResult run(VM* vm) {
           runtimeError(vm, "Undefined variable '%s'.", strChars(name));
           return INTERPRET_RUNTIME_ERROR;
         }
-        push(vm, value);
+        PUSH(vm, value);
         NEXT;
       }
       CASE(OP_DEFINE_GLOBAL) {
         ObjString* name = READ_STRING();
         tableSet(&vm->gc, &vm->globals, name, peek(vm, 0));
-        pop(vm);
+        POP(vm);
         NEXT;
       }
       CASE(OP_SET_GLOBAL) {
@@ -473,7 +469,7 @@ static InterpretResult run(VM* vm) {
       }
       CASE(OP_GET_UPVALUE) {
         uint8_t slot = READ_BYTE();
-        push(vm, *frame->closure->upvalues[slot]->location);
+        PUSH(vm, *frame->closure->upvalues[slot]->location);
         NEXT;
       }
       CASE(OP_SET_UPVALUE) {
@@ -492,8 +488,7 @@ static InterpretResult run(VM* vm) {
 
         Value value;
         if (tableGet(&instance->fields, name, &value)) {
-          pop(vm); // Instance.
-          push(vm, value);
+          POP_PUSH(vm, value); // Pop instance, push value.
           NEXT;
         }
 
@@ -511,14 +506,13 @@ static InterpretResult run(VM* vm) {
         ObjInstance* instance = AS_INSTANCE(peek(vm, 1));
         tableSet(
             &vm->gc, &instance->fields, READ_STRING(), peek(vm, 0));
-        Value value = pop(vm);
-        pop(vm);
-        push(vm, value);
+        Value value = *POP(vm);
+        POP_PUSH(vm, value);
         NEXT;
       }
       CASE(OP_GET_SUPER) {
         ObjString* name = READ_STRING();
-        ObjClass* superclass = AS_CLASS(pop(vm));
+        ObjClass* superclass = AS_CLASS(*POP(vm));
 
         if (!bindMethod(vm, superclass, name)) {
           return INTERPRET_RUNTIME_ERROR;
@@ -526,9 +520,8 @@ static InterpretResult run(VM* vm) {
         NEXT;
       }
       CASE(OP_EQUAL) {
-        Value b = pop(vm);
-        Value a = pop(vm);
-        push(vm, BOOL_VAL(valuesEqual(a, b)));
+        Value b = *POP(vm);
+        POP_PUSH(vm, BOOL_VAL(valuesEqual(peek(vm, 0), b)));
         NEXT;
       }
       CASE(OP_GREATER) {
@@ -543,9 +536,8 @@ static InterpretResult run(VM* vm) {
         if (IS_STRING(peek(vm, 0)) && IS_STRING(peek(vm, 1))) {
           concatenate(vm);
         } else if (IS_NUMBER(peek(vm, 0)) && IS_NUMBER(peek(vm, 1))) {
-          double b = AS_NUMBER(pop(vm));
-          double a = AS_NUMBER(pop(vm));
-          push(vm, NUMBER_VAL(a + b));
+          double b = AS_NUMBER(*POP(vm));
+          POP_PUSH(vm, NUMBER_VAL(AS_NUMBER(peek(vm, 0)) + b));
         } else {
           runtimeError(
               vm, "Operands must be two numbers or two strings.");
@@ -566,7 +558,7 @@ static InterpretResult run(VM* vm) {
         NEXT;
       }
       CASE(OP_NOT) {
-        push(vm, BOOL_VAL(isFalsey(pop(vm))));
+        POP_PUSH(vm, BOOL_VAL(isFalsey(peek(vm, 0))));
         NEXT;
       }
       CASE(OP_NEGATE) {
@@ -574,11 +566,11 @@ static InterpretResult run(VM* vm) {
           runtimeError(vm, "Operand must be a number.");
           return INTERPRET_RUNTIME_ERROR;
         }
-        push(vm, NUMBER_VAL(-AS_NUMBER(pop(vm))));
+        POP_PUSH(vm, NUMBER_VAL(-AS_NUMBER(peek(vm, 0))));
         NEXT;
       }
       CASE(OP_PRINT) {
-        printValue(vm->fout, pop(vm));
+        printValue(vm->fout, *POP(vm));
         fprintf(vm->fout, "\n");
         NEXT;
       }
@@ -619,7 +611,7 @@ static InterpretResult run(VM* vm) {
       CASE(OP_SUPER_INVOKE) {
         ObjString* method = READ_STRING();
         int argCount = READ_BYTE();
-        ObjClass* superclass = AS_CLASS(pop(vm));
+        ObjClass* superclass = AS_CLASS(*POP(vm));
         if (!invokeFromClass(vm, superclass, method, argCount)) {
           return INTERPRET_RUNTIME_ERROR;
         }
@@ -629,7 +621,7 @@ static InterpretResult run(VM* vm) {
       CASE(OP_CLOSURE) {
         ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
         ObjClosure* closure = newClosure(&vm->gc, function);
-        push(vm, OBJ_VAL(closure));
+        PUSH(vm, OBJ_VAL(closure));
         for (int i = 0; i < closure->upvalueCount; i++) {
           uint8_t isLocal = READ_BYTE();
           uint8_t index = READ_BYTE();
@@ -644,25 +636,25 @@ static InterpretResult run(VM* vm) {
       }
       CASE(OP_CLOSE_UPVALUE) {
         closeUpvalues(vm, vm->stackTop - 1);
-        pop(vm);
+        POP(vm);
         NEXT;
       }
       CASE(OP_RETURN) {
-        Value result = pop(vm);
+        Value result = *POP(vm);
         closeUpvalues(vm, frame->slots);
         vm->frameCount--;
         if (vm->frameCount == 0) {
-          pop(vm);
+          POP(vm);
           return INTERPRET_OK;
         }
 
         vm->stackTop = frame->slots;
-        push(vm, result);
+        PUSH(vm, result);
         frame = &vm->frames[vm->frameCount - 1];
         NEXT;
       }
       CASE(OP_CLASS) {
-        push(vm, OBJ_VAL(newClass(&vm->gc, READ_STRING())));
+        PUSH(vm, OBJ_VAL(newClass(&vm->gc, READ_STRING())));
         NEXT;
       }
       CASE(OP_INHERIT) {
@@ -675,7 +667,7 @@ static InterpretResult run(VM* vm) {
         ObjClass* subclass = AS_CLASS(peek(vm, 0));
         tableAddAll(&vm->gc, &AS_CLASS(superclass)->methods,
             &subclass->methods);
-        pop(vm); // Subclass.
+        POP(vm); // Subclass.
         NEXT;
       }
       CASE(OP_METHOD) {
@@ -714,7 +706,7 @@ InterpretResult interpret(VM* vm, const char* source) {
     return INTERPRET_COMPILE_ERROR;
   }
 
-  push(vm, OBJ_VAL(function));
+  PUSH(vm, OBJ_VAL(function));
   call(vm, (Obj*)function, 0);
 
   return run(vm);
