@@ -70,8 +70,8 @@ ifeq ($(MODE),debug)
 
 # "release" mode settings.
 else ifeq ($(MODE),release)
-  CFLAGS     = -Wall -Wextra -O3
-  LDFLAGS    =
+  CFLAGS     = -Wall -Wextra -O3 -flto -march=native
+  LDFLAGS    = -flto -march=native
   LDLIBS     =
   TESTLDLIBS =
 
