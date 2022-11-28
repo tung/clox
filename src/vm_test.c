@@ -153,9 +153,8 @@ UTEST_I_TEARDOWN(VM) {
       testCase->opcodeCount, testCase->opcodes, testCase->litCount,
       testCase->lits, testCase->funCount, funs);
 
-  // Create and push "<script>" closure onto the VM stack.
-  ObjClosure* scriptClosure = newClosure(&vm.gc, scriptFun);
-  push(&vm, OBJ_VAL(scriptClosure));
+  // Push "<script>" function onto the VM stack.
+  push(&vm, OBJ_VAL(scriptFun));
 
   // Everything should be rooted to "<script>", so pop all temps.
   while (temps > 0) {
@@ -163,8 +162,8 @@ UTEST_I_TEARDOWN(VM) {
     temps--;
   }
 
-  // Run the pushed "<script>" closure.
-  InterpretResult ires = interpretCall(&vm, scriptClosure, 0);
+  // Run the pushed "<script>" function.
+  InterpretResult ires = interpretCall(&vm, (Obj*)scriptFun, 0);
   EXPECT_EQ((InterpretResult)testCase->ires, ires);
 
   // Check output/error.

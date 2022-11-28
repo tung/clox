@@ -105,6 +105,28 @@ UTEST(Value, PrintNumberValue) {
   freeMemBuf(&out);
 }
 
+UTEST(Value, PrintClosure) {
+  GC gc;
+  MemBuf out;
+  initGC(&gc);
+  initMemBuf(&out);
+
+  ObjFunction* f = newFunction(&gc);
+  pushTemp(&gc, OBJ_VAL(f));
+  ObjClosure* c = newClosure(&gc, f);
+  pushTemp(&gc, OBJ_VAL(c));
+
+  printValue(out.fptr, OBJ_VAL(c));
+  fflush(out.fptr);
+  EXPECT_STREQ("<script>", out.buf);
+
+  popTemp(&gc);
+  popTemp(&gc);
+
+  freeMemBuf(&out);
+  freeGC(&gc);
+}
+
 UTEST(Value, PrintUpvalue) {
   MemBuf out;
   initMemBuf(&out);

@@ -14,6 +14,7 @@
 
 typedef struct {
   ObjClosure* closure;
+  ObjFunction* function;
   uint8_t* ip;
   Value* slots;
 } CallFrame;
@@ -45,8 +46,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr);
 void freeVM(VM* vm);
 void push(VM* vm, Value value);
 Value pop(VM* vm);
-InterpretResult interpretCall(
-    VM* vm, ObjClosure* closure, int argCount);
+InterpretResult interpretCall(VM* vm, Obj* callable, int argCount);
 InterpretResult interpret(VM* vm, const char* source);
 
 extern bool debugTraceExecution;

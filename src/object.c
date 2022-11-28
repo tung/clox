@@ -30,8 +30,7 @@ static Obj* allocateObject(GC* gc, size_t size, ObjType type) {
   return object;
 }
 
-ObjBoundMethod* newBoundMethod(
-    GC* gc, Value receiver, ObjClosure* method) {
+ObjBoundMethod* newBoundMethod(GC* gc, Value receiver, Obj* method) {
   ObjBoundMethod* bound =
       ALLOCATE_OBJ(gc, ObjBoundMethod, OBJ_BOUND_METHOD);
   bound->receiver = receiver;
@@ -163,9 +162,17 @@ static void printFunction(FILE* fout, ObjFunction* function) {
 
 void printObject(FILE* fout, Value value) {
   switch (OBJ_TYPE(value)) {
-    case OBJ_BOUND_METHOD:
-      printFunction(fout, AS_BOUND_METHOD(value)->method->function);
+    case OBJ_BOUND_METHOD: {
+      Obj* method = AS_BOUND_METHOD(value)->method;
+      ObjFunction* methodFun;
+      if (method->type == OBJ_CLOSURE) {
+        methodFun = ((ObjClosure*)method)->function;
+      } else {
+        methodFun = (ObjFunction*)method;
+      }
+      printFunction(fout, methodFun);
       break;
+    }
     case OBJ_CLASS:
       fprintf(fout, "%s", strChars(AS_CLASS(value)->name));
       break;

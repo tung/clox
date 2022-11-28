@@ -747,8 +747,8 @@ static void function(Parser* parser, FunctionType type) {
   block(parser);
 
   ObjFunction* function = endCompiler(parser);
-  emitBytes(
-      parser, OP_CLOSURE, makeConstant(parser, OBJ_VAL(function)));
+  emitBytes(parser, function->upvalueCount ? OP_CLOSURE : OP_CONSTANT,
+      makeConstant(parser, OBJ_VAL(function)));
 
   for (int i = 0; i < function->upvalueCount; i++) {
     emitByte(parser, compiler.upvalues[i].isLocal ? 1 : 0);

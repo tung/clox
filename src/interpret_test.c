@@ -587,6 +587,7 @@ InterpretCase methods[] = {
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x1234567'.",
       "class F{}F().x1234567();" },
   { INTERPRET_OK, "<fn x>\n", "class F{x(){}}print F().x;" },
+  { INTERPRET_OK, "<fn f>\n", "{var x;class F{f(){x;}}print F().f;}" },
   { INTERPRET_OK, "0\n1\n",
       "class F{x(n){print n;return n+1;}}print F().x(0);" },
   { INTERPRET_OK, "2\n3\n",
@@ -620,7 +621,7 @@ InterpretCase methods[] = {
       "F().blah();" },
 };
 
-INTERPRET(Methods, methods, 14);
+INTERPRET(Methods, methods, 15);
 
 InterpretCase superclasses[] = {
   { INTERPRET_COMPILE_ERROR, "Expect superclass name.", "class A<" },
