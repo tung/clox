@@ -63,22 +63,22 @@ mode_dir = $(build_dir)$(MODE)/
 
 # "debug" mode settings.
 ifeq ($(MODE),debug)
-  CFLAGS     = -Wall -Wextra -O1 -g -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
-  LDFLAGS    = -g -fsanitize=address -fsanitize=undefined
+  CFLAGS     = -Wall -Wextra -Og -g -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
+  LDFLAGS    = -Og -g -fsanitize=address -fsanitize=undefined
   LDLIBS     =
   TESTLDLIBS =
 
 # "release" mode settings.
 else ifeq ($(MODE),release)
   CFLAGS     = -Wall -Wextra -O3 -flto -march=native
-  LDFLAGS    = -flto -march=native
+  LDFLAGS    = -O3 -flto -march=native
   LDLIBS     =
   TESTLDLIBS =
 
 # "coverage" mode settings.
 else ifeq ($(MODE),coverage)
-  CFLAGS     = -Wall -Wextra -O1 -g -fsanitize=address -fno-omit-frame-pointer --coverage
-  LDFLAGS    = -g -fsanitize=address --coverage
+  CFLAGS     = -Wall -Wextra -Og -g -fsanitize=address -fno-omit-frame-pointer --coverage
+  LDFLAGS    = -Og -g -fsanitize=address --coverage
   LDLIBS     =
   TESTLDLIBS =
   GCOVR      = gcovr -e "$(header_dir)utest.h" -e "$(header_dir)ubench.h"
