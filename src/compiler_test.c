@@ -250,19 +250,17 @@ SourceToDump binaryNums[] = {
   { true, "3 + 2;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '3'\n"
-      "0002    | OP_CONSTANT         1 '2'\n"
-      "0004    | OP_ADD\n"
-      "0005    | OP_POP\n"
-      "0006    | OP_NIL\n"
-      "0007    | OP_RETURN\n" },
+      "0002    | OP_ADD_C            1 '2'\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
   { true, "3 - 2;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '3'\n"
-      "0002    | OP_CONSTANT         1 '2'\n"
-      "0004    | OP_SUBTRACT\n"
-      "0005    | OP_POP\n"
-      "0006    | OP_NIL\n"
-      "0007    | OP_RETURN\n" },
+      "0002    | OP_SUBTRACT_C       1 '2'\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
   { true, "3 * 2;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '3'\n"
@@ -282,17 +280,13 @@ SourceToDump binaryNums[] = {
   { true, "4 + 3 - 2 + 1 - 0;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '4'\n"
-      "0002    | OP_CONSTANT         1 '3'\n"
-      "0004    | OP_ADD\n"
-      "0005    | OP_CONSTANT         2 '2'\n"
-      "0007    | OP_SUBTRACT\n"
-      "0008    | OP_CONSTANT         3 '1'\n"
-      "0010    | OP_ADD\n"
-      "0011    | OP_CONSTANT         4 '0'\n"
-      "0013    | OP_SUBTRACT\n"
-      "0014    | OP_POP\n"
-      "0015    | OP_NIL\n"
-      "0016    | OP_RETURN\n" },
+      "0002    | OP_ADD_C            1 '3'\n"
+      "0004    | OP_SUBTRACT_C       2 '2'\n"
+      "0006    | OP_ADD_C            3 '1'\n"
+      "0008    | OP_SUBTRACT_C       4 '0'\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_NIL\n"
+      "0012    | OP_RETURN\n" },
   { true, "4 / 3 * 2 / 1 * 0;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '4'\n"
@@ -312,11 +306,10 @@ SourceToDump binaryNums[] = {
       "0000    1 OP_CONSTANT         0 '3'\n"
       "0002    | OP_CONSTANT         1 '2'\n"
       "0004    | OP_MULTIPLY\n"
-      "0005    | OP_CONSTANT         2 '1'\n"
-      "0007    | OP_ADD\n"
-      "0008    | OP_POP\n"
-      "0009    | OP_NIL\n"
-      "0010    | OP_RETURN\n" },
+      "0005    | OP_ADD_C            2 '1'\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_NIL\n"
+      "0009    | OP_RETURN\n" },
   { true, "3 + 2 * 1;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '3'\n"
@@ -331,16 +324,15 @@ SourceToDump binaryNums[] = {
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '1'\n"
       "0002    | OP_NEGATE\n"
-      "0003    | OP_CONSTANT         1 '2'\n"
-      "0005    | OP_ADD\n"
-      "0006    | OP_CONSTANT         2 '3'\n"
-      "0008    | OP_MULTIPLY\n"
-      "0009    | OP_CONSTANT         3 '4'\n"
-      "0011    | OP_NEGATE\n"
-      "0012    | OP_SUBTRACT\n"
-      "0013    | OP_POP\n"
-      "0014    | OP_NIL\n"
-      "0015    | OP_RETURN\n" },
+      "0003    | OP_ADD_C            1 '2'\n"
+      "0005    | OP_CONSTANT         2 '3'\n"
+      "0007    | OP_MULTIPLY\n"
+      "0008    | OP_CONSTANT         3 '4'\n"
+      "0010    | OP_NEGATE\n"
+      "0011    | OP_SUBTRACT\n"
+      "0012    | OP_POP\n"
+      "0013    | OP_NIL\n"
+      "0014    | OP_RETURN\n" },
 };
 
 DUMP_SRC(BinaryNums, binaryNums, 9);
@@ -374,20 +366,18 @@ SourceToDump binaryCompare[] = {
   { true, "0 >= 1;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '0'\n"
-      "0002    | OP_CONSTANT         1 '1'\n"
-      "0004    | OP_LESS\n"
-      "0005    | OP_NOT\n"
-      "0006    | OP_POP\n"
-      "0007    | OP_NIL\n"
-      "0008    | OP_RETURN\n" },
-  { true, "0 < 1;",
-      "== <script> ==\n"
-      "0000    1 OP_CONSTANT         0 '0'\n"
-      "0002    | OP_CONSTANT         1 '1'\n"
-      "0004    | OP_LESS\n"
+      "0002    | OP_LESS_C           1 '1'\n"
+      "0004    | OP_NOT\n"
       "0005    | OP_POP\n"
       "0006    | OP_NIL\n"
       "0007    | OP_RETURN\n" },
+  { true, "0 < 1;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_LESS_C           1 '1'\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
   { true, "0 <= 1;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '0'\n"
@@ -400,58 +390,61 @@ SourceToDump binaryCompare[] = {
   { true, "0 + 1 < 2 == true;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '0'\n"
-      "0002    | OP_CONSTANT         1 '1'\n"
-      "0004    | OP_ADD\n"
-      "0005    | OP_CONSTANT         2 '2'\n"
-      "0007    | OP_LESS\n"
-      "0008    | OP_TRUE\n"
-      "0009    | OP_EQUAL\n"
-      "0010    | OP_POP\n"
-      "0011    | OP_NIL\n"
-      "0012    | OP_RETURN\n" },
+      "0002    | OP_ADD_C            1 '1'\n"
+      "0004    | OP_LESS_C           2 '2'\n"
+      "0006    | OP_TRUE\n"
+      "0007    | OP_EQUAL\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
   { true, "true == 0 < 1 + 2;",
       "== <script> ==\n"
       "0000    1 OP_TRUE\n"
       "0001    | OP_CONSTANT         0 '0'\n"
       "0003    | OP_CONSTANT         1 '1'\n"
-      "0005    | OP_CONSTANT         2 '2'\n"
-      "0007    | OP_ADD\n"
-      "0008    | OP_LESS\n"
-      "0009    | OP_EQUAL\n"
-      "0010    | OP_POP\n"
-      "0011    | OP_NIL\n"
-      "0012    | OP_RETURN\n" },
+      "0005    | OP_ADD_C            2 '2'\n"
+      "0007    | OP_LESS\n"
+      "0008    | OP_EQUAL\n"
+      "0009    | OP_POP\n"
+      "0010    | OP_NIL\n"
+      "0011    | OP_RETURN\n" },
+  { true, "0 >= 1 + 2;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '0'\n"
+      "0002    | OP_CONSTANT         1 '1'\n"
+      "0004    | OP_ADD_C            2 '2'\n"
+      "0006    | OP_LESS\n"
+      "0007    | OP_NOT\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
 };
 
-DUMP_SRC(BinaryCompare, binaryCompare, 8);
+DUMP_SRC(BinaryCompare, binaryCompare, 9);
 
 SourceToDump addStrings[] = {
   { true, "\"\" + \"\";",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 ''\n"
-      "0002    | OP_CONSTANT         1 ''\n"
-      "0004    | OP_ADD\n"
-      "0005    | OP_POP\n"
-      "0006    | OP_NIL\n"
-      "0007    | OP_RETURN\n" },
+      "0002    | OP_ADD_C            1 ''\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
   { true, "\"foo\" + \"bar\";",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 'foo'\n"
-      "0002    | OP_CONSTANT         1 'bar'\n"
-      "0004    | OP_ADD\n"
-      "0005    | OP_POP\n"
-      "0006    | OP_NIL\n"
-      "0007    | OP_RETURN\n" },
+      "0002    | OP_ADD_C            1 'bar'\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
   { true, "\"foo\" + \"bar\" + \"baz\";",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 'foo'\n"
-      "0002    | OP_CONSTANT         1 'bar'\n"
-      "0004    | OP_ADD\n"
-      "0005    | OP_CONSTANT         2 'baz'\n"
-      "0007    | OP_ADD\n"
-      "0008    | OP_POP\n"
-      "0009    | OP_NIL\n"
-      "0010    | OP_RETURN\n" },
+      "0002    | OP_ADD_C            1 'bar'\n"
+      "0004    | OP_ADD_C            2 'baz'\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_NIL\n"
+      "0008    | OP_RETURN\n" },
 };
 
 DUMP_SRC(AddStrings, addStrings, 3);
@@ -632,14 +625,13 @@ SourceToDump closures[] = {
       "0002    | OP_GET_UPVALUE      0\n"
       "0004    | OP_PRINT\n"
       "0005    | OP_GET_UPVALUE      0\n"
-      "0007    | OP_CONSTANT         0 '1'\n"
-      "0009    | OP_ADD\n"
-      "0010    | OP_SET_UPVALUE      0\n"
-      "0012    | OP_POP\n"
-      "0013    | OP_GET_LOCAL        1\n"
-      "0015    | OP_RETURN\n"
-      "0016    | OP_NIL\n"
-      "0017    | OP_RETURN\n"
+      "0007    | OP_ADD_C            0 '1'\n"
+      "0009    | OP_SET_UPVALUE      0\n"
+      "0011    | OP_POP\n"
+      "0012    | OP_GET_LOCAL        1\n"
+      "0014    | OP_RETURN\n"
+      "0015    | OP_NIL\n"
+      "0016    | OP_RETURN\n"
       "== counter ==\n"
       "0000    1 OP_CLOSURE          0 <fn incAndPrint>\n"
       "0002      |                     local 1\n"
@@ -977,22 +969,20 @@ SourceToDump for_[] = {
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '0'\n"
       "0002    | OP_GET_LOCAL        1\n"
-      "0004    | OP_CONSTANT         1 '5'\n"
-      "0006    | OP_LESS\n"
-      "0007    | OP_PJMP_IF_FALSE    7 -> 30\n"
-      "0010    | OP_JUMP            10 -> 24\n"
-      "0013    | OP_GET_LOCAL        1\n"
-      "0015    | OP_CONSTANT         2 '1'\n"
-      "0017    | OP_ADD\n"
-      "0018    | OP_SET_LOCAL        1\n"
-      "0020    | OP_POP\n"
-      "0021    | OP_LOOP            21 -> 2\n"
-      "0024    | OP_GET_LOCAL        1\n"
-      "0026    | OP_PRINT\n"
-      "0027    | OP_LOOP            27 -> 13\n"
-      "0030    | OP_POP\n"
-      "0031    | OP_NIL\n"
-      "0032    | OP_RETURN\n" },
+      "0004    | OP_LESS_C           1 '5'\n"
+      "0006    | OP_PJMP_IF_FALSE    6 -> 28\n"
+      "0009    | OP_JUMP             9 -> 22\n"
+      "0012    | OP_GET_LOCAL        1\n"
+      "0014    | OP_ADD_C            2 '1'\n"
+      "0016    | OP_SET_LOCAL        1\n"
+      "0018    | OP_POP\n"
+      "0019    | OP_LOOP            19 -> 2\n"
+      "0022    | OP_GET_LOCAL        1\n"
+      "0024    | OP_PRINT\n"
+      "0025    | OP_LOOP            25 -> 12\n"
+      "0028    | OP_POP\n"
+      "0029    | OP_NIL\n"
+      "0030    | OP_RETURN\n" },
 };
 
 DUMP_SRC(For, for_, 6);

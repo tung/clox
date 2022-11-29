@@ -414,6 +414,33 @@ VMCase opLess[] = {
 
 VM_TEST(OpLess, opLess, 6);
 
+VMCase opLessC[] = {
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_LESS_C, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, NIL) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_LESS_C, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_LESS_C, 0, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, NIL) },
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_LESS_C, 1, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(1.0), N(2.0)) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_LESS_C, 1, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(2.0), N(2.0)) },
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_LESS_C, 1, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(3.0), N(2.0)) },
+};
+
+VM_TEST(OpLessC, opLessC, 6);
+
 VMCase opAdd[] = {
   { INTERPRET_RUNTIME_ERROR,
       "Operands must be two numbers or two strings.", LIST(LitFun),
@@ -474,6 +501,62 @@ VMCase opAddConcat[] = {
 
 VM_TEST(OpAddConcat, opAddConcat, 7);
 
+VMCase opAddC[] = {
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_ADD_C, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, NIL) },
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_ADD_C, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_ADD_C, 1, OP_PRINT),
+      LIST(Lit, N(0.0), NIL) },
+  { INTERPRET_OK, "5\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_ADD_C, 1, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(3.0), N(2.0)) },
+};
+
+VM_TEST(OpAddC, opAddC, 4);
+
+VMCase opAddCConcat[] = {
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_ADD_C, 1, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S(""), NIL) },
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_ADD_C, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("")) },
+  { INTERPRET_RUNTIME_ERROR,
+      "Operands must be two numbers or two strings.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_ADD_C, 1, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(0.0), S("")) },
+  { INTERPRET_OK, "foo\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_ADD_C, 1, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("foo"), S("")) },
+  { INTERPRET_OK, "foo\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_ADD_C, 1, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S(""), S("foo")) },
+  { INTERPRET_OK, "foobar\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_ADD_C, 1, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("foo"), S("bar")) },
+  { INTERPRET_OK, "foobarfoobar\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_ADD_C, 1, OP_CONSTANT, 2,
+          OP_ADD_C, 3, OP_ADD, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("foo"), S("bar"), S("foo"), S("bar")) },
+};
+
+VM_TEST(OpAddCConcat, opAddCConcat, 7);
+
 VMCase opSubtract[] = {
   { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
       LIST(uint8_t, OP_NIL, OP_NIL, OP_SUBTRACT, OP_PRINT, OP_NIL,
@@ -493,6 +576,26 @@ VMCase opSubtract[] = {
 };
 
 VM_TEST(OpSubtract, opSubtract, 4);
+
+VMCase opSubtractC[] = {
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_SUBTRACT_C, 0, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, NIL) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_SUBTRACT_C, 0, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_SUBTRACT_C, 1, OP_PRINT),
+      LIST(Lit, N(0.0), NIL) },
+  { INTERPRET_OK, "1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_SUBTRACT_C, 1, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(3.0), N(2.0)) },
+};
+
+VM_TEST(OpSubtractC, opSubtractC, 4);
 
 VMCase opMultiply[] = {
   { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),

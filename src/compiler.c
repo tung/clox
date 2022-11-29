@@ -290,7 +290,8 @@ static void endScope(Parser* parser) {
   }
 }
 
-static void parsePrecedence(Parser* parser, Precedence precedence);
+static bool parsePrecedence(
+    Parser* parser, Precedence precedence, bool stopForSoleConst);
 static ParseRule* getRule(TokenType type);
 static void expression(Parser* parser);
 static void declaration(Parser* parser);
@@ -456,7 +457,7 @@ static void and_(Parser* parser, bool canAssign) {
   int endJump = emitJump(parser, OP_JUMP_IF_FALSE);
 
   emitByte(parser, OP_POP);
-  parsePrecedence(parser, PREC_AND);
+  parsePrecedence(parser, PREC_AND, false);
 
   patchJump(parser, endJump);
 }
@@ -466,7 +467,50 @@ static void binary(Parser* parser, bool canAssign) {
 
   TokenType operatorType = parser->previous.type;
   ParseRule* rule = getRule(operatorType);
-  parsePrecedence(parser, (Precedence)(rule->precedence + 1));
+  if (!parsePrecedence(
+          parser, (Precedence)(rule->precedence + 1), true)) {
+    TokenType prevType = parser->previous.type;
+    ParseFn prefixRule = NULL;
+    if (prevType == TOKEN_NUMBER) {
+      double value = strtod(parser->previous.start, NULL);
+      switch (operatorType) {
+        case TOKEN_GREATER_EQUAL:
+          emitBytes(parser, OP_LESS_C,
+              makeConstant(parser, NUMBER_VAL(value)));
+          emitByte(parser, OP_NOT);
+          break;
+        case TOKEN_LESS:
+          emitBytes(parser, OP_LESS_C,
+              makeConstant(parser, NUMBER_VAL(value)));
+          break;
+        case TOKEN_PLUS:
+          emitBytes(parser, OP_ADD_C,
+              makeConstant(parser, NUMBER_VAL(value)));
+          break;
+        case TOKEN_MINUS:
+          emitBytes(parser, OP_SUBTRACT_C,
+              makeConstant(parser, NUMBER_VAL(value)));
+          break;
+        default: prefixRule = getRule(prevType)->prefix;
+      }
+    } else if (prevType == TOKEN_STRING) {
+      if (operatorType == TOKEN_PLUS) {
+        ObjString* str = copyString(parser->gc, parser->strings,
+            parser->previous.start + 1, parser->previous.length - 2);
+        emitBytes(parser, OP_ADD_C, makeConstant(parser, OBJ_VAL(str)));
+      } else {
+        prefixRule = getRule(prevType)->prefix;
+      }
+    } else {
+      prefixRule = getRule(prevType)->prefix;
+    }
+
+    if (prefixRule != NULL) {
+      prefixRule(parser, false);
+    } else {
+      return;
+    }
+  }
 
   switch (operatorType) {
     case TOKEN_BANG_EQUAL: emitBytes(parser, OP_EQUAL, OP_NOT); break;
@@ -540,7 +584,7 @@ static void or_(Parser* parser, bool canAssign) {
   patchJump(parser, elseJump);
   emitByte(parser, OP_POP);
 
-  parsePrecedence(parser, PREC_OR);
+  parsePrecedence(parser, PREC_OR, false);
   patchJump(parser, endJump);
 }
 
@@ -629,7 +673,7 @@ static void unary(Parser* parser, bool canAssign) {
   TokenType operatorType = parser->previous.type;
 
   // Compile the operand.
-  parsePrecedence(parser, PREC_UNARY);
+  parsePrecedence(parser, PREC_UNARY, false);
 
   // Emit the operator instruction.
   switch (operatorType) {
@@ -684,16 +728,23 @@ ParseRule rules[] = {
 };
 // clang-format on
 
-static void parsePrecedence(Parser* parser, Precedence precedence) {
+static bool parsePrecedence(
+    Parser* parser, Precedence precedence, bool stopForSoleConst) {
   advance(parser);
   ParseFn prefixRule = getRule(parser->previous.type)->prefix;
   if (prefixRule == NULL) {
     error(parser, "Expect expression.");
-    return;
+    return false;
   }
 
+  bool soleConst = false;
   bool canAssign = precedence <= PREC_ASSIGNMENT;
-  prefixRule(parser, canAssign);
+  if (!stopForSoleConst ||
+      precedence <= getRule(parser->current.type)->precedence) {
+    prefixRule(parser, canAssign);
+  } else {
+    soleConst = true;
+  }
 
   while (precedence <= getRule(parser->current.type)->precedence) {
     advance(parser);
@@ -704,6 +755,8 @@ static void parsePrecedence(Parser* parser, Precedence precedence) {
   if (canAssign && match(parser, TOKEN_EQUAL)) {
     error(parser, "Invalid assignment target.");
   }
+
+  return !soleConst;
 }
 
 static ParseRule* getRule(TokenType type) {
@@ -711,7 +764,7 @@ static ParseRule* getRule(TokenType type) {
 }
 
 static void expression(Parser* parser) {
-  parsePrecedence(parser, PREC_ASSIGNMENT);
+  parsePrecedence(parser, PREC_ASSIGNMENT, false);
 }
 
 static void block(Parser* parser) {

@@ -218,6 +218,42 @@ UTEST_F(DisassembleChunk, OpGetSuper) {
   freeTable(&ufx->gc, &strings);
 }
 
+UTEST_F(DisassembleChunk, OpLessC) {
+  uint8_t constantIndex =
+      addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.0));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_LESS_C, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, constantIndex, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_LESS_C           0 '1'\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
+UTEST_F(DisassembleChunk, OpAddC) {
+  uint8_t constantIndex =
+      addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.0));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_ADD_C, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, constantIndex, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_ADD_C            0 '1'\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
+UTEST_F(DisassembleChunk, OpSubtractC) {
+  uint8_t constantIndex =
+      addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.0));
+  writeChunk(&ufx->gc, &ufx->chunk, OP_SUBTRACT_C, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, constantIndex, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_SUBTRACT_C       0 '1'\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
 UTEST_F(DisassembleChunk, OpJump) {
   writeChunk(&ufx->gc, &ufx->chunk, OP_JUMP, 123);
   writeChunk(&ufx->gc, &ufx->chunk, 1, 123);

@@ -289,13 +289,16 @@ static bool isFalsey(Value value) {
   return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
-static void concatenate(VM* vm) {
-  ObjString* b = AS_STRING(peek(vm, 0));
-  ObjString* a = AS_STRING(peek(vm, 1));
+static void concatenate(
+    VM* vm, Value aValue, Value bValue, bool popTwice) {
+  ObjString* b = AS_STRING(bValue);
+  ObjString* a = AS_STRING(aValue);
   ObjString* result = concatStrings(&vm->gc, &vm->strings, strChars(a),
       a->length, a->hash, strChars(b), b->length);
   pop(vm);
-  pop(vm);
+  if (popTwice) {
+    pop(vm);
+  }
   push(vm, OBJ_VAL(result));
 }
 
@@ -335,6 +338,17 @@ static InterpretResult run(VM* vm) {
     double a = AS_NUMBER(pop(vm)); \
     push(vm, valueType(a op b)); \
   } while (false)
+#define BINARY_OP_C(valueType, op) \
+  do { \
+    Value bValue = READ_CONSTANT(); \
+    if (!IS_NUMBER(bValue) || !IS_NUMBER(peek(vm, 0))) { \
+      runtimeError(vm, "Operands must be numbers."); \
+      return INTERPRET_RUNTIME_ERROR; \
+    } \
+    double b = AS_NUMBER(bValue); \
+    double a = AS_NUMBER(pop(vm)); \
+    push(vm, valueType(a op b)); \
+  } while (false)
 
 #if THREADED_CODE == 1
 
@@ -358,8 +372,11 @@ static InterpretResult run(VM* vm) {
     JUMP_ENTRY(OP_EQUAL),
     JUMP_ENTRY(OP_GREATER),
     JUMP_ENTRY(OP_LESS),
+    JUMP_ENTRY(OP_LESS_C),
     JUMP_ENTRY(OP_ADD),
+    JUMP_ENTRY(OP_ADD_C),
     JUMP_ENTRY(OP_SUBTRACT),
+    JUMP_ENTRY(OP_SUBTRACT_C),
     JUMP_ENTRY(OP_MULTIPLY),
     JUMP_ENTRY(OP_DIVIDE),
     JUMP_ENTRY(OP_NOT),
@@ -540,12 +557,37 @@ static InterpretResult run(VM* vm) {
         BINARY_OP(BOOL_VAL, <);
         NEXT;
       }
+      CASE(OP_LESS_C) {
+        BINARY_OP_C(BOOL_VAL, <);
+        NEXT;
+      }
       CASE(OP_ADD) {
-        if (IS_STRING(peek(vm, 0)) && IS_STRING(peek(vm, 1))) {
-          concatenate(vm);
-        } else if (IS_NUMBER(peek(vm, 0)) && IS_NUMBER(peek(vm, 1))) {
-          double b = AS_NUMBER(pop(vm));
-          double a = AS_NUMBER(pop(vm));
+        Value bValue = peek(vm, 0);
+        Value aValue = peek(vm, 1);
+        if (IS_STRING(bValue) && IS_STRING(aValue)) {
+          concatenate(vm, aValue, bValue, true);
+        } else if (IS_NUMBER(bValue) && IS_NUMBER(aValue)) {
+          double b = AS_NUMBER(bValue);
+          double a = AS_NUMBER(aValue);
+          pop(vm);
+          pop(vm);
+          push(vm, NUMBER_VAL(a + b));
+        } else {
+          runtimeError(
+              vm, "Operands must be two numbers or two strings.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        NEXT;
+      }
+      CASE(OP_ADD_C) {
+        Value bValue = READ_CONSTANT();
+        Value aValue = peek(vm, 0);
+        if (IS_STRING(bValue) && IS_STRING(aValue)) {
+          concatenate(vm, aValue, bValue, false);
+        } else if (IS_NUMBER(bValue) && IS_NUMBER(aValue)) {
+          double b = AS_NUMBER(bValue);
+          double a = AS_NUMBER(aValue);
+          pop(vm);
           push(vm, NUMBER_VAL(a + b));
         } else {
           runtimeError(
@@ -556,6 +598,10 @@ static InterpretResult run(VM* vm) {
       }
       CASE(OP_SUBTRACT) {
         BINARY_OP(NUMBER_VAL, -);
+        NEXT;
+      }
+      CASE(OP_SUBTRACT_C) {
+        BINARY_OP_C(NUMBER_VAL, -);
         NEXT;
       }
       CASE(OP_MULTIPLY) {
