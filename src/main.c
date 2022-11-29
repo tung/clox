@@ -6,6 +6,7 @@
 #include "common.h"
 #include "compiler.h"
 #include "debug.h"
+#include "membuf.h"
 #include "memory.h"
 #include "vm.h"
 
@@ -21,6 +22,26 @@ static void repl(void) {
       printf("\n");
       freeVM(&vm);
       break;
+    }
+
+    if (line[0] == '=') {
+      MemBuf temp;
+      initMemBuf(&temp);
+
+      char* newLine = strchr(line, '\n');
+      if (newLine) {
+        *newLine = '\0';
+      }
+
+      fputs("print ", temp.fptr);
+      fputs(line + 1, temp.fptr);
+      fputs(";", temp.fptr);
+
+      fflush(temp.fptr);
+      interpret(&vm, temp.buf);
+
+      freeMemBuf(&temp);
+      continue;
     }
 
     interpret(&vm, line);
