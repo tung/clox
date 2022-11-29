@@ -110,6 +110,9 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
     case OP_JUMP_IF_FALSE:
       return jumpInstruction(
           ferr, "OP_JUMP_IF_FALSE", 1, chunk, offset);
+    case OP_PJMP_IF_FALSE:
+      return jumpInstruction(
+          ferr, "OP_PJMP_IF_FALSE", 1, chunk, offset);
     case OP_LOOP:
       return jumpInstruction(ferr, "OP_LOOP", -1, chunk, offset);
     case OP_CALL:

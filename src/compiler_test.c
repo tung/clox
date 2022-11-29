@@ -956,14 +956,12 @@ SourceToDump for_[] = {
   { true, "for(;false;)0;",
       "== <script> ==\n"
       "0000    1 OP_FALSE\n"
-      "0001    | OP_JUMP_IF_FALSE    1 -> 11\n"
-      "0004    | OP_POP\n"
-      "0005    | OP_CONSTANT         0 '0'\n"
-      "0007    | OP_POP\n"
-      "0008    | OP_LOOP             8 -> 0\n"
-      "0011    | OP_POP\n"
-      "0012    | OP_NIL\n"
-      "0013    | OP_RETURN\n" },
+      "0001    | OP_PJMP_IF_FALSE    1 -> 10\n"
+      "0004    | OP_CONSTANT         0 '0'\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_LOOP             7 -> 0\n"
+      "0010    | OP_NIL\n"
+      "0011    | OP_RETURN\n" },
   { true, "for(;;0)1;",
       "== <script> ==\n"
       "0000    1 OP_JUMP             0 -> 9\n"
@@ -981,22 +979,20 @@ SourceToDump for_[] = {
       "0002    | OP_GET_LOCAL        1\n"
       "0004    | OP_CONSTANT         1 '5'\n"
       "0006    | OP_LESS\n"
-      "0007    | OP_JUMP_IF_FALSE    7 -> 31\n"
-      "0010    | OP_POP\n"
-      "0011    | OP_JUMP            11 -> 25\n"
-      "0014    | OP_GET_LOCAL        1\n"
-      "0016    | OP_CONSTANT         2 '1'\n"
-      "0018    | OP_ADD\n"
-      "0019    | OP_SET_LOCAL        1\n"
-      "0021    | OP_POP\n"
-      "0022    | OP_LOOP            22 -> 2\n"
-      "0025    | OP_GET_LOCAL        1\n"
-      "0027    | OP_PRINT\n"
-      "0028    | OP_LOOP            28 -> 14\n"
-      "0031    | OP_POP\n"
-      "0032    | OP_POP\n"
-      "0033    | OP_NIL\n"
-      "0034    | OP_RETURN\n" },
+      "0007    | OP_PJMP_IF_FALSE    7 -> 30\n"
+      "0010    | OP_JUMP            10 -> 24\n"
+      "0013    | OP_GET_LOCAL        1\n"
+      "0015    | OP_CONSTANT         2 '1'\n"
+      "0017    | OP_ADD\n"
+      "0018    | OP_SET_LOCAL        1\n"
+      "0020    | OP_POP\n"
+      "0021    | OP_LOOP            21 -> 2\n"
+      "0024    | OP_GET_LOCAL        1\n"
+      "0026    | OP_PRINT\n"
+      "0027    | OP_LOOP            27 -> 13\n"
+      "0030    | OP_POP\n"
+      "0031    | OP_NIL\n"
+      "0032    | OP_RETURN\n" },
 };
 
 DUMP_SRC(For, for_, 6);
@@ -1005,27 +1001,23 @@ SourceToDump if_[] = {
   { true, "if(true)0;",
       "== <script> ==\n"
       "0000    1 OP_TRUE\n"
-      "0001    | OP_JUMP_IF_FALSE    1 -> 11\n"
-      "0004    | OP_POP\n"
-      "0005    | OP_CONSTANT         0 '0'\n"
-      "0007    | OP_POP\n"
-      "0008    | OP_JUMP             8 -> 12\n"
-      "0011    | OP_POP\n"
-      "0012    | OP_NIL\n"
-      "0013    | OP_RETURN\n" },
+      "0001    | OP_PJMP_IF_FALSE    1 -> 10\n"
+      "0004    | OP_CONSTANT         0 '0'\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_JUMP             7 -> 10\n"
+      "0010    | OP_NIL\n"
+      "0011    | OP_RETURN\n" },
   { true, "if(false)0;else 1;",
       "== <script> ==\n"
       "0000    1 OP_FALSE\n"
-      "0001    | OP_JUMP_IF_FALSE    1 -> 11\n"
-      "0004    | OP_POP\n"
-      "0005    | OP_CONSTANT         0 '0'\n"
-      "0007    | OP_POP\n"
-      "0008    | OP_JUMP             8 -> 15\n"
-      "0011    | OP_POP\n"
-      "0012    | OP_CONSTANT         1 '1'\n"
-      "0014    | OP_POP\n"
-      "0015    | OP_NIL\n"
-      "0016    | OP_RETURN\n" },
+      "0001    | OP_PJMP_IF_FALSE    1 -> 10\n"
+      "0004    | OP_CONSTANT         0 '0'\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_JUMP             7 -> 13\n"
+      "0010    | OP_CONSTANT         1 '1'\n"
+      "0012    | OP_POP\n"
+      "0013    | OP_NIL\n"
+      "0014    | OP_RETURN\n" },
 };
 
 DUMP_SRC(If, if_, 2);
@@ -1034,14 +1026,12 @@ SourceToDump while_[] = {
   { true, "while(false)0;",
       "== <script> ==\n"
       "0000    1 OP_FALSE\n"
-      "0001    | OP_JUMP_IF_FALSE    1 -> 11\n"
-      "0004    | OP_POP\n"
-      "0005    | OP_CONSTANT         0 '0'\n"
-      "0007    | OP_POP\n"
-      "0008    | OP_LOOP             8 -> 0\n"
-      "0011    | OP_POP\n"
-      "0012    | OP_NIL\n"
-      "0013    | OP_RETURN\n" },
+      "0001    | OP_PJMP_IF_FALSE    1 -> 10\n"
+      "0004    | OP_CONSTANT         0 '0'\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_LOOP             7 -> 0\n"
+      "0010    | OP_NIL\n"
+      "0011    | OP_RETURN\n" },
 };
 
 DUMP_SRC(While, while_, 1);

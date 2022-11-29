@@ -367,6 +367,7 @@ static InterpretResult run(VM* vm) {
     JUMP_ENTRY(OP_PRINT),
     JUMP_ENTRY(OP_JUMP),
     JUMP_ENTRY(OP_JUMP_IF_FALSE),
+    JUMP_ENTRY(OP_PJMP_IF_FALSE),
     JUMP_ENTRY(OP_LOOP),
     JUMP_ENTRY(OP_CALL),
     JUMP_ENTRY(OP_INVOKE),
@@ -592,6 +593,14 @@ static InterpretResult run(VM* vm) {
         if (isFalsey(peek(vm, 0))) {
           frame->ip += offset;
         }
+        NEXT;
+      }
+      CASE(OP_PJMP_IF_FALSE) {
+        uint16_t offset = READ_SHORT();
+        if (isFalsey(peek(vm, 0))) {
+          frame->ip += offset;
+        }
+        pop(vm);
         NEXT;
       }
       CASE(OP_LOOP) {

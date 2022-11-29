@@ -240,6 +240,17 @@ UTEST_F(DisassembleChunk, OpJumpIfFalse) {
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 
+UTEST_F(DisassembleChunk, OpPjmpIfFalse) {
+  writeChunk(&ufx->gc, &ufx->chunk, OP_PJMP_IF_FALSE, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_PJMP_IF_FALSE    0 -> 260\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
+}
+
 UTEST_F(DisassembleChunk, OpLoop) {
   writeChunk(&ufx->gc, &ufx->chunk, OP_NIL, 123);
   writeChunk(&ufx->gc, &ufx->chunk, OP_LOOP, 123);

@@ -862,8 +862,7 @@ static void forStatement(Parser* parser) {
         parser, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
 
     // Jump out of the loop if the condition is false.
-    exitJump = emitJump(parser, OP_JUMP_IF_FALSE);
-    emitByte(parser, OP_POP); // Condition.
+    exitJump = emitJump(parser, OP_PJMP_IF_FALSE);
   }
 
   if (!match(parser, TOKEN_RIGHT_PAREN)) {
@@ -883,7 +882,6 @@ static void forStatement(Parser* parser) {
 
   if (exitJump != -1) {
     patchJump(parser, exitJump);
-    emitByte(parser, OP_POP); // Condition.
   }
 
   endScope(parser);
@@ -894,14 +892,12 @@ static void ifStatement(Parser* parser) {
   expression(parser);
   consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
-  int thenJump = emitJump(parser, OP_JUMP_IF_FALSE);
-  emitByte(parser, OP_POP);
+  int thenJump = emitJump(parser, OP_PJMP_IF_FALSE);
   statement(parser);
 
   int elseJump = emitJump(parser, OP_JUMP);
 
   patchJump(parser, thenJump);
-  emitByte(parser, OP_POP);
 
   if (match(parser, TOKEN_ELSE)) {
     statement(parser);
@@ -939,13 +935,11 @@ static void whileStatement(Parser* parser) {
   expression(parser);
   consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
-  int exitJump = emitJump(parser, OP_JUMP_IF_FALSE);
-  emitByte(parser, OP_POP);
+  int exitJump = emitJump(parser, OP_PJMP_IF_FALSE);
   statement(parser);
   emitLoop(parser, loopStart);
 
   patchJump(parser, exitJump);
-  emitByte(parser, OP_POP);
 }
 
 static void synchronize(Parser* parser) {
