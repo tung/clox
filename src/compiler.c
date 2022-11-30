@@ -948,14 +948,14 @@ static void ifStatement(Parser* parser) {
   int thenJump = emitJump(parser, OP_PJMP_IF_FALSE);
   statement(parser);
 
-  int elseJump = emitJump(parser, OP_JUMP);
-
-  patchJump(parser, thenJump);
-
   if (match(parser, TOKEN_ELSE)) {
+    int elseJump = emitJump(parser, OP_JUMP);
+    patchJump(parser, thenJump);
     statement(parser);
+    patchJump(parser, elseJump);
+  } else {
+    patchJump(parser, thenJump);
   }
-  patchJump(parser, elseJump);
 }
 
 static void printStatement(Parser* parser) {

@@ -991,12 +991,11 @@ SourceToDump if_[] = {
   { true, "if(true)0;",
       "== <script> ==\n"
       "0000    1 OP_TRUE\n"
-      "0001    | OP_PJMP_IF_FALSE    1 -> 10\n"
+      "0001    | OP_PJMP_IF_FALSE    1 -> 7\n"
       "0004    | OP_CONSTANT         0 '0'\n"
       "0006    | OP_POP\n"
-      "0007    | OP_JUMP             7 -> 10\n"
-      "0010    | OP_NIL\n"
-      "0011    | OP_RETURN\n" },
+      "0007    | OP_NIL\n"
+      "0008    | OP_RETURN\n" },
   { true, "if(false)0;else 1;",
       "== <script> ==\n"
       "0000    1 OP_FALSE\n"
