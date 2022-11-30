@@ -14,37 +14,49 @@ static void repl(void) {
   VM vm;
   initVM(&vm, stdout, stderr);
 
-  char line[1024];
-  for (;;) {
-    printf("> ");
+  const char prefix[] = "print";
+  const size_t inputStart = sizeof(prefix) - 1;
 
+  MemBuf src;
+  initMemBuf(&src);
+  fputs(prefix, src.fptr);
+  fflush(src.fptr);
+
+  for (;;) {
+    if (!src.buf || !src.buf[inputStart]) {
+      fputs("> ", stdout);
+    }
+
+    char line[1024];
     if (!fgets(line, sizeof(line), stdin)) {
-      printf("\n");
+      putchar('\n');
       freeVM(&vm);
+      freeMemBuf(&src);
       break;
     }
 
-    if (line[0] == '=') {
-      MemBuf temp;
-      initMemBuf(&temp);
+    size_t len = strlen(line);
+    if (len >= 2 && line[len - 2] == '\\' && line[len - 1] == '\n') {
+      fprintf(src.fptr, "%.*s\n", (int)len - 2, line);
+      fflush(src.fptr);
+    } else {
+      fputs(line, src.fptr);
+      fflush(src.fptr);
 
-      char* newLine = strchr(line, '\n');
-      if (newLine) {
-        *newLine = '\0';
+      if (src.buf[inputStart] == '=') {
+        src.buf[inputStart] = ' ';
+        fputc(';', src.fptr);
+        fflush(src.fptr);
+        interpret(&vm, src.buf);
+      } else {
+        interpret(&vm, src.buf + inputStart);
       }
 
-      fputs("print ", temp.fptr);
-      fputs(line + 1, temp.fptr);
-      fputs(";", temp.fptr);
-
-      fflush(temp.fptr);
-      interpret(&vm, temp.buf);
-
-      freeMemBuf(&temp);
-      continue;
+      freeMemBuf(&src);
+      initMemBuf(&src);
+      fputs(prefix, src.fptr);
+      fflush(src.fptr);
     }
-
-    interpret(&vm, line);
   }
 }
 
