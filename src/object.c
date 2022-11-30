@@ -81,11 +81,12 @@ ObjNative* newNative(GC* gc, NativeFn function) {
   return native;
 }
 
-static ObjString* allocateString(GC* gc) {
-  ObjString* string = ALLOCATE_OBJ(gc, ObjString, OBJ_STRING);
-  string->length = 0;
-  string->hash = 0u;
-  string->chars.ptr = NULL;
+static ObjString* allocateString(GC* gc, int length, uint32_t hash) {
+  ObjString* string = (ObjString*)allocateObject(
+      gc, sizeof(ObjString) + length + 1, OBJ_STRING);
+  string->length = length;
+  string->hash = hash;
+  string->chars[0] = '\0';
   return string;
 }
 
@@ -113,26 +114,10 @@ ObjString* concatStrings(GC* gc, Table* strings, const char* a,
   }
 
   int length = aLen + bLen;
-  char* heapChars = NULL;
-  if (length >= SMALL_STRING_SPACE) {
-    heapChars = ALLOCATE(gc, char, length + 1);
-    memcpy(heapChars, a, aLen);
-    memcpy(heapChars + aLen, b, bLen);
-    heapChars[length] = '\0';
-  }
-
-  ObjString* string = allocateString(gc);
-  string->length = length;
-  string->hash = hash;
-
-  if (heapChars) {
-    string->chars.ptr = heapChars;
-  } else {
-    char* chars = string->chars.small;
-    memcpy(chars, a, aLen);
-    memcpy(chars + aLen, b, bLen);
-    chars[length] = '\0';
-  }
+  ObjString* string = allocateString(gc, length, hash);
+  memcpy(string->chars, a, aLen);
+  memcpy(string->chars + aLen, b, bLen);
+  string->chars[length] = '\0';
 
   tableSetEntry(strings, entry, string, NIL_VAL);
   return string;
@@ -157,7 +142,7 @@ static void printFunction(FILE* fout, ObjFunction* function) {
     fprintf(fout, "<script>");
     return;
   }
-  fprintf(fout, "<fn %s>", strChars(function->name));
+  fprintf(fout, "<fn %s>", function->name->chars);
 }
 
 void printObject(FILE* fout, Value value) {
@@ -174,15 +159,15 @@ void printObject(FILE* fout, Value value) {
       break;
     }
     case OBJ_CLASS:
-      fprintf(fout, "%s", strChars(AS_CLASS(value)->name));
+      fprintf(fout, "%s", AS_CLASS(value)->name->chars);
       break;
     case OBJ_CLOSURE:
       printFunction(fout, AS_CLOSURE(value)->function);
       break;
     case OBJ_FUNCTION: printFunction(fout, AS_FUNCTION(value)); break;
     case OBJ_INSTANCE:
-      fprintf(fout, "%s instance",
-          strChars(AS_INSTANCE(value)->klass->name));
+      fprintf(
+          fout, "%s instance", AS_INSTANCE(value)->klass->name->chars);
       break;
     case OBJ_NATIVE: fprintf(fout, "<native fn>"); break;
     case OBJ_STRING: fprintf(fout, "%s", AS_CSTRING(value)); break;

@@ -166,10 +166,7 @@ static void freeObject(GC* gc, Obj* object) {
     case OBJ_NATIVE: FREE(gc, ObjNative, object); break;
     case OBJ_STRING: {
       ObjString* string = (ObjString*)object;
-      if (string->length >= SMALL_STRING_SPACE) {
-        FREE_ARRAY(gc, char, string->chars.ptr, string->length + 1);
-      }
-      FREE(gc, ObjString, object);
+      reallocate(gc, object, sizeof(ObjString) + string->length + 1, 0);
       break;
     }
     case OBJ_UPVALUE: FREE(gc, ObjUpvalue, object); break;

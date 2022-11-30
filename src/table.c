@@ -164,7 +164,7 @@ Entry* tableJoinedStringsEntry(GC* gc, Table* table, const char* a,
     } else {
       ObjString* key = entry->key;
       if (key->hash == hash && key->length == length) {
-        const char* keyChars = strChars(key);
+        const char* keyChars = key->chars;
         if (!memcmp(keyChars, a, aLen) &&
             !memcmp(keyChars + aLen, b, bLen)) {
           // We found it.

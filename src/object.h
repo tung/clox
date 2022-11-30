@@ -28,7 +28,7 @@
 #define AS_INSTANCE(value)     ((ObjInstance*)AS_OBJ(value))
 #define AS_NATIVE(value)       (((ObjNative*)AS_OBJ(value))->function)
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
-#define AS_CSTRING(value)      strChars((ObjString*)AS_OBJ(value))
+#define AS_CSTRING(value)      (((ObjString*)AS_OBJ(value))->chars)
 // clang-format on
 
 typedef enum {
@@ -67,13 +67,8 @@ struct ObjString {
   Obj obj;
   int length;
   uint32_t hash;
-  union {
-    char small[sizeof(char*)];
-    char* ptr;
-  } chars;
+  char chars[];
 };
-
-#define SMALL_STRING_SPACE ((int)sizeof((ObjString){}.chars.small))
 
 typedef struct ObjUpvalue {
   Obj obj;
@@ -122,11 +117,6 @@ void printObject(FILE* fout, Value value);
 
 static inline bool isObjType(Value value, ObjType type) {
   return IS_OBJ(value) && AS_OBJ(value)->type == type;
-}
-
-static inline char* strChars(ObjString* str) {
-  return str->length < SMALL_STRING_SPACE ? str->chars.small
-                                          : str->chars.ptr;
 }
 
 #endif
