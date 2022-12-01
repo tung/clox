@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "linenoise.h"
+
 #include "chunk.h"
 #include "common.h"
 #include "compiler.h"
@@ -22,25 +24,25 @@ static void repl(void) {
   fputs(prefix, src.fptr);
   fflush(src.fptr);
 
-  for (;;) {
-    if (!src.buf || !src.buf[inputStart]) {
-      fputs("> ", stdout);
-    }
+  linenoiseSetMultiLine(1);
+  linenoiseHistorySetMaxLen(100);
 
-    char line[1024];
-    if (!fgets(line, sizeof(line), stdin)) {
-      putchar('\n');
+  for (;;) {
+    const char* prompt = src.buf && src.buf[inputStart] ? "" : "> ";
+    char* line;
+    if ((line = linenoise(prompt)) == NULL) {
       freeVM(&vm);
       freeMemBuf(&src);
       break;
     }
 
     size_t len = strlen(line);
-    if (len >= 2 && line[len - 2] == '\\' && line[len - 1] == '\n') {
-      fprintf(src.fptr, "%.*s\n", (int)len - 2, line);
+    if (len >= 1 && line[len - 1] == '\\') {
+      fprintf(src.fptr, "%.*s\n", (int)len - 1, line);
       fflush(src.fptr);
     } else {
       fputs(line, src.fptr);
+      fputc('\n', src.fptr);
       fflush(src.fptr);
 
       if (src.buf[inputStart] == '=') {
@@ -57,6 +59,9 @@ static void repl(void) {
       fputs(prefix, src.fptr);
       fflush(src.fptr);
     }
+
+    linenoiseHistoryAdd(line);
+    linenoiseFree(line);
   }
 }
 

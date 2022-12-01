@@ -81,7 +81,7 @@ else ifeq ($(MODE),coverage)
   LDFLAGS    = -Og -g -fsanitize=address --coverage
   LDLIBS     =
   TESTLDLIBS =
-  GCOVR      = gcovr -e "$(header_dir)utest.h" -e "$(header_dir)ubench.h"
+  GCOVR      = gcovr -e "$(header_dir)utest.h" -e "$(header_dir)ubench.h" -e "$(header_dir)linenoise.h" -e "$(src_dir)linenoise.c"
   report_dir = $(mode_dir)gcovr/
   report_loc = $(report_dir)report.html
 
@@ -111,8 +111,8 @@ benches    = $(sort $(bench_srcs:$(src_dir)%.c=$(mode_dir)%))
 c_srcs = $(wildcard $(src_dir)*.c)
 
 # Source files to apply automatic formatting to.
-no_format_srcs = $(header_dir)utest.h $(header_dir)ubench.h
-format_srcs    = $(sort $(c_srcs) $(filter-out $(no_format_srcs),$(wildcard $(header_dir)*.h)))
+no_format_srcs = $(header_dir)utest.h $(header_dir)ubench.h $(header_dir)linenoise.h $(src_dir)linenoise.c
+format_srcs    = $(filter-out $(no_format_srcs),$(sort $(c_srcs) $(wildcard $(header_dir)*.h)))
 
 # Output sub-directories for the current mode's build directory.
 objs_dir = $(mode_dir)objs/
