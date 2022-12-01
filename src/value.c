@@ -24,6 +24,15 @@ void writeValueArray(GC* gc, ValueArray* array, Value value) {
   array->count++;
 }
 
+int findInValueArray(ValueArray* array, Value value) {
+  for (int i = 0; i < array->count; ++i) {
+    if (valuesEqual(value, array->values[i])) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 void freeValueArray(GC* gc, ValueArray* array) {
   FREE_ARRAY(gc, Value, array->values, array->capacity);
   initValueArray(array);

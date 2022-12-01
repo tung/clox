@@ -41,3 +41,7 @@ int addConstant(GC* gc, Chunk* chunk, Value value) {
   popTemp(gc);
   return chunk->constants.count - 1;
 }
+
+int findConstant(Chunk* chunk, Value value) {
+  return findInValueArray(&chunk->constants, value);
+}

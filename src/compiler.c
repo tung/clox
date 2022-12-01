@@ -196,7 +196,10 @@ static void emitReturn(Parser* parser) {
 }
 
 static uint8_t makeConstant(Parser* parser, Value value) {
-  int constant = addConstant(parser->gc, currentChunk(parser), value);
+  int constant = findConstant(currentChunk(parser), value);
+  if (constant == -1) {
+    constant = addConstant(parser->gc, currentChunk(parser), value);
+  }
   // GCOV_EXCL_START
   if (constant > UINT8_MAX) {
     error(parser, "Too many constants in one chunk.");
