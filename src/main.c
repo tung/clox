@@ -61,10 +61,16 @@ static void repl(void) {
 }
 
 static void readFile(MemBuf* mbuf, const char* path) {
-  FILE* file = fopen(path, "rb");
-  if (file == NULL) {
-    fprintf(stderr, "Could not open file \"%s\".\n", path);
-    exit(74);
+  FILE* file;
+  if (!strncmp("-", path, sizeof("-"))) {
+    file = stdin;
+  } else {
+    file = fopen(path, "rb");
+    if (file == NULL) {
+      fprintf(stderr, "Could not open file '%s'.\n", path);
+      perror("fopen");
+      exit(74);
+    }
   }
 
   char tmp[1024];
@@ -75,7 +81,8 @@ static void readFile(MemBuf* mbuf, const char* path) {
   fflush(mbuf->fptr);
 
   if (ferror(file)) {
-    perror("readFile");
+    fprintf(stderr, "Error reading file '%s'.\n", path);
+    perror("fread");
     fclose(file);
     exit(74);
   }
