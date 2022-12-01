@@ -830,11 +830,13 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
          * there was an error reading from fd. Otherwise it will return the
          * character that should be handled next. */
         if (c == 9 && completionCallback != NULL) {
-            c = completeLine(&l);
+            int ic;
+            ic = completeLine(&l);
             /* Return on errors */
-            if (c < 0) return l.len;
+            if (ic < 0) return l.len;
             /* Read next character when 0 */
-            if (c == 0) continue;
+            if (ic == 0) continue;
+            c = ic;
         }
 
         switch(c) {
@@ -857,6 +859,13 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         case BACKSPACE:   /* backspace */
         case 8:     /* ctrl-h */
             linenoiseEditBackspace(&l);
+            break;
+        case 9:     /* tab */
+            if (completionCallback == NULL) {
+                if (linenoiseEditInsert(&l,' ')) return -1;
+                if ((l.pos & 1) && linenoiseEditInsert(&l,' '))
+                    return -1;
+            }
             break;
         case CTRL_D:     /* ctrl-d, remove char at right of cursor, or if the
                             line is empty, act as end-of-file. */
