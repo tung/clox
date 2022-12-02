@@ -458,9 +458,12 @@ InterpretCase globalVars[] = {
   { INTERPRET_OK, "1\n", "var x=1;print x;" },
   { INTERPRET_OK, "2\n", "var x=1;print x+x;" },
   { INTERPRET_OK, "3\n", "var x=1+2;print x;" },
+  { INTERPRET_OK, "1\nhi\n", "var x=1;print x;var x=\"hi\";print x;" },
+  { INTERPRET_OK, "1\nhi\n",
+      "fun f(){print x;}var x=1;f();x=\"hi\";f();" },
 };
 
-INTERPRET(GlobalVars, globalVars, 9);
+INTERPRET(GlobalVars, globalVars, 11);
 
 InterpretCase localVars[] = {
   { INTERPRET_COMPILE_ERROR,

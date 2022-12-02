@@ -44,6 +44,14 @@ static int byteInstruction(
   return offset + 2;
 }
 
+static int shortInstruction(
+    FILE* ferr, const char* name, Chunk* chunk, int offset) {
+  uint16_t slot = (uint16_t)(chunk->code[offset + 1] << 8);
+  slot |= chunk->code[offset + 2];
+  fprintf(ferr, "%-16s %4d\n", name, slot);
+  return offset + 3;
+}
+
 static int jumpInstruction(
     FILE* ferr, const char* name, int sign, Chunk* chunk, int offset) {
   uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
@@ -74,12 +82,18 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
     case OP_SET_LOCAL:
       return byteInstruction(ferr, "OP_SET_LOCAL", chunk, offset);
     case OP_GET_GLOBAL:
-      return constantInstruction(ferr, "OP_GET_GLOBAL", chunk, offset);
+      return constantInstruction(ferr, "OP_GET_GLOBAL", chunk, offset) +
+          1;
+    case OP_GET_GLOBAL_I:
+      return shortInstruction(ferr, "OP_GET_GLOBAL_I", chunk, offset);
     case OP_DEFINE_GLOBAL:
       return constantInstruction(
           ferr, "OP_DEFINE_GLOBAL", chunk, offset);
     case OP_SET_GLOBAL:
-      return constantInstruction(ferr, "OP_SET_GLOBAL", chunk, offset);
+      return constantInstruction(ferr, "OP_SET_GLOBAL", chunk, offset) +
+          1;
+    case OP_SET_GLOBAL_I:
+      return shortInstruction(ferr, "OP_SET_GLOBAL_I", chunk, offset);
     case OP_GET_UPVALUE:
       return byteInstruction(ferr, "OP_GET_UPVALUE", chunk, offset);
     case OP_SET_UPVALUE:

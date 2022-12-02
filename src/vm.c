@@ -59,8 +59,11 @@ static void defineNative(VM* vm, const char* name, NativeFn function) {
       OBJ_VAL(
           copyString(&vm->gc, &vm->strings, name, (int)strlen(name))));
   push(vm, OBJ_VAL(newNative(&vm->gc, function)));
+  int slot = vm->globalSlots.count;
+  assert(slot < UINT16_MAX); // GCOV_EXCL_LINE
+  writeValueArray(&vm->gc, &vm->globalSlots, vm->stack[1]);
   tableSet(
-      &vm->gc, &vm->globals, AS_STRING(vm->stack[0]), vm->stack[1]);
+      &vm->gc, &vm->globals, AS_STRING(vm->stack[0]), AS_NUMBER(slot));
   pop(vm);
   pop(vm);
 }
@@ -83,6 +86,10 @@ static void vmMarkRoots(GC* gc, void* arg) {
   }
 
   markTable(gc, &vm->globals);
+  for (int i = 0; i < vm->globalSlots.count; i++) {
+    markValue(gc, vm->globalSlots.values[i]);
+  }
+
   markObject(gc, (Obj*)vm->initString);
 }
 
@@ -97,6 +104,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   vm->gc.fixWeakArg = &vm->strings;
 
   initTable(&vm->globals, 0.75);
+  initValueArray(&vm->globalSlots);
   initTable(&vm->strings, 0.75);
 
   vm->initString = NULL;
@@ -107,6 +115,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
 
 void freeVM(VM* vm) {
   freeTable(&vm->gc, &vm->globals);
+  freeValueArray(&vm->gc, &vm->globalSlots);
   freeTable(&vm->gc, &vm->strings);
   vm->initString = NULL;
   freeGC(&vm->gc);
@@ -362,8 +371,10 @@ static InterpretResult run(VM* vm) {
     JUMP_ENTRY(OP_GET_LOCAL),
     JUMP_ENTRY(OP_SET_LOCAL),
     JUMP_ENTRY(OP_GET_GLOBAL),
+    JUMP_ENTRY(OP_GET_GLOBAL_I),
     JUMP_ENTRY(OP_DEFINE_GLOBAL),
     JUMP_ENTRY(OP_SET_GLOBAL),
+    JUMP_ENTRY(OP_SET_GLOBAL_I),
     JUMP_ENTRY(OP_GET_UPVALUE),
     JUMP_ENTRY(OP_SET_UPVALUE),
     JUMP_ENTRY(OP_GET_PROPERTY),
@@ -466,27 +477,59 @@ static InterpretResult run(VM* vm) {
       }
       CASE(OP_GET_GLOBAL) {
         ObjString* name = READ_STRING();
-        Value value;
-        if (!tableGet(&vm->globals, name, &value)) {
+        Value slot;
+        if (!tableGet(&vm->globals, name, &slot)) {
           runtimeError(vm, "Undefined variable '%s'.", name->chars);
           return INTERPRET_RUNTIME_ERROR;
         }
-        push(vm, value);
+        uint16_t slotInt = (uint16_t)AS_NUMBER(slot);
+        frame->ip[-2] = OP_GET_GLOBAL_I;
+        frame->ip[-1] = (uint8_t)(slotInt >> 8);
+        frame->ip[0] = (uint8_t)(slotInt & 0xff);
+        frame->ip -= 2;
+        NEXT;
+      }
+      CASE(OP_GET_GLOBAL_I) {
+        push(vm, vm->globalSlots.values[READ_SHORT()]);
         NEXT;
       }
       CASE(OP_DEFINE_GLOBAL) {
         ObjString* name = READ_STRING();
-        tableSet(&vm->gc, &vm->globals, name, peek(vm, 0));
-        pop(vm);
+        Value slot;
+        if (!tableGet(&vm->globals, name, &slot)) {
+          int newSlot = vm->globalSlots.count;
+          // GCOV_EXCL_START
+          if (newSlot > UINT16_MAX) {
+            runtimeError(
+                vm, "Can't have more than %u globals.", UINT16_MAX + 1);
+            return INTERPRET_RUNTIME_ERROR;
+          }
+          // GCOV_EXCL_STOP
+          writeValueArray(&vm->gc, &vm->globalSlots, peek(vm, 0));
+          pop(vm);
+          slot = NUMBER_VAL((double)newSlot);
+          tableSet(&vm->gc, &vm->globals, name, slot);
+        } else {
+          vm->globalSlots.values[(int)AS_NUMBER(slot)] = peek(vm, 0);
+        }
         NEXT;
       }
       CASE(OP_SET_GLOBAL) {
         ObjString* name = READ_STRING();
-        if (tableSet(&vm->gc, &vm->globals, name, peek(vm, 0))) {
-          tableDelete(&vm->globals, name);
+        Value slot;
+        if (!tableGet(&vm->globals, name, &slot)) {
           runtimeError(vm, "Undefined variable '%s'.", name->chars);
           return INTERPRET_RUNTIME_ERROR;
         }
+        uint16_t slotInt = (uint16_t)AS_NUMBER(slot);
+        frame->ip[-2] = OP_SET_GLOBAL_I;
+        frame->ip[-1] = (uint8_t)(slotInt >> 8);
+        frame->ip[0] = (uint8_t)(slotInt & 0xff);
+        frame->ip -= 2;
+        NEXT;
+      }
+      CASE(OP_SET_GLOBAL_I) {
+        vm->globalSlots.values[READ_SHORT()] = peek(vm, 0);
         NEXT;
       }
       CASE(OP_GET_UPVALUE) {

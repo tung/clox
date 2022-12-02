@@ -77,6 +77,7 @@ UTEST_F(DisassembleChunk, OpGetGlobal) {
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_GET_GLOBAL, 123);
   writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -86,6 +87,17 @@ UTEST_F(DisassembleChunk, OpGetGlobal) {
   EXPECT_STREQ(msg, ufx->err.buf);
 
   freeTable(&ufx->gc, &strings);
+}
+
+UTEST_F(DisassembleChunk, OpGetGlobalI) {
+  writeChunk(&ufx->gc, &ufx->chunk, OP_GET_GLOBAL_I, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 2, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_GET_GLOBAL_I   258\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
 }
 
 UTEST_F(DisassembleChunk, OpDefineGlobal) {
@@ -121,6 +133,7 @@ UTEST_F(DisassembleChunk, OpSetGlobal) {
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_SET_GLOBAL, 123);
   writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -130,6 +143,17 @@ UTEST_F(DisassembleChunk, OpSetGlobal) {
   EXPECT_STREQ(msg, ufx->err.buf);
 
   freeTable(&ufx->gc, &strings);
+}
+
+UTEST_F(DisassembleChunk, OpSetGlobalI) {
+  writeChunk(&ufx->gc, &ufx->chunk, OP_SET_GLOBAL_I, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 2, 123);
+  disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
+
+  fflush(ufx->err.fptr);
+  const char msg[] = "0000  123 OP_SET_GLOBAL_I   258\n";
+  EXPECT_STREQ(msg, ufx->err.buf);
 }
 
 UTEST_F(DisassembleChunk, OpGetUpvalue) {
@@ -257,33 +281,33 @@ UTEST_F(DisassembleChunk, OpSubtractC) {
 UTEST_F(DisassembleChunk, OpJump) {
   writeChunk(&ufx->gc, &ufx->chunk, OP_JUMP, 123);
   writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 2, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
-  const char msg[] = "0000  123 OP_JUMP             0 -> 260\n";
+  const char msg[] = "0000  123 OP_JUMP             0 -> 261\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 
 UTEST_F(DisassembleChunk, OpJumpIfFalse) {
   writeChunk(&ufx->gc, &ufx->chunk, OP_JUMP_IF_FALSE, 123);
   writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 2, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
-  const char msg[] = "0000  123 OP_JUMP_IF_FALSE    0 -> 260\n";
+  const char msg[] = "0000  123 OP_JUMP_IF_FALSE    0 -> 261\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 
 UTEST_F(DisassembleChunk, OpPjmpIfFalse) {
   writeChunk(&ufx->gc, &ufx->chunk, OP_PJMP_IF_FALSE, 123);
   writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, 2, 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
-  const char msg[] = "0000  123 OP_PJMP_IF_FALSE    0 -> 260\n";
+  const char msg[] = "0000  123 OP_PJMP_IF_FALSE    0 -> 261\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 

@@ -601,6 +601,7 @@ static void string(Parser* parser, bool canAssign) {
 
 static void namedVariable(Parser* parser, Token name, bool canAssign) {
   uint8_t getOp, setOp;
+  bool pad = false;
   int arg = resolveLocal(parser, parser->currentCompiler, &name);
   if (arg != -1) {
     getOp = OP_GET_LOCAL;
@@ -613,6 +614,7 @@ static void namedVariable(Parser* parser, Token name, bool canAssign) {
     arg = identifierConstant(parser, &name);
     getOp = OP_GET_GLOBAL;
     setOp = OP_SET_GLOBAL;
+    pad = true;
   }
 
   if (canAssign && match(parser, TOKEN_EQUAL)) {
@@ -620,6 +622,9 @@ static void namedVariable(Parser* parser, Token name, bool canAssign) {
     emitBytes(parser, setOp, (uint8_t)arg);
   } else {
     emitBytes(parser, getOp, (uint8_t)arg);
+  }
+  if (pad) {
+    emitByte(parser, 0);
   }
 }
 
