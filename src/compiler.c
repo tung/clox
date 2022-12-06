@@ -228,8 +228,8 @@ static void patchJump(Parser* parser, int offset) {
   currentChunk(parser)->code[offset + 1] = jump & 0xff;
 }
 
-static void initCompiler(
-    Parser* parser, Compiler* compiler, FunctionType type) {
+static void initCompiler(Parser* parser, Compiler* compiler,
+    FunctionType type, const char* name, int nameLength) {
   compiler->enclosing = parser->currentCompiler;
   compiler->function = NULL;
   compiler->type = type;
@@ -239,8 +239,7 @@ static void initCompiler(
   parser->currentCompiler = compiler;
   if (type != TYPE_SCRIPT) {
     parser->currentCompiler->function->name =
-        copyString(parser->gc, parser->strings, parser->previous.start,
-            parser->previous.length);
+        copyString(parser->gc, parser->strings, name, nameLength);
   }
 
   Local* local = &parser->currentCompiler
@@ -298,6 +297,8 @@ static bool parsePrecedence(
 static ParseRule* getRule(TokenType type);
 static void expression(Parser* parser);
 static void declaration(Parser* parser);
+static void function(Parser* parser, FunctionType type,
+    const char* name, int nameLength);
 static void statement(Parser* parser);
 
 static uint8_t identifierConstant(Parser* parser, Token* name) {
@@ -553,6 +554,12 @@ static void dot(Parser* parser, bool canAssign) {
   }
 }
 
+static void lambda(Parser* parser, bool canAssign) {
+  (void)canAssign;
+
+  function(parser, TYPE_FUNCTION, "()", 2);
+}
+
 static void literal(Parser* parser, bool canAssign) {
   (void)canAssign;
 
@@ -720,7 +727,7 @@ ParseRule rules[] = {
   [TOKEN_ELSE]          = { NULL,     NULL,   PREC_NONE },
   [TOKEN_FALSE]         = { literal,  NULL,   PREC_NONE },
   [TOKEN_FOR]           = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_FUN]           = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_FUN]           = { lambda,   NULL,   PREC_NONE },
   [TOKEN_IF]            = { NULL,     NULL,   PREC_NONE },
   [TOKEN_NIL]           = { literal,  NULL,   PREC_NONE },
   [TOKEN_OR]            = { NULL,     or_,    PREC_OR },
@@ -784,12 +791,16 @@ static void block(Parser* parser) {
   consume(parser, TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
-static void function(Parser* parser, FunctionType type) {
+static void function(Parser* parser, FunctionType type,
+    const char* name, int nameLength) {
   Compiler compiler;
-  initCompiler(parser, &compiler, type);
+  initCompiler(parser, &compiler, type, name, nameLength);
   beginScope(parser);
 
-  consume(parser, TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+  consume(parser, TOKEN_LEFT_PAREN,
+      nameLength == 2 && !memcmp(name, "()", 2)
+          ? "Expect '(' after 'fun'."
+          : "Expect '(' after function name.");
   if (!check(parser, TOKEN_RIGHT_PAREN)) {
     do {
       parser->currentCompiler->function->arity++;
@@ -826,7 +837,8 @@ static void method(Parser* parser) {
       memcmp(parser->previous.start, "init", 4) == 0) {
     type = TYPE_INITIALIZER;
   }
-  function(parser, type);
+  function(
+      parser, type, parser->previous.start, parser->previous.length);
   emitBytes(parser, OP_METHOD, constant);
 }
 
@@ -880,7 +892,8 @@ static void classDeclaration(Parser* parser) {
 static void funDeclaration(Parser* parser) {
   uint8_t global = parseVariable(parser, "Expect function name.");
   markInitialized(parser);
-  function(parser, TYPE_FUNCTION);
+  function(parser, TYPE_FUNCTION, parser->previous.start,
+      parser->previous.length);
   defineVariable(parser, global);
 }
 
@@ -1123,7 +1136,7 @@ ObjFunction* compile(FILE* fout, FILE* ferr, const char* source, GC* gc,
 
   initScanner(&parser.scanner, source);
   Compiler compiler;
-  initCompiler(&parser, &compiler, TYPE_SCRIPT);
+  initCompiler(&parser, &compiler, TYPE_SCRIPT, NULL, 0);
   advance(&parser);
 
   while (!match(&parser, TOKEN_EOF)) {

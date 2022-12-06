@@ -359,6 +359,8 @@ InterpretCase functions[] = {
       "fun a(x" },
   { INTERPRET_COMPILE_ERROR, "Expect parameter name.", "fun a(x," },
   { INTERPRET_COMPILE_ERROR, "Expect '}' after block.", "fun a(x,y){" },
+  { INTERPRET_COMPILE_ERROR, "Expect '(' after 'fun'.",
+      "(fun a(){})();" },
   { INTERPRET_COMPILE_ERROR, "Can't return from top-level code.",
       "return" },
   { INTERPRET_COMPILE_ERROR, "Expect expression.", "fun a(){return" },
@@ -375,9 +377,12 @@ InterpretCase functions[] = {
   { INTERPRET_OK, "<native fn>\n", "print clock;" },
   { INTERPRET_OK, "true\n", "print clock()>=0;" },
   { INTERPRET_OK, "<fn a>\n", "fun a(){}print a;" },
+  { INTERPRET_OK, "<fn ()>\n", "print fun(){};" },
   { INTERPRET_OK, "0\n", "fun a(){print 0;return;print 1;}a();" },
   { INTERPRET_OK, "1\n", "fun a(){return 1;}print a();" },
+  { INTERPRET_OK, "1\n", "print fun(){return 1;}();" },
   { INTERPRET_OK, "1\n", "fun a(x){print x;}a(1);" },
+  { INTERPRET_OK, "1\n", "(fun(x){print x;})(1);" },
   { INTERPRET_OK, "2\n", "fun a(x){return x+x;}print a(1);" },
   { INTERPRET_OK, "4\n", "fun a(x){return x+x;}print a(a(1));" },
   { INTERPRET_OK, "5\n", "fun a(x,y){print x+y;}a(3,2);" },
@@ -388,7 +393,7 @@ InterpretCase functions[] = {
       "fun b(){print 0;}fun c(){print 3;b();print 4;}a();c();" },
 };
 
-INTERPRET(Functions, functions, 25);
+INTERPRET(Functions, functions, 29);
 
 InterpretCase closures[] = {
   { INTERPRET_OK, "outer\n",

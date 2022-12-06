@@ -545,6 +545,7 @@ SourceToDump functions[] = {
   { false, "fun a(){return;", "Expect '}' after block." },
   { false, "a(", "Expect expression." },
   { false, "a(0", "Expect ')' after arguments." },
+  { false, "(fun a(){})();", "Expect '(' after 'fun'." },
   { true, "fun a(){print 1;}a();",
       "== a ==\n"
       "0000    1 OP_CONSTANT         0 '1'\n"
@@ -559,6 +560,18 @@ SourceToDump functions[] = {
       "0009    | OP_POP\n"
       "0010    | OP_NIL\n"
       "0011    | OP_RETURN\n" },
+  { true, "(fun(){print 1;})();",
+      "== () ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_PRINT\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '<fn ()>'\n"
+      "0002    | OP_CALL             0\n"
+      "0004    | OP_POP\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
   { true, "fun a(x){print x;}a(1);",
       "== a ==\n"
       "0000    1 OP_GET_LOCAL        1\n"
@@ -574,6 +587,19 @@ SourceToDump functions[] = {
       "0011    | OP_POP\n"
       "0012    | OP_NIL\n"
       "0013    | OP_RETURN\n" },
+  { true, "(fun(x){print x;})(x);",
+      "== () ==\n"
+      "0000    1 OP_GET_LOCAL        1\n"
+      "0002    | OP_PRINT\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '<fn ()>'\n"
+      "0002    | OP_GET_GLOBAL       1 'x'\n"
+      "0005    | OP_CALL             1\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_NIL\n"
+      "0009    | OP_RETURN\n" },
   { true, "fun a(){return 1;}print a();",
       "== a ==\n"
       "0000    1 OP_CONSTANT         0 '1'\n"
@@ -588,6 +614,18 @@ SourceToDump functions[] = {
       "0009    | OP_PRINT\n"
       "0010    | OP_NIL\n"
       "0011    | OP_RETURN\n" },
+  { true, "print(fun(){return 1;})();",
+      "== () ==\n"
+      "0000    1 OP_CONSTANT         0 '1'\n"
+      "0002    | OP_RETURN\n"
+      "0003    | OP_NIL\n"
+      "0004    | OP_RETURN\n"
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '<fn ()>'\n"
+      "0002    | OP_CALL             0\n"
+      "0004    | OP_PRINT\n"
+      "0005    | OP_NIL\n"
+      "0006    | OP_RETURN\n" },
   { true, "fun a(x,y){return x+y;}print a(3,a(2,1));",
       "== a ==\n"
       "0000    1 OP_GET_LOCAL        1\n"
@@ -634,7 +672,7 @@ SourceToDump functions[] = {
       "0015    | OP_RETURN\n" },
 };
 
-DUMP_SRC(Functions, functions, 17);
+DUMP_SRC(Functions, functions, 21);
 
 SourceToDump closures[] = {
   { true,
