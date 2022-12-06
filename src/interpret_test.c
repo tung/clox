@@ -374,6 +374,8 @@ InterpretCase functions[] = {
       "fun a(){}a(0);" },
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       "fun b(){}fun a(){b(0);}a();" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "clock(nil);" },
   { INTERPRET_OK, "<native fn>\n", "print clock;" },
   { INTERPRET_OK, "true\n", "print clock()>=0;" },
   { INTERPRET_OK, "<fn a>\n", "fun a(){}print a;" },
@@ -393,7 +395,7 @@ InterpretCase functions[] = {
       "fun b(){print 0;}fun c(){print 3;b();print 4;}a();c();" },
 };
 
-INTERPRET(Functions, functions, 29);
+INTERPRET(Functions, functions, 30);
 
 InterpretCase closures[] = {
   { INTERPRET_OK, "outer\n",

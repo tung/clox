@@ -7,6 +7,7 @@
 
 #include "gc.h"
 #include "memory.h"
+#include "obj_native.h"
 #include "value.h"
 
 #define ALLOCATE_OBJ(gc, type, objectType) \

@@ -4,6 +4,7 @@
 
 #include "debug.h"
 #include "gc.h"
+#include "obj_native.h"
 
 #define GC_HEAP_GROW_FACTOR 2
 

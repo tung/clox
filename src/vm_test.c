@@ -762,6 +762,13 @@ VMCase opCall[] = {
       LIST(uint8_t, OP_CLOSURE, 0, OP_NIL, OP_CALL, 1, OP_NIL,
           OP_RETURN),
       LIST(Lit, F(0)) },
+  // OpCallClockWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun),
+      // clock(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, OP_NIL, OP_CALL, 1, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("clock")) },
   // FunNameInErrorMsg
   { INTERPRET_RUNTIME_ERROR, "] in myFunction",
       LIST(LitFun,
@@ -774,7 +781,7 @@ VMCase opCall[] = {
       LIST(Lit, F(0)) },
 };
 
-VM_TEST(OpCall, opCall, 6);
+VM_TEST(OpCall, opCall, 7);
 
 VMCase closures[] = {
   // Closures1

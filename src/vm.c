@@ -10,6 +10,7 @@
 #include "compiler.h"
 #include "debug.h"
 #include "memory.h"
+#include "obj_native.h"
 #include "object.h"
 
 #ifndef THREADED_CODE
@@ -17,13 +18,6 @@
 #endif
 
 bool debugTraceExecution = false;
-
-static Value clockNative(int argCount, Value* args) {
-  (void)argCount;
-  (void)args;
-
-  return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
-}
 
 static void resetStack(VM* vm) {
   vm->stackTop = vm->stack;
@@ -52,6 +46,25 @@ static void runtimeError(VM* vm, const char* format, ...) {
   }
 
   resetStack(vm);
+}
+
+static bool checkArity(VM* vm, int expected, int actual) {
+  if (expected != actual) {
+    runtimeError(
+        vm, "Expected %d arguments but got %d.", expected, actual);
+  }
+  return expected == actual;
+}
+
+static bool clockNative(VM* vm, int argCount, Value* args) {
+  (void)args;
+
+  if (!checkArity(vm, 0, argCount)) {
+    return false;
+  }
+
+  push(vm, NUMBER_VAL((double)clock() / CLOCKS_PER_SEC));
+  return true;
 }
 
 static void defineNative(VM* vm, const char* name, NativeFn function) {
@@ -151,9 +164,7 @@ static bool call(VM* vm, Obj* callable, int argCount) {
     function = (ObjFunction*)callable;
   }
 
-  if (argCount != function->arity) {
-    runtimeError(vm, "Expected %d arguments but got %d.",
-        function->arity, argCount);
+  if (!checkArity(vm, function->arity, argCount)) {
     return false;
   }
 
@@ -189,16 +200,17 @@ static bool callValue(VM* vm, Value callee, int argCount) {
         Value initializer;
         if (tableGet(&klass->methods, vm->initString, &initializer)) {
           return call(vm, AS_OBJ(initializer), argCount);
-        } else if (argCount != 0) {
-          runtimeError(
-              vm, "Expected 0 arguments but got %d.", argCount);
+        } else if (!checkArity(vm, 0, argCount)) {
           return false;
         }
         return true;
       }
       case OBJ_NATIVE: {
         NativeFn native = AS_NATIVE(callee);
-        Value result = native(argCount, vm->stackTop - argCount);
+        if (!native(vm, argCount, vm->stackTop - argCount)) {
+          return false;
+        }
+        Value result = pop(vm);
         vm->stackTop -= argCount + 1;
         push(vm, result);
         return true;

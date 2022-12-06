@@ -18,7 +18,6 @@
 #define IS_CLOSURE(value)      isObjType(value, OBJ_CLOSURE)
 #define IS_FUNCTION(value)     isObjType(value, OBJ_FUNCTION)
 #define IS_INSTANCE(value)     isObjType(value, OBJ_INSTANCE)
-#define IS_NATIVE(value)       isObjType(value, OBJ_NATIVE)
 #define IS_STRING(value)       isObjType(value, OBJ_STRING)
 
 #define AS_BOUND_METHOD(value) ((ObjBoundMethod*)AS_OBJ(value))
@@ -26,7 +25,6 @@
 #define AS_CLOSURE(value)      ((ObjClosure*)AS_OBJ(value))
 #define AS_FUNCTION(value)     ((ObjFunction*)AS_OBJ(value))
 #define AS_INSTANCE(value)     ((ObjInstance*)AS_OBJ(value))
-#define AS_NATIVE(value)       (((ObjNative*)AS_OBJ(value))->function)
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value)      (((ObjString*)AS_OBJ(value))->chars)
 // clang-format on
@@ -55,13 +53,6 @@ typedef struct {
   Chunk chunk;
   ObjString* name;
 } ObjFunction;
-
-typedef Value (*NativeFn)(int argCount, Value* args);
-
-typedef struct {
-  Obj obj;
-  NativeFn function;
-} ObjNative;
 
 struct ObjString {
   Obj obj;
@@ -107,7 +98,6 @@ ObjClass* newClass(GC* gc, ObjString* name);
 ObjClosure* newClosure(GC* gc, ObjFunction* function);
 ObjFunction* newFunction(GC* gc);
 ObjInstance* newInstance(GC* gc, ObjClass* klass);
-ObjNative* newNative(GC* gc, NativeFn function);
 ObjString* concatStrings(GC* gc, Table* strings, const char* a,
     int aLen, uint32_t aHash, const char* b, int bLen);
 ObjString* copyString(
