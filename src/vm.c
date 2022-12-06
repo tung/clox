@@ -59,12 +59,46 @@ static bool checkArity(VM* vm, int expected, int actual) {
 
 static bool clockNative(VM* vm, int argCount, Value* args) {
   (void)args;
-
   if (!checkArity(vm, 0, argCount)) {
     return false;
   }
-
   push(vm, NUMBER_VAL((double)clock() / CLOCKS_PER_SEC));
+  return true;
+}
+
+static bool ceilNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_NUMBER(args[0])) {
+    runtimeError(vm, "Argument must be a number.");
+    return false;
+  }
+  push(vm, NUMBER_VAL(ceil(AS_NUMBER(args[0]))));
+  return true;
+}
+
+static bool floorNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_NUMBER(args[0])) {
+    runtimeError(vm, "Argument must be a number.");
+    return false;
+  }
+  push(vm, NUMBER_VAL(floor(AS_NUMBER(args[0]))));
+  return true;
+}
+
+static bool roundNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_NUMBER(args[0])) {
+    runtimeError(vm, "Argument must be a number.");
+    return false;
+  }
+  push(vm, NUMBER_VAL(round(AS_NUMBER(args[0]))));
   return true;
 }
 
@@ -125,6 +159,9 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   vm->initString = copyString(&vm->gc, &vm->strings, "init", 4);
 
   defineNative(vm, "clock", clockNative);
+  defineNative(vm, "ceil", ceilNative);
+  defineNative(vm, "floor", floorNative);
+  defineNative(vm, "round", roundNative);
 }
 
 void freeVM(VM* vm) {

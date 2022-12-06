@@ -762,6 +762,24 @@ VMCase opCall[] = {
       LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_CONSTANT, 1,
           OP_LESS, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Lit, S("clock"), N(0.0)) },
+  // OpCallCeil
+  { INTERPRET_OK, "2\n", LIST(LitFun),
+      // print ceil(1.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("ceil"), N(1.5)) },
+  // OpCallFloor
+  { INTERPRET_OK, "1\n", LIST(LitFun),
+      // print floor(1.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("floor"), N(1.5)) },
+  // OpCallRound
+  { INTERPRET_OK, "2\n", LIST(LitFun),
+      // print round(1.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("round"), N(1.5)) },
   // OpCallUncallableNil
   { INTERPRET_RUNTIME_ERROR, "Can only call functions and classes.",
       LIST(LitFun),
@@ -789,6 +807,24 @@ VMCase opCall[] = {
       LIST(uint8_t, OP_GET_GLOBAL, 0, OP_NIL, OP_CALL, 1, OP_NIL,
           OP_RETURN),
       LIST(Lit, S("clock")) },
+  // OpCallCeilWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // ceil();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("ceil")) },
+  // OpCallFloorWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // floor();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("floor")) },
+  // OpCallRoundWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // ceil();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("round")) },
   // FunNameInErrorMsg
   { INTERPRET_RUNTIME_ERROR, "] in myFunction",
       LIST(LitFun,
@@ -801,7 +837,7 @@ VMCase opCall[] = {
       LIST(Lit, F(0)) },
 };
 
-VM_TEST(OpCall, opCall, 7);
+VM_TEST(OpCall, opCall, 13);
 
 VMCase closures[] = {
   // Closures1

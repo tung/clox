@@ -351,6 +351,31 @@ InterpretCase strings[] = {
 
 INTERPRET(Strings, strings, 7);
 
+InterpretCase nativeFunctions[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "clock(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "ceil();" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "floor();" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "round();" },
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
+      "ceil(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
+      "floor(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
+      "round(nil);" },
+  { INTERPRET_OK, "<native fn>\n", "print clock;" },
+  { INTERPRET_OK, "true\n", "print clock()>=0;" },
+  { INTERPRET_OK, "2\n", "print ceil(1.5);" },
+  { INTERPRET_OK, "1\n", "print floor(1.5);" },
+  { INTERPRET_OK, "2\n", "print round(1.5);" },
+  { INTERPRET_OK, "1\n", "print round(1.49);" },
+};
+
+INTERPRET(NativeFunctions, nativeFunctions, 13);
+
 InterpretCase functions[] = {
   { INTERPRET_COMPILE_ERROR, "Expect function name.", "fun" },
   { INTERPRET_COMPILE_ERROR, "Expect '(' after function name.",
@@ -376,10 +401,6 @@ InterpretCase functions[] = {
       "fun a(){}a(0);" },
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       "fun b(){}fun a(){b(0);}a();" },
-  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
-      "clock(nil);" },
-  { INTERPRET_OK, "<native fn>\n", "print clock;" },
-  { INTERPRET_OK, "true\n", "print clock()>=0;" },
   { INTERPRET_OK, "<fn a>\n", "fun a(){}print a;" },
   { INTERPRET_OK, "<fn ()>\n", "print fun(){};" },
   { INTERPRET_OK, "0\n", "fun a(){print 0;return;print 1;}a();" },
@@ -397,7 +418,7 @@ InterpretCase functions[] = {
       "fun b(){print 0;}fun c(){print 3;b();print 4;}a();c();" },
 };
 
-INTERPRET(Functions, functions, 30);
+INTERPRET(Functions, functions, 27);
 
 InterpretCase closures[] = {
   { INTERPRET_OK, "outer\n",
