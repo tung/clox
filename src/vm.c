@@ -10,6 +10,7 @@
 #include "common.h"
 #include "compiler.h"
 #include "debug.h"
+#include "membuf.h"
 #include "memory.h"
 #include "obj_native.h"
 #include "object.h"
@@ -63,6 +64,20 @@ static bool clockNative(VM* vm, int argCount, Value* args) {
     return false;
   }
   push(vm, NUMBER_VAL((double)clock() / CLOCKS_PER_SEC));
+  return true;
+}
+
+static bool strNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  MemBuf out;
+  initMemBuf(&out);
+  printValue(out.fptr, args[0]);
+  fflush(out.fptr);
+  push(vm,
+      OBJ_VAL(copyString(&vm->gc, &vm->strings, out.buf, out.size)));
+  freeMemBuf(&out);
   return true;
 }
 
@@ -159,6 +174,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   vm->initString = copyString(&vm->gc, &vm->strings, "init", 4);
 
   defineNative(vm, "clock", clockNative);
+  defineNative(vm, "str", strNative);
   defineNative(vm, "ceil", ceilNative);
   defineNative(vm, "floor", floorNative);
   defineNative(vm, "round", roundNative);

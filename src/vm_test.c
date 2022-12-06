@@ -762,6 +762,12 @@ VMCase opCall[] = {
       LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_CONSTANT, 1,
           OP_LESS, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Lit, S("clock"), N(0.0)) },
+  // OpCallStr
+  { INTERPRET_OK, "hi1\n", LIST(LitFun),
+      // print "hi" + str(1);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_GLOBAL, 1, 0, OP_CONSTANT, 2,
+          OP_CALL, 1, OP_ADD, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("hi"), S("str"), N(1.0)) },
   // OpCallCeil
   { INTERPRET_OK, "2\n", LIST(LitFun),
       // print ceil(1.5);
@@ -807,6 +813,12 @@ VMCase opCall[] = {
       LIST(uint8_t, OP_GET_GLOBAL, 0, OP_NIL, OP_CALL, 1, OP_NIL,
           OP_RETURN),
       LIST(Lit, S("clock")) },
+  // OpCallStrWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // str();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("str")) },
   // OpCallCeilWrongNumArgs
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       LIST(LitFun),
@@ -837,7 +849,7 @@ VMCase opCall[] = {
       LIST(Lit, F(0)) },
 };
 
-VM_TEST(OpCall, opCall, 13);
+VM_TEST(OpCall, opCall, 15);
 
 VMCase closures[] = {
   // Closures1

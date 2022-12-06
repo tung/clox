@@ -355,6 +355,8 @@ InterpretCase nativeFunctions[] = {
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       "clock(nil);" },
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "str();" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "ceil();" },
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "floor();" },
@@ -368,13 +370,14 @@ InterpretCase nativeFunctions[] = {
       "round(nil);" },
   { INTERPRET_OK, "<native fn>\n", "print clock;" },
   { INTERPRET_OK, "true\n", "print clock()>=0;" },
+  { INTERPRET_OK, "hi1\n", "print \"hi\"+str(1);" },
   { INTERPRET_OK, "2\n", "print ceil(1.5);" },
   { INTERPRET_OK, "1\n", "print floor(1.5);" },
   { INTERPRET_OK, "2\n", "print round(1.5);" },
   { INTERPRET_OK, "1\n", "print round(1.49);" },
 };
 
-INTERPRET(NativeFunctions, nativeFunctions, 13);
+INTERPRET(NativeFunctions, nativeFunctions, 15);
 
 InterpretCase functions[] = {
   { INTERPRET_COMPILE_ERROR, "Expect function name.", "fun" },
