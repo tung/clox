@@ -122,10 +122,10 @@ UTEST_F(Table, SetGetLots) {
 }
 
 UTEST_F(Table, SetGetCollisions) {
-  // Assume eight entries will fill a table with maxLoad = 1.0.
+  // Avoid resizing the table.
   ufx->t.maxLoad = 1.0;
   // All of these should return 0 when sent to hashString().
-  const char* strs[8] = {
+  const char* strs[7] = {
     "!l`V[[",
     "  5,b`>",
     "! 6.]~C",
@@ -133,7 +133,6 @@ UTEST_F(Table, SetGetCollisions) {
     "  Fq*G{",
     "! lxuz/",
     "# $}W=}",
-    "  Y[N{>",
   };
   ObjString* oStrs[ARRAY_SIZE(strs)];
 
@@ -150,8 +149,17 @@ UTEST_F(Table, SetGetCollisions) {
   for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
     Value v;
     EXPECT_TRUE(tableGet(&ufx->t, oStrs[i], &v));
-    popTemp(&ufx->gc);
     EXPECT_VALEQ(NUMBER_VAL(i), v);
+  }
+
+  // Delete second and third strings and find an entry for the second.
+  EXPECT_TRUE(tableDelete(&ufx->t, oStrs[1]));
+  EXPECT_TRUE(tableDelete(&ufx->t, oStrs[2]));
+  EXPECT_TRUE(tableJoinedStringsEntry(
+      &ufx->gc, &ufx->t, "", 0, strs[1], strlen(strs[1]), 0));
+
+  for (size_t i = 0; i < ARRAY_SIZE(strs); ++i) {
+    popTemp(&ufx->gc);
   }
 }
 
