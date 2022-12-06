@@ -77,7 +77,7 @@ static void defineNative(VM* vm, const char* name, NativeFn function) {
   assert(slot < UINT16_MAX); // GCOV_EXCL_LINE
   writeValueArray(&vm->gc, &vm->globalSlots, vm->stack[1]);
   tableSet(
-      &vm->gc, &vm->globals, AS_STRING(vm->stack[0]), AS_NUMBER(slot));
+      &vm->gc, &vm->globals, AS_STRING(vm->stack[0]), NUMBER_VAL(slot));
   pop(vm);
   pop(vm);
 }
