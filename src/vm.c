@@ -1,6 +1,7 @@
 #include "vm.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -402,6 +403,7 @@ static InterpretResult run(VM* vm) {
     JUMP_ENTRY(OP_SUBTRACT_C),
     JUMP_ENTRY(OP_MULTIPLY),
     JUMP_ENTRY(OP_DIVIDE),
+    JUMP_ENTRY(OP_MODULO),
     JUMP_ENTRY(OP_NOT),
     JUMP_ENTRY(OP_NEGATE),
     JUMP_ENTRY(OP_PRINT),
@@ -665,6 +667,16 @@ static InterpretResult run(VM* vm) {
       }
       CASE(OP_DIVIDE) {
         BINARY_OP(NUMBER_VAL, /);
+        NEXT;
+      }
+      CASE(OP_MODULO) {
+        if (!IS_NUMBER(peek(vm, 0)) || !IS_NUMBER(peek(vm, 1))) {
+          runtimeError(vm, "Operands must be numbers.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        double b = AS_NUMBER(pop(vm));
+        double a = AS_NUMBER(pop(vm));
+        push(vm, NUMBER_VAL(fmod(a, b)));
         NEXT;
       }
       CASE(OP_NOT) {

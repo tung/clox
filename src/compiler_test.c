@@ -297,6 +297,24 @@ SourceToDump binaryNums[] = {
       "0005    | OP_POP\n"
       "0006    | OP_NIL\n"
       "0007    | OP_RETURN\n" },
+  { true, "3 % 2;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '3'\n"
+      "0002    | OP_CONSTANT         1 '2'\n"
+      "0004    | OP_MODULO\n"
+      "0005    | OP_POP\n"
+      "0006    | OP_NIL\n"
+      "0007    | OP_RETURN\n" },
+  { true, "4 + 3 % 2;",
+      "== <script> ==\n"
+      "0000    1 OP_CONSTANT         0 '4'\n"
+      "0002    | OP_CONSTANT         1 '3'\n"
+      "0004    | OP_CONSTANT         2 '2'\n"
+      "0006    | OP_MODULO\n"
+      "0007    | OP_ADD\n"
+      "0008    | OP_POP\n"
+      "0009    | OP_NIL\n"
+      "0010    | OP_RETURN\n" },
   { true, "4 + 3 - 2 + 1 - 0;",
       "== <script> ==\n"
       "0000    1 OP_CONSTANT         0 '4'\n"
@@ -355,7 +373,7 @@ SourceToDump binaryNums[] = {
       "0014    | OP_RETURN\n" },
 };
 
-DUMP_SRC(BinaryNums, binaryNums, 9);
+DUMP_SRC(BinaryNums, binaryNums, 11);
 
 SourceToDump binaryCompare[] = {
   { true, "true != true;",

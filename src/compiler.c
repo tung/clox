@@ -73,7 +73,7 @@ typedef enum {
   PREC_EQUALITY,   // == !=
   PREC_COMPARISON, // < > <= >=
   PREC_TERM,       // + -
-  PREC_FACTOR,     // * /
+  PREC_FACTOR,     // * / %
   PREC_UNARY,      // ! -
   PREC_CALL,       // . ()
   PREC_PRIMARY,
@@ -527,6 +527,7 @@ static void binary(Parser* parser, bool canAssign) {
     case TOKEN_MINUS: emitByte(parser, OP_SUBTRACT); break;
     case TOKEN_STAR: emitByte(parser, OP_MULTIPLY); break;
     case TOKEN_SLASH: emitByte(parser, OP_DIVIDE); break;
+    case TOKEN_PERCENT: emitByte(parser, OP_MODULO); break;
     default: return; // GCOV_EXCL_LINE: Unreachable.
   }
 }
@@ -707,6 +708,7 @@ ParseRule rules[] = {
   [TOKEN_COMMA]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_DOT]           = { NULL,     dot,    PREC_CALL },
   [TOKEN_MINUS]         = { unary,    binary, PREC_TERM },
+  [TOKEN_PERCENT]       = { NULL,     binary, PREC_FACTOR },
   [TOKEN_PLUS]          = { NULL,     binary, PREC_TERM },
   [TOKEN_SEMICOLON]     = { NULL,     NULL,   PREC_NONE },
   [TOKEN_SLASH]         = { NULL,     binary, PREC_FACTOR },

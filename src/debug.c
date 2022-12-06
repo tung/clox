@@ -122,6 +122,7 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
     case OP_MULTIPLY:
       return simpleInstruction(ferr, "OP_MULTIPLY", offset);
     case OP_DIVIDE: return simpleInstruction(ferr, "OP_DIVIDE", offset);
+    case OP_MODULO: return simpleInstruction(ferr, "OP_MODULO", offset);
     case OP_NOT: return simpleInstruction(ferr, "OP_NOT", offset);
     case OP_NEGATE: return simpleInstruction(ferr, "OP_NEGATE", offset);
     case OP_PRINT: return simpleInstruction(ferr, "OP_PRINT", offset);

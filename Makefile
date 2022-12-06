@@ -65,22 +65,22 @@ mode_dir = $(build_dir)$(MODE)/
 ifeq ($(MODE),debug)
   CFLAGS     = -Wall -Wextra -Og -g -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
   LDFLAGS    = -Og -g -fsanitize=address -fsanitize=undefined
-  LDLIBS     =
-  TESTLDLIBS =
+  LDLIBS     = -lm
+  TESTLDLIBS = -lm
 
 # "release" mode settings.
 else ifeq ($(MODE),release)
   CFLAGS     = -Wall -Wextra -O3 -flto -march=native
   LDFLAGS    = -O3 -flto -march=native
-  LDLIBS     =
-  TESTLDLIBS =
+  LDLIBS     = -lm
+  TESTLDLIBS = -lm
 
 # "coverage" mode settings.
 else ifeq ($(MODE),coverage)
   CFLAGS     = -Wall -Wextra -Og -g -fsanitize=address -fno-omit-frame-pointer --coverage
   LDFLAGS    = -Og -g -fsanitize=address --coverage
-  LDLIBS     =
-  TESTLDLIBS =
+  LDLIBS     = -lm
+  TESTLDLIBS = -lm
   GCOVR      = gcovr -e "$(header_dir)utest.h" -e "$(header_dir)ubench.h" -e "$(header_dir)linenoise.h" -e "$(src_dir)linenoise.c"
   report_dir = $(mode_dir)gcovr/
   report_loc = $(report_dir)report.html

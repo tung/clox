@@ -222,10 +222,12 @@ InterpretCase binaryNum[] = {
   { INTERPRET_OK, "1\n", "print 3-2;" },
   { INTERPRET_OK, "6\n", "print 3*2;" },
   { INTERPRET_OK, "1.5\n", "print 3/2;" },
+  { INTERPRET_OK, "1.1\n", "print 5.1%2;" },
   { INTERPRET_OK, "-2.5\n", "print 1+2*3/4-5;" },
+  { INTERPRET_OK, "1.1\n", "print 1.1+4%2;" },
 };
 
-INTERPRET(BinaryNum, binaryNum, 13);
+INTERPRET(BinaryNum, binaryNum, 15);
 
 InterpretCase comments[] = {
   { INTERPRET_OK, "", "//print 1;" },

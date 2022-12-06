@@ -638,6 +638,26 @@ VMCase opDivide[] = {
 
 VM_TEST(OpDivide, opDivide, 4);
 
+VMCase opModulo[] = {
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_MODULO, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_CONSTANT, 0, OP_MODULO, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_RUNTIME_ERROR, "Operands must be numbers.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_MODULO, OP_PRINT),
+      LIST(Lit, N(0.0)) },
+  { INTERPRET_OK, "1.1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_MODULO, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(5.1), N(2.0)) },
+};
+
+VM_TEST(OpModulo, opModulo, 4);
+
 VMCase opNot[] = {
   { INTERPRET_OK, "true\n", LIST(LitFun),
       LIST(uint8_t, OP_NIL, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
