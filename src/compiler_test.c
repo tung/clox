@@ -554,15 +554,20 @@ SourceToDump functions[] = {
   { false, "fun", "Expect function name." },
   { false, "fun a", "Expect '(' after function name." },
   { false, "fun a(", "Expect parameter name." },
+  { false, "fun a(,", "Expect parameter name." },
   { false, "fun a()", "Expect '{' before function body." },
   { false, "fun a(x", "Expect ')' after parameters." },
   { false, "fun a(x,", "Expect parameter name." },
+  { false, "fun a(x,)", "Expect '{' before function body." },
+  { false, "fun a(x,,)", "Expect parameter name." },
   { false, "fun a(x,y){", "Expect '}' after block." },
+  { false, "fun a(x,y,){", "Expect '}' after block." },
   { false, "return", "Can't return from top-level code." },
   { false, "fun a(){return", "Expect expression." },
   { false, "fun a(){return;", "Expect '}' after block." },
   { false, "a(", "Expect expression." },
   { false, "a(0", "Expect ')' after arguments." },
+  { false, "a(0,,);", "Expect expression." },
   { false, "(fun a(){})();", "Expect '(' after 'fun'." },
   { true, "fun a(){print 1;}a();",
       "== a ==\n"
@@ -644,7 +649,7 @@ SourceToDump functions[] = {
       "0004    | OP_PRINT\n"
       "0005    | OP_NIL\n"
       "0006    | OP_RETURN\n" },
-  { true, "fun a(x,y){return x+y;}print a(3,a(2,1));",
+  { true, "fun a(x,y){return x+y;}print a(3,a(2,1),);",
       "== a ==\n"
       "0000    1 OP_GET_LOCAL        1\n"
       "0002    | OP_GET_LOCAL        2\n"
@@ -690,7 +695,7 @@ SourceToDump functions[] = {
       "0015    | OP_RETURN\n" },
 };
 
-DUMP_SRC(Functions, functions, 21);
+DUMP_SRC(Functions, functions, 26);
 
 SourceToDump closures[] = {
   { true,

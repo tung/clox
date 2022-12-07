@@ -440,17 +440,18 @@ static void defineVariable(Parser* parser, uint8_t global) {
 
 static uint8_t argumentList(Parser* parser) {
   uint8_t argCount = 0;
-  if (!check(parser, TOKEN_RIGHT_PAREN)) {
-    do {
-      expression(parser);
-      // GCOV_EXCL_START
-      if (argCount == 255) {
-        error(parser, "Can't have more than 255 arguments.");
-      }
-      // GCOV_EXCL_STOP
-      argCount++;
-    } while (match(parser, TOKEN_COMMA));
-  }
+  do {
+    if (check(parser, TOKEN_RIGHT_PAREN)) {
+      break;
+    }
+    expression(parser);
+    // GCOV_EXCL_START
+    if (argCount == 255) {
+      error(parser, "Can't have more than 255 arguments.");
+    }
+    // GCOV_EXCL_STOP
+    argCount++;
+  } while (match(parser, TOKEN_COMMA));
   consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
   return argCount;
 }
@@ -803,19 +804,19 @@ static void function(Parser* parser, FunctionType type,
       nameLength == 2 && !memcmp(name, "()", 2)
           ? "Expect '(' after 'fun'."
           : "Expect '(' after function name.");
-  if (!check(parser, TOKEN_RIGHT_PAREN)) {
-    do {
-      parser->currentCompiler->function->arity++;
-      // GCOV_EXCL_START
-      if (parser->currentCompiler->function->arity > 255) {
-        errorAtCurrent(parser, "Can't have more than 255 parameters.");
-      }
-      // GCOV_EXCL_STOP
-      uint8_t constant =
-          parseVariable(parser, "Expect parameter name.");
-      defineVariable(parser, constant);
-    } while (match(parser, TOKEN_COMMA));
-  }
+  do {
+    if (check(parser, TOKEN_RIGHT_PAREN)) {
+      break;
+    }
+    parser->currentCompiler->function->arity++;
+    // GCOV_EXCL_START
+    if (parser->currentCompiler->function->arity > 255) {
+      errorAtCurrent(parser, "Can't have more than 255 parameters.");
+    }
+    // GCOV_EXCL_STOP
+    uint8_t constant = parseVariable(parser, "Expect parameter name.");
+    defineVariable(parser, constant);
+  } while (match(parser, TOKEN_COMMA));
   consume(parser, TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
   consume(parser, TOKEN_LEFT_BRACE, "Expect '{' before function body.");
   block(parser);
