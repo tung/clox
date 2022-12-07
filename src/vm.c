@@ -445,6 +445,8 @@ static InterpretResult run(VM* vm) {
     JUMP_ENTRY(OP_SET_UPVALUE),
     JUMP_ENTRY(OP_GET_PROPERTY),
     JUMP_ENTRY(OP_SET_PROPERTY),
+    JUMP_ENTRY(OP_GET_INDEX),
+    JUMP_ENTRY(OP_SET_INDEX),
     JUMP_ENTRY(OP_GET_SUPER),
     JUMP_ENTRY(OP_EQUAL),
     JUMP_ENTRY(OP_GREATER),
@@ -643,6 +645,48 @@ static InterpretResult run(VM* vm) {
         pop(vm);
         push(vm, value);
         NEXT;
+      }
+      CASE(OP_GET_INDEX) {
+        if (IS_INSTANCE(peek(vm, 1))) {
+          if (!IS_STRING(peek(vm, 0))) {
+            runtimeError(
+                vm, "Instances can only be indexed by string.");
+            return INTERPRET_RUNTIME_ERROR;
+          }
+          ObjString* name = AS_STRING(peek(vm, 0));
+          ObjInstance* instance = AS_INSTANCE(peek(vm, 1));
+          Value value;
+          if (tableGet(&instance->fields, name, &value)) {
+            pop(vm); // Name.
+            pop(vm); // Instance.
+            push(vm, value);
+            NEXT;
+          }
+          runtimeError(vm, "Undefined property '%s'.", name->chars);
+        } else {
+          runtimeError(vm, "Only instances have properties.");
+        }
+        return INTERPRET_RUNTIME_ERROR;
+      }
+      CASE(OP_SET_INDEX) {
+        if (IS_INSTANCE(peek(vm, 2))) {
+          if (!IS_STRING(peek(vm, 1))) {
+            runtimeError(
+                vm, "Instances can only be indexed by string.");
+            return INTERPRET_RUNTIME_ERROR;
+          }
+          ObjString* name = AS_STRING(peek(vm, 1));
+          ObjInstance* instance = AS_INSTANCE(peek(vm, 2));
+          tableSet(&vm->gc, &instance->fields, name, peek(vm, 0));
+          Value value = pop(vm);
+          pop(vm); // Name.
+          pop(vm); // Instance.
+          push(vm, value);
+          NEXT;
+        } else {
+          runtimeError(vm, "Only instances have fields.");
+        }
+        return INTERPRET_RUNTIME_ERROR;
       }
       CASE(OP_GET_SUPER) {
         ObjString* name = READ_STRING();

@@ -1117,6 +1117,7 @@ DUMP_SRC(While, while_, 1);
 
 SourceToDump classes[] = {
   { false, "1+f.x=2;", "Invalid assignment target." },
+  { false, "1+f[\"x\"]=2;", "Invalid assignment target." },
   { false, "class F{", "Expect '}' after class body." },
   { true, "class F{}",
       "== <script> ==\n"
@@ -1177,9 +1178,29 @@ SourceToDump classes[] = {
       "0002    | OP_DEFINE_GLOBAL    0 'g'\n"
       "0004    | OP_NIL\n"
       "0005    | OP_RETURN\n" },
+  { true, "class F{}var f=F();f[\"x\"]=1;print f[\"x\"];",
+      "== <script> ==\n"
+      "0000    1 OP_CLASS            0 'F'\n"
+      "0002    | OP_DEFINE_GLOBAL    0 'F'\n"
+      "0004    | OP_GET_GLOBAL       0 'F'\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_GET_GLOBAL       0 'F'\n"
+      "0011    | OP_CALL             0\n"
+      "0013    | OP_DEFINE_GLOBAL    1 'f'\n"
+      "0015    | OP_GET_GLOBAL       1 'f'\n"
+      "0018    | OP_CONSTANT         2 'x'\n"
+      "0020    | OP_CONSTANT         3 '1'\n"
+      "0022    | OP_SET_INDEX\n"
+      "0023    | OP_POP\n"
+      "0024    | OP_GET_GLOBAL       1 'f'\n"
+      "0027    | OP_CONSTANT         2 'x'\n"
+      "0029    | OP_GET_INDEX\n"
+      "0030    | OP_PRINT\n"
+      "0031    | OP_NIL\n"
+      "0032    | OP_RETURN\n" },
 };
 
-DUMP_SRC(Classes, classes, 6);
+DUMP_SRC(Classes, classes, 8);
 
 SourceToDump methods[] = {
   { false, "class F{0", "Expect method name." },

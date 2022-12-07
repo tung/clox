@@ -918,6 +918,89 @@ VMCase closures[] = {
 
 VM_TEST(Closures, closures, 2);
 
+VMCase index_[] = {
+  // IndexClassSimple
+  { INTERPRET_OK, "1\n", LIST(LitFun),
+      // class F{} var f = F(); f["x"] = 1; print f["x"];
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
+          0, OP_POP, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_DEFINE_GLOBAL,
+          1, OP_GET_GLOBAL, 1, 0, OP_CONSTANT, 2, OP_CONSTANT, 3,
+          OP_SET_INDEX, OP_POP, OP_GET_GLOBAL, 1, 0, OP_CONSTANT, 2,
+          OP_GET_INDEX, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("F"), S("f"), S("x"), N(1.0)) },
+  // IndexClassUndefined
+  { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.", LIST(LitFun),
+      // class F{} F()["x"];
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
+          0, OP_POP, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_CONSTANT, 1,
+          OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("F"), S("x")) },
+  // IndexInvalidGet1
+  { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
+      LIST(LitFun),
+      // 0["x"];
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_INDEX,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0), S("x")) },
+  // IndexInvalidGet2
+  { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
+      LIST(LitFun),
+      // "a"["x"];
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_INDEX,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("a"), S("x")) },
+  // IndexInvalidSet1
+  { INTERPRET_RUNTIME_ERROR, "Only instances have fields.",
+      LIST(LitFun),
+      // 0["x"] = 1;
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
+          OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0), S("x"), N(1.0)) },
+  // IndexInvalidSet2
+  { INTERPRET_RUNTIME_ERROR, "Only instances have fields.",
+      LIST(LitFun),
+      // "a"["x"] = 1;
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
+          OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("a"), S("x"), N(1.0)) },
+  // IndexInstanceGetBadIndex1
+  { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
+      LIST(LitFun),
+      // class F{} F()[0];
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
+          0, OP_POP, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_CONSTANT, 1,
+          OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("F"), N(0.0)) },
+  // IndexInstanceGetBadIndex2
+  { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
+      LIST(LitFun),
+      // class F{} F()[F()];
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
+          0, OP_POP, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_GET_GLOBAL, 0,
+          0, OP_CALL, 0, OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("F")) },
+  // IndexInstanceSetBadIndex1
+  { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
+      LIST(LitFun),
+      // class F{} var f = F(); f[0] = 1;
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
+          0, OP_POP, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_DEFINE_GLOBAL,
+          1, OP_GET_GLOBAL, 1, 0, OP_CONSTANT, 2, OP_CONSTANT, 3,
+          OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("F"), S("f"), N(0.0), N(1.0)) },
+  // IndexInstanceSetBadIndex2
+  { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
+      LIST(LitFun),
+      // class F{} var f = F(); f[F()] = 1;
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
+          0, OP_POP, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_DEFINE_GLOBAL,
+          1, OP_GET_GLOBAL, 1, 0, OP_GET_GLOBAL, 0, 0, OP_CALL, 0,
+          OP_CONSTANT, 2, OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("F"), S("f"), N(1.0)) },
+};
+
+VM_TEST(Index, index_, 10);
+
 VMCase classes[] = {
   // ClassesPrint
   { INTERPRET_OK, "A1234567\nA1234567 instance\n", LIST(LitFun),
