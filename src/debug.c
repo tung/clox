@@ -166,6 +166,10 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
     }
     case OP_CLOSE_UPVALUE:
       return simpleInstruction(ferr, "OP_CLOSE_UPVALUE", offset);
+    case OP_LIST_INIT:
+      return simpleInstruction(ferr, "OP_LIST_INIT", offset);
+    case OP_LIST_DATA:
+      return simpleInstruction(ferr, "OP_LIST_DATA", offset);
     case OP_RETURN: return simpleInstruction(ferr, "OP_RETURN", offset);
     case OP_CLASS:
       return constantInstruction(ferr, "OP_CLASS", chunk, offset);

@@ -604,13 +604,15 @@ OpCodeToString simpleOps[] = {
   SIMPLE_OP(OP_NEGATE),
   SIMPLE_OP(OP_PRINT),
   SIMPLE_OP(OP_CLOSE_UPVALUE),
+  SIMPLE_OP(OP_LIST_INIT),
+  SIMPLE_OP(OP_LIST_DATA),
   SIMPLE_OP(OP_RETURN),
   SIMPLE_OP(OP_INHERIT),
   { 255, "0000  123 Unknown opcode 255\n" }
 };
 // clang-format on
 
-#define NUM_SIMPLE_OPS 21
+#define NUM_SIMPLE_OPS 23
 
 UTEST_I(DisassembleSimple, SimpleOps, NUM_SIMPLE_OPS) {
   static_assert(

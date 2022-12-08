@@ -34,6 +34,8 @@ typedef struct {
   ObjString* initString;
   ObjUpvalue* openUpvalues;
 
+  ObjClass* listClass;
+
   GC gc;
 } VM;
 

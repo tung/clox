@@ -562,6 +562,20 @@ static void lambda(Parser* parser, bool canAssign) {
   function(parser, TYPE_FUNCTION, "()", 2);
 }
 
+static void list(Parser* parser, bool canAssign) {
+  (void)canAssign;
+
+  emitByte(parser, OP_LIST_INIT);
+  do {
+    if (check(parser, TOKEN_RIGHT_SQUARE)) {
+      break;
+    }
+    expression(parser);
+    emitByte(parser, OP_LIST_DATA);
+  } while (match(parser, TOKEN_COMMA));
+  consume(parser, TOKEN_RIGHT_SQUARE, "Expect ']' after list.");
+}
+
 static void literal(Parser* parser, bool canAssign) {
   (void)canAssign;
 
@@ -718,7 +732,7 @@ ParseRule rules[] = {
   [TOKEN_RIGHT_PAREN]   = { NULL,     NULL,   PREC_NONE },
   [TOKEN_LEFT_BRACE]    = { NULL,     NULL,   PREC_NONE },
   [TOKEN_RIGHT_BRACE]   = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_LEFT_SQUARE]   = { NULL,     index_, PREC_CALL },
+  [TOKEN_LEFT_SQUARE]   = { list,     index_, PREC_CALL },
   [TOKEN_RIGHT_SQUARE]  = { NULL,     NULL,   PREC_NONE },
   [TOKEN_COMMA]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_DOT]           = { NULL,     dot,    PREC_CALL },

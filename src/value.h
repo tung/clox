@@ -103,9 +103,12 @@ typedef struct {
 
 void initValueArray(ValueArray* array);
 void writeValueArray(GC* gc, ValueArray* array, Value value);
+void insertValueArray(GC* gc, ValueArray* array, int pos, Value value);
+Value removeValueArray(ValueArray* array, int pos);
 int findInValueArray(ValueArray* array, Value value);
 void freeValueArray(GC* gc, ValueArray* array);
 void printValue(FILE* fout, Value value);
+void printValueShallow(FILE* fout, Value value);
 bool valuesEqual(Value a, Value b);
 
 #define EXPECT_VALEQ(x, y) \

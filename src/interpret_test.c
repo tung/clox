@@ -591,12 +591,16 @@ InterpretCase classes[] = {
       "class F{" },
   { INTERPRET_COMPILE_ERROR, "Invalid assignment target.",
       "class F{}var f=F();1+f.x=2;" },
-  { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
-      "0.x;" },
-  { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists and instances have properties.", "0.x;" },
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists and instances have properties.", "\"\".x;" },
+  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
       "0[\"x\"];" },
   { INTERPRET_RUNTIME_ERROR, "Only instances have fields.", "0.x=1;" },
   { INTERPRET_RUNTIME_ERROR, "Only instances have fields.",
+      "\"\".x=1;" },
+  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
       "0[\"x\"]=1;" },
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
       "class F{}var f=F();f.x;" },
@@ -616,7 +620,7 @@ InterpretCase classes[] = {
       "class F{}var f=F();print f[\"x\"]=1;print f[\"x\"];" },
 };
 
-INTERPRET(Classes, classes, 18);
+INTERPRET(Classes, classes, 20);
 
 InterpretCase methods[] = {
   { INTERPRET_COMPILE_ERROR, "Expect method name.", "class F{0}" },
@@ -629,7 +633,10 @@ InterpretCase methods[] = {
       "class F{init(){return 0;}}" },
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       "class F{}F(0);" },
-  { INTERPRET_RUNTIME_ERROR, "Only instances have methods.", "0.x();" },
+  { INTERPRET_RUNTIME_ERROR, "Only lists and instances have methods.",
+      "0.x();" },
+  { INTERPRET_RUNTIME_ERROR, "Only lists and instances have methods.",
+      "\"\".x();" },
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
       "class F{}F().x();" },
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x1234567'.",
@@ -669,7 +676,7 @@ InterpretCase methods[] = {
       "F().blah();" },
 };
 
-INTERPRET(Methods, methods, 15);
+INTERPRET(Methods, methods, 16);
 
 InterpretCase superclasses[] = {
   { INTERPRET_COMPILE_ERROR, "Expect superclass name.", "class A<" },
@@ -722,6 +729,115 @@ InterpretCase superclasses[] = {
 };
 
 INTERPRET(Superclasses, superclasses, 15);
+
+InterpretCase list[] = {
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "[" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "[," },
+  { INTERPRET_COMPILE_ERROR, "Expect ']' after list.", "[0" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "[0," },
+  { INTERPRET_RUNTIME_ERROR, "Lists can only be indexed by number.",
+      "[nil][nil];" },
+  { INTERPRET_RUNTIME_ERROR, "Lists can only be indexed by number.",
+      "[nil][nil]=1;" },
+  { INTERPRET_RUNTIME_ERROR, "Index (-1) out of bounds (1).",
+      "[nil][-1];" },
+  { INTERPRET_RUNTIME_ERROR, "Index (-1) out of bounds (1).",
+      "[nil][-1]=1;" },
+  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (1).",
+      "[nil][1];" },
+  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (1).",
+      "[nil][1]=1;" },
+  { INTERPRET_RUNTIME_ERROR, "Index (0.5) must be a whole number.",
+      "[nil][0.5];" },
+  { INTERPRET_RUNTIME_ERROR, "Index (0.5) must be a whole number.",
+      "[nil][0.5]=1;" },
+  { INTERPRET_OK, "1\n", "print[1][0];" },
+  { INTERPRET_OK, "1\n", "print[1,][0];" },
+  { INTERPRET_OK, "1\n2\n3\n",
+      "var l=[1,1+1,1+1+1];print l[0];print l[1];print l[1+1];" },
+  { INTERPRET_OK, "nil\nfalse\ntrue\nhi\n[1, 2, 3]\n",
+      "var l=[nil,false,true,\"hi\",[1,2,3]];"
+      "print l[0];print l[1];print l[2];print l[3];print l[4];" },
+  { INTERPRET_OK, "0\nhi\n",
+      "var l=[0];print l[0];l[0]=\"hi\";print l[0];" },
+  { INTERPRET_OK, "[1, 2, 3]\n0\n[1, 0, 3]\n",
+      "var l=[1,2,3];print l;print l[1]=0;print l;" },
+  { INTERPRET_OK, "[1, 2, 3]\n[4, 5, <list 3>]\n[1, 2, 3]\n",
+      "var a=[1,2,3];var b=[4,5,a];print a;print b;print b[2];" },
+  { INTERPRET_OK, "[1, 2, 3]\n[1, 2, <list 3>]\n",
+      "var a=[1,2,3];print a;a[2]=a;print a;" },
+};
+
+INTERPRET(List, list, 20);
+
+InterpretCase listInsert[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 2 arguments but got 0.",
+      "[].insert();" },
+  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (1).",
+      "[0].insert(1,0);" },
+  { INTERPRET_OK, "[0]\n[true, 0]\n",
+      "var l=[0];print l;l.insert(0,true);print l;" },
+  { INTERPRET_OK, "[1, 2, 3]\n[1, 2, false, 3]\n",
+      "var l=[1,2,3];print l;l.insert(2, false);print l;" },
+  { INTERPRET_OK, "[0, 1, 2, 3, 4, 5, 6, 7, 8]\n",
+      "var l=[8];for(var i=0;i<8;i=i+1)l.insert(i,i);print l;" },
+};
+
+INTERPRET(ListInsert, listInsert, 5);
+
+InterpretCase listPop[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "[].pop(0);" },
+  { INTERPRET_RUNTIME_ERROR, "Can't pop from an empty list.",
+      "[].pop();" },
+  { INTERPRET_OK, "[123]\n123\n[]\n",
+      "var l=[123];print l;print l.pop();print l;" },
+  { INTERPRET_OK, "7\n6\n5\n4\n3\n2\n1\n0\n[]\n",
+      "var l=[0,1,2,3,4,5,6,7];"
+      "for(var i=0;i<8;i=i+1)print l.pop();"
+      "print l;" },
+};
+
+INTERPRET(ListPop, listPop, 4);
+
+InterpretCase listPush[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "[].push();" },
+  { INTERPRET_OK, "[]\n[0]\n", "var l=[];print l;l.push(0);print l;" },
+  { INTERPRET_OK, "[0, 1, 2, 3, 4, 5, 6, 7]\n",
+      "var l=[];for(var i=0;i<8;i=i+1)l.push(i);print l;" },
+};
+
+INTERPRET(ListPush, listPush, 3);
+
+InterpretCase listRemove[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "[].remove();" },
+  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (1).",
+      "[0].remove(1);" },
+  { INTERPRET_OK, "[2, 4, 6]\n4\n[2, 6]\n",
+      "var l=[2,4,6];print l;print l.remove(1);print l;" },
+  { INTERPRET_OK, "0\n1\n2\n3\n4\n5\n6\n7\n[]\n",
+      "var l=[0,1,2,3,4,5,6,7];"
+      "for(var i=0;i<8;i=i+1)print l.remove(0);"
+      "print l;" },
+};
+
+INTERPRET(ListRemove, listRemove, 4);
+
+InterpretCase listSize[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "[].size(0);" },
+  { INTERPRET_OK, "<native fn>\n", "print[].size;" },
+  { INTERPRET_OK, "0\n1\n3\n",
+      "var a=[];var b=[0];var c=[0,0,0];"
+      "var as=a.size;var bs=b.size;var cs=c.size;"
+      "print as();print bs();print cs();" },
+  { INTERPRET_OK, "0\n1\n3\n",
+      "print[].size();print[0].size();print[0,0,0].size();" },
+};
+
+INTERPRET(ListSize, listSize, 4);
 
 UTEST_STATE();
 

@@ -71,6 +71,31 @@ UTEST_F(ValueArray, WriteNil) {
   EXPECT_VALEQ(NIL_VAL, ufx->va.values[0]);
 }
 
+UTEST_F(ValueArray, InsertRemove) {
+  writeValueArray(&ufx->gc, &ufx->va, NUMBER_VAL(3.0));
+  insertValueArray(&ufx->gc, &ufx->va, 0, NUMBER_VAL(2.0));
+  insertValueArray(&ufx->gc, &ufx->va, 0, NUMBER_VAL(1.0));
+  insertValueArray(&ufx->gc, &ufx->va, 0, NUMBER_VAL(0.0));
+
+  EXPECT_EQ(4, ufx->va.count);
+  EXPECT_VALEQ(NUMBER_VAL(0.0), ufx->va.values[0]);
+  EXPECT_VALEQ(NUMBER_VAL(1.0), ufx->va.values[1]);
+  EXPECT_VALEQ(NUMBER_VAL(2.0), ufx->va.values[2]);
+  EXPECT_VALEQ(NUMBER_VAL(3.0), ufx->va.values[3]);
+
+  Value v;
+  v = removeValueArray(&ufx->va, 0);
+  EXPECT_VALEQ(NUMBER_VAL(0.0), v);
+  v = removeValueArray(&ufx->va, 0);
+  EXPECT_VALEQ(NUMBER_VAL(1.0), v);
+  v = removeValueArray(&ufx->va, 0);
+  EXPECT_VALEQ(NUMBER_VAL(2.0), v);
+  v = removeValueArray(&ufx->va, 0);
+  EXPECT_VALEQ(NUMBER_VAL(3.0), v);
+
+  EXPECT_EQ(0, ufx->va.count);
+}
+
 UTEST_F(ValueArray, FindInValueArray) {
   writeValueArray(&ufx->gc, &ufx->va, NUMBER_VAL(1.0));
   writeValueArray(&ufx->gc, &ufx->va, NUMBER_VAL(2.0));
@@ -150,6 +175,46 @@ UTEST(Value, PrintUpvalue) {
   EXPECT_STREQ("upvalue", out.buf);
 
   freeMemBuf(&out);
+}
+
+UTEST(Value, PrintList) {
+  GC gc;
+  Table strings;
+  MemBuf out;
+  initGC(&gc);
+  initTable(&strings, 0.75);
+  initMemBuf(&out);
+
+  ObjList* l0 = newList(&gc);
+  pushTemp(&gc, OBJ_VAL(l0));
+
+  ObjList* l1 = newList(&gc);
+  pushTemp(&gc, OBJ_VAL(l1));
+  writeValueArray(&gc, &l1->elements, NUMBER_VAL(1.1));
+
+  ObjString* s = copyString(&gc, &strings, "hi", 2);
+  pushTemp(&gc, OBJ_VAL(s));
+
+  ObjList* l2 = newList(&gc);
+  pushTemp(&gc, OBJ_VAL(l2));
+  writeValueArray(&gc, &l2->elements, NUMBER_VAL(2.2));
+  writeValueArray(&gc, &l2->elements, OBJ_VAL(s));
+  writeValueArray(&gc, &l2->elements, OBJ_VAL(l0));
+
+  printValue(out.fptr, OBJ_VAL(l0));
+  printValue(out.fptr, OBJ_VAL(l1));
+  printValue(out.fptr, OBJ_VAL(l2));
+  fflush(out.fptr);
+  EXPECT_STREQ("[][1.1][2.2, hi, <list 0>]", out.buf);
+
+  popTemp(&gc);
+  popTemp(&gc);
+  popTemp(&gc);
+  popTemp(&gc);
+
+  freeMemBuf(&out);
+  freeTable(&gc, &strings);
+  freeGC(&gc);
 }
 
 UTEST(Value, BoolsEqual) {

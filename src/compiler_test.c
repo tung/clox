@@ -1372,6 +1372,64 @@ SourceToDump superclasses[] = {
 
 DUMP_SRC(Superclasses, superclasses, 6);
 
+SourceToDump lists[] = {
+  { false, "[", "Expect expression." },
+  { false, "[,", "Expect expression." },
+  { false, "[0", "Expect ']' after list." },
+  { false, "[0,", "Expect expression." },
+  { true, "[];",
+      "== <script> ==\n"
+      "0000    1 OP_LIST_INIT\n"
+      "0001    | OP_POP\n"
+      "0002    | OP_NIL\n"
+      "0003    | OP_RETURN\n" },
+  { true, "[nil];",
+      "== <script> ==\n"
+      "0000    1 OP_LIST_INIT\n"
+      "0001    | OP_NIL\n"
+      "0002    | OP_LIST_DATA\n"
+      "0003    | OP_POP\n"
+      "0004    | OP_NIL\n"
+      "0005    | OP_RETURN\n" },
+  { true, "[nil,false,true,];",
+      "== <script> ==\n"
+      "0000    1 OP_LIST_INIT\n"
+      "0001    | OP_NIL\n"
+      "0002    | OP_LIST_DATA\n"
+      "0003    | OP_FALSE\n"
+      "0004    | OP_LIST_DATA\n"
+      "0005    | OP_TRUE\n"
+      "0006    | OP_LIST_DATA\n"
+      "0007    | OP_POP\n"
+      "0008    | OP_NIL\n"
+      "0009    | OP_RETURN\n" },
+  { true, "[nil,true or false,3*2+1,\"hi\",[]];",
+      "== <script> ==\n"
+      "0000    1 OP_LIST_INIT\n"
+      "0001    | OP_NIL\n"
+      "0002    | OP_LIST_DATA\n"
+      "0003    | OP_TRUE\n"
+      "0004    | OP_JUMP_IF_FALSE    4 -> 10\n"
+      "0007    | OP_JUMP             7 -> 12\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_FALSE\n"
+      "0012    | OP_LIST_DATA\n"
+      "0013    | OP_CONSTANT         0 '3'\n"
+      "0015    | OP_CONSTANT         1 '2'\n"
+      "0017    | OP_MULTIPLY\n"
+      "0018    | OP_ADD_C            2 '1'\n"
+      "0020    | OP_LIST_DATA\n"
+      "0021    | OP_CONSTANT         3 'hi'\n"
+      "0023    | OP_LIST_DATA\n"
+      "0024    | OP_LIST_INIT\n"
+      "0025    | OP_LIST_DATA\n"
+      "0026    | OP_POP\n"
+      "0027    | OP_NIL\n"
+      "0028    | OP_RETURN\n" },
+};
+
+DUMP_SRC(Lists, lists, 8);
+
 SourceToDump error[] = {
   { false, "print ;", "Expect expression." },
   { false, "print #", "Unexpected character." },

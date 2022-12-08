@@ -76,6 +76,12 @@ ObjInstance* newInstance(GC* gc, ObjClass* klass) {
   return instance;
 }
 
+ObjList* newList(GC* gc) {
+  ObjList* list = ALLOCATE_OBJ(gc, ObjList, OBJ_LIST);
+  initValueArray(&list->elements);
+  return list;
+}
+
 ObjNative* newNative(GC* gc, NativeFn function) {
   ObjNative* native = ALLOCATE_OBJ(gc, ObjNative, OBJ_NATIVE);
   native->function = function;
@@ -149,14 +155,7 @@ static void printFunction(FILE* fout, ObjFunction* function) {
 void printObject(FILE* fout, Value value) {
   switch (OBJ_TYPE(value)) {
     case OBJ_BOUND_METHOD: {
-      Obj* method = AS_BOUND_METHOD(value)->method;
-      ObjFunction* methodFun;
-      if (method->type == OBJ_CLOSURE) {
-        methodFun = ((ObjClosure*)method)->function;
-      } else {
-        methodFun = (ObjFunction*)method;
-      }
-      printFunction(fout, methodFun);
+      printObject(fout, OBJ_VAL(AS_BOUND_METHOD(value)->method));
       break;
     }
     case OBJ_CLASS:
@@ -170,6 +169,19 @@ void printObject(FILE* fout, Value value) {
       fprintf(
           fout, "%s instance", AS_INSTANCE(value)->klass->name->chars);
       break;
+    case OBJ_LIST: {
+      ObjList* list = AS_LIST(value);
+      fputc('[', fout);
+      if (list->elements.count > 0) {
+        printValueShallow(fout, list->elements.values[0]);
+      }
+      for (int i = 1; i < list->elements.count; ++i) {
+        fputs(", ", fout);
+        printValueShallow(fout, list->elements.values[i]);
+      }
+      fputc(']', fout);
+      break;
+    }
     case OBJ_NATIVE: fprintf(fout, "<native fn>"); break;
     case OBJ_STRING: fprintf(fout, "%s", AS_CSTRING(value)); break;
     case OBJ_UPVALUE: fprintf(fout, "upvalue"); break;

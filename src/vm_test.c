@@ -918,8 +918,8 @@ VMCase closures[] = {
 
 VM_TEST(Closures, closures, 2);
 
-VMCase index_[] = {
-  // IndexClassSimple
+VMCase classesIndex[] = {
+  // ClassesIndexSimple
   { INTERPRET_OK, "1\n", LIST(LitFun),
       // class F{} var f = F(); f["x"] = 1; print f["x"];
       LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
@@ -928,42 +928,42 @@ VMCase index_[] = {
           OP_SET_INDEX, OP_POP, OP_GET_GLOBAL, 1, 0, OP_CONSTANT, 2,
           OP_GET_INDEX, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Lit, S("F"), S("f"), S("x"), N(1.0)) },
-  // IndexClassUndefined
+  // ClassesIndexUndefined
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.", LIST(LitFun),
       // class F{} F()["x"];
       LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
           0, OP_POP, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_CONSTANT, 1,
           OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("F"), S("x")) },
-  // IndexInvalidGet1
-  { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
+  // ClassesIndexInvalidGet1
+  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
       LIST(LitFun),
       // 0["x"];
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_INDEX,
           OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(0.0), S("x")) },
-  // IndexInvalidGet2
-  { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
+  // ClassesIndexInvalidGet2
+  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
       LIST(LitFun),
       // "a"["x"];
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_INDEX,
           OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("a"), S("x")) },
-  // IndexInvalidSet1
-  { INTERPRET_RUNTIME_ERROR, "Only instances have fields.",
+  // ClassesIndexInvalidSet1
+  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
       LIST(LitFun),
       // 0["x"] = 1;
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
           OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(0.0), S("x"), N(1.0)) },
-  // IndexInvalidSet2
-  { INTERPRET_RUNTIME_ERROR, "Only instances have fields.",
+  // ClassesIndexInvalidSet2
+  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
       LIST(LitFun),
       // "a"["x"] = 1;
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
           OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("a"), S("x"), N(1.0)) },
-  // IndexInstanceGetBadIndex1
+  // ClassesIndexInstanceGetBadIndex1
   { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
       LIST(LitFun),
       // class F{} F()[0];
@@ -971,7 +971,7 @@ VMCase index_[] = {
           0, OP_POP, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_CONSTANT, 1,
           OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("F"), N(0.0)) },
-  // IndexInstanceGetBadIndex2
+  // ClassesIndexInstanceGetBadIndex2
   { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
       LIST(LitFun),
       // class F{} F()[F()];
@@ -979,7 +979,7 @@ VMCase index_[] = {
           0, OP_POP, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_GET_GLOBAL, 0,
           0, OP_CALL, 0, OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("F")) },
-  // IndexInstanceSetBadIndex1
+  // ClassesIndexInstanceSetBadIndex1
   { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
       LIST(LitFun),
       // class F{} var f = F(); f[0] = 1;
@@ -988,7 +988,7 @@ VMCase index_[] = {
           1, OP_GET_GLOBAL, 1, 0, OP_CONSTANT, 2, OP_CONSTANT, 3,
           OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("F"), S("f"), N(0.0), N(1.0)) },
-  // IndexInstanceSetBadIndex2
+  // ClassesIndexInstanceSetBadIndex2
   { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
       LIST(LitFun),
       // class F{} var f = F(); f[F()] = 1;
@@ -999,7 +999,7 @@ VMCase index_[] = {
       LIST(Lit, S("F"), S("f"), N(1.0)) },
 };
 
-VM_TEST(Index, index_, 10);
+VM_TEST(ClassesIndex, classesIndex, 10);
 
 VMCase classes[] = {
   // ClassesPrint
@@ -1034,8 +1034,8 @@ VMCase classes[] = {
           OP_GET_PROPERTY, 4, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("F"), S("f"), S("F"), S("f"), S("x")) },
   // ClassesGetNonInstance
-  { INTERPRET_RUNTIME_ERROR, "Only instances have properties.",
-      LIST(LitFun),
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists and instances have properties.", LIST(LitFun),
       // 0.x;
       LIST(uint8_t, OP_CONSTANT, 0, OP_GET_PROPERTY, 1, OP_POP, OP_NIL,
           OP_RETURN),
@@ -1114,7 +1114,7 @@ VMCase classesMethods[] = {
       LIST(Lit, S("blah"), F(0), S("F"), S("F"), S("f"), S("F"), S("f"),
           S("blah"), S("blah"), S("f"), S("blah")) },
   // ClassesInvokeNonInstance
-  { INTERPRET_RUNTIME_ERROR, "Only instances have methods.",
+  { INTERPRET_RUNTIME_ERROR, "Only lists and instances have methods.",
       LIST(LitFun),
       // 0.x();
       LIST(uint8_t, OP_CONSTANT, 0, OP_INVOKE, 1, 0, OP_POP, OP_NIL,
@@ -1230,6 +1230,201 @@ VMCase classesSuper[] = {
 };
 
 VM_TEST(ClassesSuper, classesSuper, 4);
+
+VMCase lists[] = {
+  // ListsDataNonList1
+  { INTERPRET_RUNTIME_ERROR, "List data can only be added to a list.",
+      LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_LIST_DATA, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  // ListsDataNonList2
+  { INTERPRET_RUNTIME_ERROR, "List data can only be added to a list.",
+      LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_LIST_DATA, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("foo")) },
+  // ListsGetIndexSimple
+  { INTERPRET_OK, "nil\n", LIST(LitFun),
+      // print [nil][0];
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
+          OP_GET_INDEX, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0)) },
+  // ListsSetIndexSimple
+  { INTERPRET_OK, "0\n1\n1\n", LIST(LitFun),
+      // var l=0;print l[0];print l[0]=1;print l[0];
+      LIST(uint8_t, OP_LIST_INIT, OP_CONSTANT, 1, OP_LIST_DATA,
+          OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1,
+          OP_GET_INDEX, OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1,
+          OP_CONSTANT, 2, OP_SET_INDEX, OP_PRINT, OP_GET_GLOBAL, 0, 0,
+          OP_CONSTANT, 1, OP_GET_INDEX, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("l"), N(0.0), N(1.0)) },
+  // ListsGetIndexNonNumber
+  { INTERPRET_RUNTIME_ERROR, "Lists can only be indexed by number.",
+      LIST(LitFun),
+      // [nil][nil];
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_NIL,
+          OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  // ListsSetIndexNonNumber
+  { INTERPRET_RUNTIME_ERROR, "Lists can only be indexed by number.",
+      LIST(LitFun),
+      // [nil][nil]=nil;
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_NIL, OP_NIL,
+          OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  // ListsGetIndexGetOutOfBounds1
+  { INTERPRET_RUNTIME_ERROR, "Index (-1) out of bounds (1).",
+      LIST(LitFun),
+      // [nil][-1];
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
+          OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, N(-1.0)) },
+  // ListsSetIndexGetOutOfBounds1
+  { INTERPRET_RUNTIME_ERROR, "Index (-1) out of bounds (1).",
+      LIST(LitFun),
+      // [nil][-1]=nil;
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
+          OP_NIL, OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, N(-1.0)) },
+  // ListsGetIndexGetOutOfBounds2
+  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (1).",
+      LIST(LitFun),
+      // [nil][1];
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
+          OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, N(1.0)) },
+  // ListsSetIndexGetOutOfBounds2
+  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (1).",
+      LIST(LitFun),
+      // [nil][1]=nil;
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
+          OP_NIL, OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, N(1.0)) },
+  // ListsGetIndexGetBadNumber
+  { INTERPRET_RUNTIME_ERROR, "Index (0.5) must be a whole number.",
+      LIST(LitFun),
+      // [nil][0.5];
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
+          OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.5)) },
+  // ListsSetIndexGetBadNumber
+  { INTERPRET_RUNTIME_ERROR, "Index (0.5) must be a whole number.",
+      LIST(LitFun),
+      // [nil][0.5]=nil;
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
+          OP_NIL, OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.5)) },
+  // ListsInsertSimple
+  { INTERPRET_OK, "[123, 456]\n", LIST(LitFun),
+      // var l=[123];l.insert(0,456);print l;
+      LIST(uint8_t, OP_LIST_INIT, OP_CONSTANT, 1, OP_LIST_DATA,
+          OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 3,
+          OP_CONSTANT, 4, OP_INVOKE, 2, 2, OP_POP, OP_GET_GLOBAL, 0, 0,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("l"), N(456.0), S("insert"), N(0.0), N(123.0)) },
+  // ListsInsertBadArity
+  { INTERPRET_RUNTIME_ERROR, "Expected 2 arguments but got 0.",
+      LIST(LitFun),
+      // [].insert();
+      LIST(uint8_t, OP_LIST_INIT, OP_INVOKE, 0, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("insert")) },
+  // ListsInsertBadIndex
+  { INTERPRET_RUNTIME_ERROR, "Lists can only be indexed by number.",
+      LIST(LitFun),
+      // [].insert(nil,nil);
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_NIL, OP_INVOKE, 0, 2,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("insert")) },
+  // ListsPopSimple
+  { INTERPRET_OK, "[123, 456]\n456\n[123]\n", LIST(LitFun),
+      // var l=[123,456];print l;print l.pop();print l;
+      LIST(uint8_t, OP_LIST_INIT, OP_CONSTANT, 1, OP_LIST_DATA,
+          OP_CONSTANT, 2, OP_LIST_DATA, OP_DEFINE_GLOBAL, 0,
+          OP_GET_GLOBAL, 0, 0, OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_INVOKE,
+          3, 0, OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("l"), N(123.0), N(456.0), S("pop")) },
+  // ListsPopBadArity
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun),
+      // [].pop(nil);
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_INVOKE, 0, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("pop")) },
+  // ListsPopEmpty
+  { INTERPRET_RUNTIME_ERROR, "Can't pop from an empty list.",
+      LIST(LitFun),
+      // [].pop();
+      LIST(uint8_t, OP_LIST_INIT, OP_INVOKE, 0, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("pop")) },
+  // ListsPushSimple
+  { INTERPRET_OK, "[]\n[123]\n[123, 456]\n", LIST(LitFun),
+      // var l=[];print l;l.push(123);print l;l.push(456);print l;
+      LIST(uint8_t, OP_LIST_INIT, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
+          0, OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 2, OP_INVOKE,
+          1, 1, OP_POP, OP_GET_GLOBAL, 0, 0, OP_PRINT, OP_GET_GLOBAL, 0,
+          0, OP_CONSTANT, 3, OP_INVOKE, 1, 1, OP_POP, OP_GET_GLOBAL, 0,
+          0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("l"), S("push"), N(123.0), N(456.0)) },
+  // ListsPushBadArity
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // [].push();
+      LIST(uint8_t, OP_LIST_INIT, OP_INVOKE, 0, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("push")) },
+  // ListsRemoveSimple
+  { INTERPRET_OK, "[123, 456, 789]\n456\n[123, 789]\n", LIST(LitFun),
+      // var l=[123,456,789];print l;print l.remove(1);print l;
+      LIST(uint8_t, OP_LIST_INIT, OP_CONSTANT, 1, OP_LIST_DATA,
+          OP_CONSTANT, 2, OP_LIST_DATA, OP_CONSTANT, 3, OP_LIST_DATA,
+          OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0, 0, OP_PRINT,
+          OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 5, OP_INVOKE, 4, 1,
+          OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("l"), N(123.0), N(456.0), N(789.0), S("remove"),
+          N(1.0)) },
+  // ListsRemoveBadArity
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // [].remove();
+      LIST(uint8_t, OP_LIST_INIT, OP_INVOKE, 0, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("remove")) },
+  // ListsRemoveBadIndex
+  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (0).",
+      LIST(LitFun),
+      // [].remove(1);
+      LIST(uint8_t, OP_LIST_INIT, OP_CONSTANT, 1, OP_INVOKE, 0, 1,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("remove"), N(1.0)) },
+  // ListsSizeSimple1
+  { INTERPRET_OK, "3\n", LIST(LitFun),
+      // print [nil,nil,nil].size();
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_NIL,
+          OP_LIST_DATA, OP_NIL, OP_LIST_DATA, OP_INVOKE, 0, 0, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("size")) },
+  // ListsSizeSimple2
+  { INTERPRET_OK, "3\n", LIST(LitFun),
+      // var s=[nil,nil,nil].size;print s();
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_NIL,
+          OP_LIST_DATA, OP_NIL, OP_LIST_DATA, OP_GET_PROPERTY, 1,
+          OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0, 0, OP_CALL, 0,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("s"), S("size")) },
+  // ListsSizeBadArity
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun),
+      // [].size(nil);
+      LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_INVOKE, 0, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("size")) },
+};
+
+VM_TEST(Lists, lists, 26);
 
 UTEST_STATE();
 

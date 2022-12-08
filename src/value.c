@@ -1,5 +1,6 @@
 #include "value.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -12,16 +13,37 @@ void initValueArray(ValueArray* array) {
   array->count = 0;
 }
 
-void writeValueArray(GC* gc, ValueArray* array, Value value) {
+static void ensureNewSpace(GC* gc, ValueArray* array) {
   if (array->capacity < array->count + 1) {
     int oldCapacity = array->capacity;
     array->capacity = GROW_CAPACITY(oldCapacity);
     array->values = GROW_ARRAY(
         gc, Value, array->values, oldCapacity, array->capacity);
   }
+}
 
+void writeValueArray(GC* gc, ValueArray* array, Value value) {
+  ensureNewSpace(gc, array);
   array->values[array->count] = value;
   array->count++;
+}
+
+void insertValueArray(GC* gc, ValueArray* array, int pos, Value value) {
+  assert(pos >= 0 && pos < array->count); // GCOV_EXCL_LINE
+  ensureNewSpace(gc, array);
+  memmove(array->values + pos + 1, array->values + pos,
+      (array->count - pos) * sizeof(Value));
+  array->values[pos] = value;
+  array->count++;
+}
+
+Value removeValueArray(ValueArray* array, int pos) {
+  assert(pos >= 0 && pos < array->count); // GCOV_EXCL_LINE
+  Value value = array->values[pos];
+  memmove(array->values + pos, array->values + pos + 1,
+      (array->count - pos - 1) * sizeof(Value));
+  array->count--;
+  return value;
 }
 
 int findInValueArray(ValueArray* array, Value value) {
@@ -59,6 +81,14 @@ void printValue(FILE* fout, Value value) {
     case VAL_OBJ: printObject(fout, value); break;
   }
 #endif
+}
+
+void printValueShallow(FILE* fout, Value value) {
+  if (IS_LIST(value)) {
+    fprintf(fout, "<list %u>", AS_LIST(value)->elements.count);
+  } else {
+    printValue(fout, value);
+  }
 }
 
 bool valuesEqual(Value a, Value b) {

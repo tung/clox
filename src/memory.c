@@ -122,6 +122,11 @@ static void blackenObject(GC* gc, Obj* object) {
       markTable(gc, &instance->fields);
       break;
     }
+    case OBJ_LIST: {
+      ObjList* list = (ObjList*)object;
+      markArray(gc, &list->elements);
+      break;
+    }
     case OBJ_UPVALUE:
       markValue(gc, ((ObjUpvalue*)object)->closed);
       break;
@@ -162,6 +167,12 @@ static void freeObject(GC* gc, Obj* object) {
       ObjInstance* instance = (ObjInstance*)object;
       freeTable(gc, &instance->fields);
       FREE(gc, ObjInstance, object);
+      break;
+    }
+    case OBJ_LIST: {
+      ObjList* list = (ObjList*)object;
+      freeValueArray(gc, &list->elements);
+      FREE(gc, ObjList, object);
       break;
     }
     case OBJ_NATIVE: FREE(gc, ObjNative, object); break;
