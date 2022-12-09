@@ -316,9 +316,14 @@ VMCase opGlobals[] = {
           0, 0, OP_PRINT, OP_CONSTANT, 2, OP_SET_GLOBAL, 0, 0, OP_POP,
           OP_GET_GLOBAL, 0, 0, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Lit, S("foo"), N(123.0), N(456.0)) },
+  { INTERPRET_OK, "123\n456\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL,
+          0, 0, OP_PRINT, OP_CONSTANT, 2, OP_DEFINE_GLOBAL, 0,
+          OP_GET_GLOBAL, 0, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("foo"), N(123.0), N(456.0)) },
 };
 
-VM_TEST(OpGlobals, opGlobals, 5);
+VM_TEST(OpGlobals, opGlobals, 6);
 
 VMCase opEqual[] = {
   { INTERPRET_OK, "true\n", LIST(LitFun),
@@ -706,24 +711,44 @@ VMCase opJump[] = {
 VM_TEST(OpJump, opJump, 1);
 
 VMCase opJumpIfFalse[] = {
-  { INTERPRET_OK, "0\n2\n", LIST(LitFun),
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_NIL, OP_JUMP_IF_FALSE,
-          0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT, 2, OP_PRINT,
+  { INTERPRET_OK, "3\nnil\n1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_JUMP_IF_FALSE, 0, 2,
+          OP_CONSTANT, 1, OP_CONSTANT, 2, OP_PRINT, OP_PRINT, OP_PRINT,
           OP_NIL, OP_RETURN),
-      LIST(Lit, N(0.0), N(1.0), N(2.0)) },
-  { INTERPRET_OK, "0\n2\n", LIST(LitFun),
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_FALSE,
-          OP_JUMP_IF_FALSE, 0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT,
-          2, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Lit, N(0.0), N(1.0), N(2.0)) },
-  { INTERPRET_OK, "0\n1\n2\n", LIST(LitFun),
-      LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_TRUE, OP_JUMP_IF_FALSE,
-          0, 3, OP_CONSTANT, 1, OP_PRINT, OP_CONSTANT, 2, OP_PRINT,
+      LIST(Lit, N(1.0), N(2.0), N(3.0)) },
+  { INTERPRET_OK, "3\nfalse\n1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_FALSE, OP_JUMP_IF_FALSE, 0, 2,
+          OP_CONSTANT, 1, OP_CONSTANT, 2, OP_PRINT, OP_PRINT, OP_PRINT,
           OP_NIL, OP_RETURN),
-      LIST(Lit, N(0.0), N(1.0), N(2.0)) },
+      LIST(Lit, N(1.0), N(2.0), N(3.0)) },
+  { INTERPRET_OK, "3\n2\ntrue\n1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_TRUE, OP_JUMP_IF_FALSE, 0, 2,
+          OP_CONSTANT, 1, OP_CONSTANT, 2, OP_PRINT, OP_PRINT, OP_PRINT,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, N(1.0), N(2.0), N(3.0)) },
 };
 
 VM_TEST(OpJumpIfFalse, opJumpIfFalse, 3);
+
+VMCase opPjmpIfFalse[] = {
+  { INTERPRET_OK, "3\n1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_PJMP_IF_FALSE, 0, 2,
+          OP_CONSTANT, 1, OP_CONSTANT, 2, OP_PRINT, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(1.0), N(2.0), N(3.0)) },
+  { INTERPRET_OK, "3\n1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_FALSE, OP_PJMP_IF_FALSE, 0, 2,
+          OP_CONSTANT, 1, OP_CONSTANT, 2, OP_PRINT, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, N(1.0), N(2.0), N(3.0)) },
+  { INTERPRET_OK, "3\n2\n1\n", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_TRUE, OP_PJMP_IF_FALSE, 0, 2,
+          OP_CONSTANT, 1, OP_CONSTANT, 2, OP_PRINT, OP_PRINT, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, N(1.0), N(2.0), N(3.0)) },
+};
+
+VM_TEST(OpPjmpIfFalse, opPjmpIfFalse, 3);
 
 VMCase opLoop[] = {
   { INTERPRET_OK, "0\n1\n2\n3\n4\n", LIST(LitFun),
@@ -756,36 +781,6 @@ VMCase opCall[] = {
       LIST(uint8_t, OP_CONSTANT, 0, OP_PRINT, OP_CLOSURE, 1, OP_CALL, 0,
           OP_POP, OP_CONSTANT, 2, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Lit, S("("), F(1), S(")")) },
-  // OpCallClock
-  { INTERPRET_OK, "true\n", LIST(LitFun),
-      // print clock() >= 0;
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_CONSTANT, 1,
-          OP_LESS, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Lit, S("clock"), N(0.0)) },
-  // OpCallStr
-  { INTERPRET_OK, "hi1\n", LIST(LitFun),
-      // print "hi" + str(1);
-      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_GLOBAL, 1, 0, OP_CONSTANT, 2,
-          OP_CALL, 1, OP_ADD, OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Lit, S("hi"), S("str"), N(1.0)) },
-  // OpCallCeil
-  { INTERPRET_OK, "2\n", LIST(LitFun),
-      // print ceil(1.5);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
-          OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Lit, S("ceil"), N(1.5)) },
-  // OpCallFloor
-  { INTERPRET_OK, "1\n", LIST(LitFun),
-      // print floor(1.5);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
-          OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Lit, S("floor"), N(1.5)) },
-  // OpCallRound
-  { INTERPRET_OK, "2\n", LIST(LitFun),
-      // print round(1.5);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
-          OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Lit, S("round"), N(1.5)) },
   // OpCallUncallableNil
   { INTERPRET_RUNTIME_ERROR, "Can only call functions and classes.",
       LIST(LitFun),
@@ -806,37 +801,6 @@ VMCase opCall[] = {
       LIST(uint8_t, OP_CLOSURE, 0, OP_NIL, OP_CALL, 1, OP_NIL,
           OP_RETURN),
       LIST(Lit, F(0)) },
-  // OpCallClockWrongNumArgs
-  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
-      LIST(LitFun),
-      // clock(nil);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, OP_NIL, OP_CALL, 1, OP_NIL,
-          OP_RETURN),
-      LIST(Lit, S("clock")) },
-  // OpCallStrWrongNumArgs
-  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
-      LIST(LitFun),
-      // str();
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
-      LIST(Lit, S("str")) },
-  // OpCallCeilWrongNumArgs
-  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
-      LIST(LitFun),
-      // ceil();
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
-      LIST(Lit, S("ceil")) },
-  // OpCallFloorWrongNumArgs
-  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
-      LIST(LitFun),
-      // floor();
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
-      LIST(Lit, S("floor")) },
-  // OpCallRoundWrongNumArgs
-  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
-      LIST(LitFun),
-      // ceil();
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
-      LIST(Lit, S("round")) },
   // FunNameInErrorMsg
   { INTERPRET_RUNTIME_ERROR, "] in myFunction",
       LIST(LitFun,
@@ -849,7 +813,7 @@ VMCase opCall[] = {
       LIST(Lit, F(0)) },
 };
 
-VM_TEST(OpCall, opCall, 15);
+VM_TEST(OpCall, opCall, 5);
 
 VMCase closures[] = {
   // Closures1
@@ -1230,6 +1194,110 @@ VMCase classesSuper[] = {
 };
 
 VM_TEST(ClassesSuper, classesSuper, 4);
+
+VMCase nativeClock[] = {
+  // NativeClockSimple
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      // print clock() >= 0;
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_CONSTANT, 1,
+          OP_LESS, OP_NOT, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("clock"), N(0.0)) },
+  // NativeClockWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun),
+      // clock(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("clock")) },
+};
+
+VM_TEST(NativeClock, nativeClock, 2);
+
+VMCase nativeStr[] = {
+  // NativeStrSimple
+  { INTERPRET_OK, "hi1\n", LIST(LitFun),
+      // print "hi" + str(1);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_GLOBAL, 1, 0, OP_CONSTANT, 2,
+          OP_CALL, 1, OP_ADD, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("hi"), S("str"), N(1.0)) },
+  // NativeStrWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // str();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("str")) },
+};
+
+VM_TEST(NativeStr, nativeStr, 2);
+
+VMCase nativeCeil[] = {
+  // NativeCeilSimple
+  { INTERPRET_OK, "2\n", LIST(LitFun),
+      // print ceil(1.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("ceil"), N(1.5)) },
+  // NativeCeilWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // ceil();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("ceil")) },
+  // NativeCeilNotNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
+      // ceil(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("ceil")) },
+};
+
+VM_TEST(NativeCeil, nativeCeil, 3);
+
+VMCase nativeFloor[] = {
+  // NativeFloorSimple
+  { INTERPRET_OK, "1\n", LIST(LitFun),
+      // print floor(1.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("floor"), N(1.5)) },
+  // NativeFloorWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // floor();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("floor")) },
+  // NativeFloorNotNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
+      // floor(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("floor")) },
+};
+
+VM_TEST(NativeFloor, nativeFloor, 3);
+
+VMCase nativeRound[] = {
+  // NativeRoundSimple
+  { INTERPRET_OK, "2\n", LIST(LitFun),
+      // print round(1.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("round"), N(1.5)) },
+  // NativeRoundWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // round();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("round")) },
+  // NativeRoundNotNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
+      // round(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("round")) },
+};
+
+VM_TEST(NativeRound, nativeRound, 3);
 
 VMCase lists[] = {
   // ListsDataNonList1
