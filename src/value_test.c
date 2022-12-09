@@ -249,14 +249,23 @@ UTEST(Value, StringsEqual) {
   initTable(&strings, 0.75);
 
   ObjString* empty = copyString(&gc, &strings, "", 0);
+  pushTemp(&gc, OBJ_VAL(empty));
   ObjString* foo = copyString(&gc, &strings, "foo", 3);
+  pushTemp(&gc, OBJ_VAL(foo));
   ObjString* bar = copyString(&gc, &strings, "bar", 3);
+  pushTemp(&gc, OBJ_VAL(bar));
   ObjString* blah = copyString(&gc, &strings, "blah", 4);
+  pushTemp(&gc, OBJ_VAL(blah));
 
   EXPECT_VALEQ(OBJ_VAL(empty), OBJ_VAL(empty));
   EXPECT_VALEQ(OBJ_VAL(foo), OBJ_VAL(foo));
   EXPECT_VALEQ(OBJ_VAL(bar), OBJ_VAL(bar));
   EXPECT_VALEQ(OBJ_VAL(blah), OBJ_VAL(blah));
+
+  popTemp(&gc);
+  popTemp(&gc);
+  popTemp(&gc);
+  popTemp(&gc);
 
   freeTable(&gc, &strings);
   freeGC(&gc);
@@ -269,14 +278,23 @@ UTEST(Value, StringsUnequal) {
   initTable(&strings, 0.75);
 
   ObjString* empty = copyString(&gc, &strings, "", 0);
+  pushTemp(&gc, OBJ_VAL(empty));
   ObjString* foo = copyString(&gc, &strings, "foo", 3);
+  pushTemp(&gc, OBJ_VAL(foo));
   ObjString* bar = copyString(&gc, &strings, "bar", 3);
+  pushTemp(&gc, OBJ_VAL(bar));
   ObjString* blah = copyString(&gc, &strings, "blah", 4);
+  pushTemp(&gc, OBJ_VAL(blah));
 
   EXPECT_VALNE(OBJ_VAL(empty), OBJ_VAL(foo));
   EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(empty));
   EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(bar));
   EXPECT_VALNE(OBJ_VAL(foo), OBJ_VAL(blah));
+
+  popTemp(&gc);
+  popTemp(&gc);
+  popTemp(&gc);
+  popTemp(&gc);
 
   freeTable(&gc, &strings);
   freeGC(&gc);
