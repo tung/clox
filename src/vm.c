@@ -155,6 +155,7 @@ static void vmMarkRoots(GC* gc, void* arg) {
 
   markObject(gc, (Obj*)vm->initString);
   markObject(gc, (Obj*)vm->listClass);
+  markObject(gc, (Obj*)vm->mapClass);
 }
 
 static void defineNativeMethod(
@@ -268,6 +269,79 @@ static void initListClass(VM* vm) {
   defineNativeMethod(vm, vm->listClass, "remove", listRemove);
 }
 
+static bool mapCount(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 0, argCount)) {
+    return false;
+  }
+  ObjMap* map = AS_MAP(args[-1]);
+  int count = 0;
+  for (int i = 0; i < map->table.capacity; ++i) {
+    count += !!(map->table.entries[i].key);
+  }
+  push(vm, NUMBER_VAL((double)count));
+  return true;
+}
+
+static bool mapHas(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_STRING(args[0])) {
+    runtimeError(vm, "Maps can only be indexed by string.");
+    return false;
+  }
+  ObjMap* map = AS_MAP(args[-1]);
+  ObjString* key = AS_STRING(args[0]);
+  Value value;
+  push(vm, BOOL_VAL(tableGet(&map->table, key, &value)));
+  return true;
+}
+
+static bool mapKeys(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 0, argCount)) {
+    return false;
+  }
+  ObjMap* map = AS_MAP(args[-1]);
+  ObjList* keys = newList(&vm->gc);
+  push(vm, OBJ_VAL(keys));
+  for (int i = 0; i < map->table.capacity; ++i) {
+    Entry* entry = &map->table.entries[i];
+    if (entry->key == NULL) {
+      continue;
+    }
+    writeValueArray(&vm->gc, &keys->elements, OBJ_VAL(entry->key));
+  }
+  return true;
+}
+
+static bool mapRemove(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_STRING(args[0])) {
+    runtimeError(vm, "Maps can only be indexed by string.");
+    return false;
+  }
+  ObjMap* map = AS_MAP(args[-1]);
+  ObjString* key = AS_STRING(args[0]);
+  push(vm, BOOL_VAL(tableDelete(&map->table, key)));
+  return true;
+}
+
+static void initMapClass(VM* vm) {
+  const char mapStr[] = "(Map)";
+  ObjString* mapClassName =
+      copyString(&vm->gc, &vm->strings, mapStr, sizeof(mapStr) - 1);
+  pushTemp(&vm->gc, OBJ_VAL(mapClassName));
+  vm->mapClass = newClass(&vm->gc, mapClassName);
+  popTemp(&vm->gc);
+
+  defineNativeMethod(vm, vm->mapClass, "count", mapCount);
+  defineNativeMethod(vm, vm->mapClass, "has", mapHas);
+  defineNativeMethod(vm, vm->mapClass, "keys", mapKeys);
+  defineNativeMethod(vm, vm->mapClass, "remove", mapRemove);
+}
+
 void initVM(VM* vm, FILE* fout, FILE* ferr) {
   vm->fout = fout;
   vm->ferr = ferr;
@@ -284,9 +358,11 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
 
   vm->initString = NULL;
   vm->listClass = NULL;
+  vm->mapClass = NULL;
 
   vm->initString = copyString(&vm->gc, &vm->strings, "init", 4);
   initListClass(vm);
+  initMapClass(vm);
 
   defineNative(vm, "clock", clockNative);
   defineNative(vm, "str", strNative);
@@ -407,6 +483,8 @@ static bool invoke(VM* vm, ObjString* name, int argCount) {
 
   if (IS_LIST(receiver)) {
     klass = vm->listClass;
+  } else if (IS_MAP(receiver)) {
+    klass = vm->mapClass;
   } else if (IS_INSTANCE(receiver)) {
     ObjInstance* instance = AS_INSTANCE(receiver);
     Value value;
@@ -591,6 +669,8 @@ static InterpretResult run(VM* vm) {
     JUMP_ENTRY(OP_CLOSE_UPVALUE),
     JUMP_ENTRY(OP_LIST_INIT),
     JUMP_ENTRY(OP_LIST_DATA),
+    JUMP_ENTRY(OP_MAP_INIT),
+    JUMP_ENTRY(OP_MAP_DATA),
     JUMP_ENTRY(OP_RETURN),
     JUMP_ENTRY(OP_CLASS),
     JUMP_ENTRY(OP_INHERIT),
@@ -738,6 +818,8 @@ static InterpretResult run(VM* vm) {
 
         if (IS_LIST(receiver)) {
           klass = vm->listClass;
+        } else if (IS_MAP(receiver)) {
+          klass = vm->mapClass;
         } else if (IS_INSTANCE(receiver)) {
           ObjInstance* instance = AS_INSTANCE(peek(vm, 0));
           Value value;
@@ -780,6 +862,21 @@ static InterpretResult run(VM* vm) {
           ObjList* list = AS_LIST(pop(vm));
           push(vm, list->elements.values[index]);
           NEXT;
+        } else if (IS_MAP(peek(vm, 1))) {
+          if (!IS_STRING(peek(vm, 0))) {
+            runtimeError(vm, "Maps can only be indexed by string.");
+            return INTERPRET_RUNTIME_ERROR;
+          }
+          ObjString* key = AS_STRING(peek(vm, 0));
+          ObjMap* map = AS_MAP(peek(vm, 1));
+          Value value;
+          if (tableGet(&map->table, key, &value)) {
+            pop(vm); // Key.
+            pop(vm); // Map.
+            push(vm, value);
+            NEXT;
+          }
+          runtimeError(vm, "Undefined key '%s'.", key->chars);
         } else if (IS_INSTANCE(peek(vm, 1))) {
           if (!IS_STRING(peek(vm, 0))) {
             runtimeError(
@@ -797,7 +894,8 @@ static InterpretResult run(VM* vm) {
           }
           runtimeError(vm, "Undefined property '%s'.", name->chars);
         } else {
-          runtimeError(vm, "Only lists and instances can be indexed.");
+          runtimeError(
+              vm, "Only lists, maps and instances can be indexed.");
         }
         return INTERPRET_RUNTIME_ERROR;
       }
@@ -810,6 +908,19 @@ static InterpretResult run(VM* vm) {
           int index = (int)AS_NUMBER(pop(vm));
           ObjList* list = AS_LIST(pop(vm));
           list->elements.values[index] = value;
+          push(vm, value);
+          NEXT;
+        } else if (IS_MAP(peek(vm, 2))) {
+          if (!IS_STRING(peek(vm, 1))) {
+            runtimeError(vm, "Maps can only be indexed by string.");
+            return INTERPRET_RUNTIME_ERROR;
+          }
+          ObjString* key = AS_STRING(peek(vm, 1));
+          ObjMap* map = AS_MAP(peek(vm, 2));
+          tableSet(&vm->gc, &map->table, key, peek(vm, 0));
+          Value value = pop(vm);
+          pop(vm); // Key.
+          pop(vm); // Map.
           push(vm, value);
           NEXT;
         } else if (IS_INSTANCE(peek(vm, 2))) {
@@ -827,7 +938,8 @@ static InterpretResult run(VM* vm) {
           push(vm, value);
           NEXT;
         } else {
-          runtimeError(vm, "Only lists and instances can be indexed.");
+          runtimeError(
+              vm, "Only lists, maps and instances can be indexed.");
         }
         return INTERPRET_RUNTIME_ERROR;
       }
@@ -1021,6 +1133,26 @@ static InterpretResult run(VM* vm) {
         ObjList* list = AS_LIST(peek(vm, 1));
         writeValueArray(&vm->gc, &list->elements, peek(vm, 0));
         pop(vm);
+        NEXT;
+      }
+      CASE(OP_MAP_INIT) {
+        push(vm, OBJ_VAL(newMap(&vm->gc)));
+        NEXT;
+      }
+      CASE(OP_MAP_DATA) {
+        if (!IS_MAP(peek(vm, 2))) {
+          runtimeError(vm, "Map data can only be added to a map.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        if (!IS_STRING(peek(vm, 1))) {
+          runtimeError(vm, "Map key must be a string.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        ObjMap* map = AS_MAP(peek(vm, 2));
+        ObjString* key = AS_STRING(peek(vm, 1));
+        tableSet(&vm->gc, &map->table, key, peek(vm, 0));
+        pop(vm); // Value.
+        pop(vm); // Key.
         NEXT;
       }
       CASE(OP_RETURN) {

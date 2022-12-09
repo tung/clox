@@ -35,6 +35,7 @@ typedef struct {
   ObjUpvalue* openUpvalues;
 
   ObjClass* listClass;
+  ObjClass* mapClass;
 
   GC gc;
 } VM;

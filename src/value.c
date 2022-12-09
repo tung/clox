@@ -86,6 +86,8 @@ void printValue(FILE* fout, Value value) {
 void printValueShallow(FILE* fout, Value value) {
   if (IS_LIST(value)) {
     fprintf(fout, "<list %u>", AS_LIST(value)->elements.count);
+  } else if (IS_MAP(value)) {
+    fputs("<map>", fout);
   } else {
     printValue(fout, value);
   }

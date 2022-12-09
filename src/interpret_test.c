@@ -595,13 +595,13 @@ InterpretCase classes[] = {
       "Only lists and instances have properties.", "0.x;" },
   { INTERPRET_RUNTIME_ERROR,
       "Only lists and instances have properties.", "\"\".x;" },
-  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
-      "0[\"x\"];" },
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists, maps and instances can be indexed.", "0[\"x\"];" },
   { INTERPRET_RUNTIME_ERROR, "Only instances have fields.", "0.x=1;" },
   { INTERPRET_RUNTIME_ERROR, "Only instances have fields.",
       "\"\".x=1;" },
-  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
-      "0[\"x\"]=1;" },
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists, maps and instances can be indexed.", "0[\"x\"]=1;" },
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
       "class F{}var f=F();f.x;" },
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
@@ -838,6 +838,98 @@ InterpretCase listSize[] = {
 };
 
 INTERPRET(ListSize, listSize, 4);
+
+InterpretCase map[] = {
+  { INTERPRET_COMPILE_ERROR, "Expect identifier or '['.", "({)" },
+  { INTERPRET_COMPILE_ERROR, "Expect identifier or '['.", "({,)" },
+  { INTERPRET_COMPILE_ERROR, "Expect ':' after map key.", "({a)" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "({a:)" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "({a:,)" },
+  { INTERPRET_COMPILE_ERROR, "Expect '}' after map.", "({a:1)" },
+  { INTERPRET_COMPILE_ERROR, "Expect identifier or '['.", "({a:1,)" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "({[)" },
+  { INTERPRET_COMPILE_ERROR, "Expect expression.", "({[])" },
+  { INTERPRET_COMPILE_ERROR, "Expect ']' after expression.",
+      "({[\"a\")" },
+  { INTERPRET_COMPILE_ERROR, "Expect ':' after map key.",
+      "({[\"a\"])" },
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      "({}[nil]);" },
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      "({}[{}]);" },
+  { INTERPRET_RUNTIME_ERROR, "Undefined key 'a'.", "({}[\"a\"]);" },
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      "({}[nil]=nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      "({}[{}]=nil);" },
+  { INTERPRET_OK, "{}\n", "print{};" },
+  { INTERPRET_OK, "{a: 1}\n", "print{a:1};" },
+  { INTERPRET_OK, "{a: 1}\n", "print{a:1,};" },
+  { INTERPRET_OK, "{ab: 3}\n", "print{[\"a\"+\"b\"]:1+2,};" },
+  { INTERPRET_OK, "{a: 1, b: 2}\n", "print{a:1,b:2};" },
+  { INTERPRET_OK, "{a: 1, b: <map>}\n", "print{a:1,b:{c:2}};" },
+  { INTERPRET_OK, "1\n2\n",
+      "var m={a:1,b:2};print m[\"a\"];print m[\"b\"];" },
+  { INTERPRET_OK, "1\n2\n1\n2\n",
+      "var m={};print m[\"a\"]=1;print m[\"b\"]=2;"
+      "print m[\"a\"];print m[\"b\"];" },
+};
+
+INTERPRET(Map, map, 24);
+
+InterpretCase mapCount[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "({}).count(nil);" },
+  { INTERPRET_OK, "0\n", "print{}.count();" },
+  { INTERPRET_OK, "3\n", "print{a:4,b:5,c:6}.count();" },
+};
+
+INTERPRET(MapCount, mapCount, 3);
+
+InterpretCase mapHas[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "({}).has();" },
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      "({}).has(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      "({}).has({});" },
+  { INTERPRET_OK, "false\n", "print{}.has(\"\");" },
+  { INTERPRET_OK, "true\n", "print{a:1}.has(\"a\");" },
+  { INTERPRET_OK, "false\n", "print{a:1}.has(\"b\");" },
+  { INTERPRET_OK, "true\n", "var ha={a:1}.has;print ha(\"a\");" },
+};
+
+INTERPRET(MapHas, mapHas, 7);
+
+InterpretCase mapKeys[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "({}).keys(nil);" },
+  { INTERPRET_OK, "0\n", "print{}.keys().size();" },
+  { INTERPRET_OK, "1\n", "print{a:1}.keys().size();" },
+  { INTERPRET_OK, "3\n", "print{a:1,b:2,c:3}.keys().size();" },
+  { INTERPRET_OK, "6\n",
+      "var m={a:1,b:2,c:3};var ks=m.keys();var sum=0;"
+      "for(var i=0;i<ks.size();i=i+1)sum=sum+m[ks[i]];"
+      "print sum;" },
+};
+
+INTERPRET(MapKeys, mapKeys, 5);
+
+InterpretCase mapRemove[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "({}).remove();" },
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      "({}).remove(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      "({}).remove({});" },
+  { INTERPRET_OK, "false\n", "print{}.remove(\"\");" },
+  { INTERPRET_OK, "{a: 1}\ntrue\n{}\n",
+      "var m={a:1};print m;print m.remove(\"a\");print m;" },
+  { INTERPRET_OK, "{a: 1, b: 2}\n{a: 1}\n",
+      "var m={a:1,b:2};print m;m.remove(\"b\");print m;" },
+};
+
+INTERPRET(MapRemove, mapRemove, 6);
 
 UTEST_STATE();
 

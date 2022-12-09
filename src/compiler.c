@@ -606,6 +606,30 @@ static void index_(Parser* parser, bool canAssign) {
   }
 }
 
+static void map(Parser* parser, bool canAssign) {
+  (void)canAssign;
+
+  emitByte(parser, OP_MAP_INIT);
+  do {
+    if (check(parser, TOKEN_RIGHT_BRACE)) {
+      break;
+    }
+    if (match(parser, TOKEN_LEFT_SQUARE)) {
+      expression(parser);
+      consume(
+          parser, TOKEN_RIGHT_SQUARE, "Expect ']' after expression.");
+    } else {
+      consume(parser, TOKEN_IDENTIFIER, "Expect identifier or '['.");
+      uint8_t constant = identifierConstant(parser, &parser->previous);
+      emitBytes(parser, OP_CONSTANT, constant);
+    }
+    consume(parser, TOKEN_COLON, "Expect ':' after map key.");
+    expression(parser);
+    emitByte(parser, OP_MAP_DATA);
+  } while (match(parser, TOKEN_COMMA));
+  consume(parser, TOKEN_RIGHT_BRACE, "Expect '}' after map.");
+}
+
 static void number(Parser* parser, bool canAssign) {
   (void)canAssign;
 
@@ -730,10 +754,11 @@ static void unary(Parser* parser, bool canAssign) {
 ParseRule rules[] = {
   [TOKEN_LEFT_PAREN]    = { grouping, call,   PREC_CALL },
   [TOKEN_RIGHT_PAREN]   = { NULL,     NULL,   PREC_NONE },
-  [TOKEN_LEFT_BRACE]    = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_LEFT_BRACE]    = { map,      NULL,   PREC_NONE },
   [TOKEN_RIGHT_BRACE]   = { NULL,     NULL,   PREC_NONE },
   [TOKEN_LEFT_SQUARE]   = { list,     index_, PREC_CALL },
   [TOKEN_RIGHT_SQUARE]  = { NULL,     NULL,   PREC_NONE },
+  [TOKEN_COLON]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_COMMA]         = { NULL,     NULL,   PREC_NONE },
   [TOKEN_DOT]           = { NULL,     dot,    PREC_CALL },
   [TOKEN_MINUS]         = { unary,    binary, PREC_TERM },

@@ -900,29 +900,29 @@ VMCase classesIndex[] = {
           OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("F"), S("x")) },
   // ClassesIndexInvalidGet1
-  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
-      LIST(LitFun),
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists, maps and instances can be indexed.", LIST(LitFun),
       // 0["x"];
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_INDEX,
           OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(0.0), S("x")) },
   // ClassesIndexInvalidGet2
-  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
-      LIST(LitFun),
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists, maps and instances can be indexed.", LIST(LitFun),
       // "a"["x"];
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_INDEX,
           OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, S("a"), S("x")) },
   // ClassesIndexInvalidSet1
-  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
-      LIST(LitFun),
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists, maps and instances can be indexed.", LIST(LitFun),
       // 0["x"] = 1;
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
           OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(0.0), S("x"), N(1.0)) },
   // ClassesIndexInvalidSet2
-  { INTERPRET_RUNTIME_ERROR, "Only lists and instances can be indexed.",
-      LIST(LitFun),
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists, maps and instances can be indexed.", LIST(LitFun),
       // "a"["x"] = 1;
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
           OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
@@ -1493,6 +1493,194 @@ VMCase lists[] = {
 };
 
 VM_TEST(Lists, lists, 26);
+
+VMCase maps[] = {
+  // MapsDataNonMap1
+  { INTERPRET_RUNTIME_ERROR, "Map data can only be added to a map.",
+      LIST(LitFun),
+      LIST(uint8_t, OP_NIL, OP_NIL, OP_NIL, OP_MAP_DATA, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  // MapsDataNonMap2
+  { INTERPRET_RUNTIME_ERROR, "Map data can only be added to a map.",
+      LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_NIL, OP_MAP_DATA, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("foo")) },
+  // MapsDataNonStringKey1
+  { INTERPRET_RUNTIME_ERROR, "Map key must be a string.", LIST(LitFun),
+      // ({[nil]:nil});
+      LIST(uint8_t, OP_MAP_INIT, OP_NIL, OP_NIL, OP_MAP_DATA, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  // MapsDataNonStringKey2
+  { INTERPRET_RUNTIME_ERROR, "Map key must be a string.", LIST(LitFun),
+      // ({[{}]:nil});
+      LIST(uint8_t, OP_MAP_INIT, OP_MAP_INIT, OP_NIL, OP_MAP_DATA,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  // MapsGetIndexSimple
+  { INTERPRET_OK, "1\n", LIST(LitFun),
+      // print{a:1}["a"];
+      LIST(uint8_t, OP_MAP_INIT, OP_CONSTANT, 0, OP_CONSTANT, 1,
+          OP_MAP_DATA, OP_CONSTANT, 0, OP_GET_INDEX, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("a"), N(1.0)) },
+  // MapsSetIndexSimple
+  { INTERPRET_OK, "{}\n1\n{a: 1}\n", LIST(LitFun),
+      // var m={};print m;print m["a"]=1;print m;
+      LIST(uint8_t, OP_MAP_INIT, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
+          0, OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CONSTANT,
+          2, OP_SET_INDEX, OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("m"), S("a"), N(1.0)) },
+  // MapsGetIndexNonString1
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      LIST(LitFun),
+      // ({}[nil]);
+      LIST(uint8_t, OP_MAP_INIT, OP_NIL, OP_GET_INDEX, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit) },
+  // MapsGetIndexNonString2
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      LIST(LitFun),
+      // ({}[{}]);
+      LIST(uint8_t, OP_MAP_INIT, OP_MAP_INIT, OP_GET_INDEX, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  // MapsSetIndexNonString1
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      LIST(LitFun),
+      // ({}[nil]=nil);
+      LIST(uint8_t, OP_MAP_INIT, OP_NIL, OP_NIL, OP_SET_INDEX, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  // MapsSetIndexNonString2
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      LIST(LitFun),
+      // ({}[{}]=nil);
+      LIST(uint8_t, OP_MAP_INIT, OP_MAP_INIT, OP_NIL, OP_SET_INDEX,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit) },
+  // MapsGetIndexMissing
+  { INTERPRET_RUNTIME_ERROR, "Undefined key 'a'.", LIST(LitFun),
+      // ({}["a"]);
+      LIST(uint8_t, OP_MAP_INIT, OP_CONSTANT, 0, OP_GET_INDEX, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("a")) },
+  // MapsCountSimple
+  { INTERPRET_OK, "3\n", LIST(LitFun),
+      // print{a:4,b:5,c:6}.count();
+      LIST(uint8_t, OP_MAP_INIT, OP_CONSTANT, 0, OP_CONSTANT, 1,
+          OP_MAP_DATA, OP_CONSTANT, 2, OP_CONSTANT, 3, OP_MAP_DATA,
+          OP_CONSTANT, 4, OP_CONSTANT, 5, OP_MAP_DATA, OP_INVOKE, 6, 0,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("a"), N(4.0), S("b"), N(5.0), S("c"), N(6.0),
+          S("count")) },
+  // MapsCountBadArity
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun),
+      // ({}).count(nil);
+      LIST(uint8_t, OP_MAP_INIT, OP_NIL, OP_INVOKE, 0, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("count")) },
+  // MapsHasSimple1
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      // print{a:1}.has("a");
+      LIST(uint8_t, OP_MAP_INIT, OP_CONSTANT, 0, OP_CONSTANT, 1,
+          OP_MAP_DATA, OP_CONSTANT, 0, OP_INVOKE, 2, 1, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("a"), N(1.0), S("has")) },
+  // MapsHasSimple2
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      // print{a:1}.has("b");
+      LIST(uint8_t, OP_MAP_INIT, OP_CONSTANT, 0, OP_CONSTANT, 1,
+          OP_MAP_DATA, OP_CONSTANT, 3, OP_INVOKE, 2, 1, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("a"), N(1.0), S("has"), S("b")) },
+  // MapsHasSimple3
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      // var mh={a:1}.has;print mh("a");
+      LIST(uint8_t, OP_MAP_INIT, OP_CONSTANT, 1, OP_CONSTANT, 2,
+          OP_MAP_DATA, OP_GET_PROPERTY, 3, OP_DEFINE_GLOBAL, 0,
+          OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("mh"), S("a"), N(1.0), S("has")) },
+  // MapsHasBadArity
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // ({}).has();
+      LIST(uint8_t, OP_MAP_INIT, OP_INVOKE, 0, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("has")) },
+  // MapsHasNonStringKey1
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      LIST(LitFun),
+      // ({}).has(nil);
+      LIST(uint8_t, OP_MAP_INIT, OP_NIL, OP_INVOKE, 0, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("has")) },
+  // MapsHasNonStringKey2
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      LIST(LitFun),
+      // ({}).has({});
+      LIST(uint8_t, OP_MAP_INIT, OP_MAP_INIT, OP_INVOKE, 0, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("has")) },
+  // MapsKeysSimple
+  { INTERPRET_OK, "3\n", LIST(LitFun),
+      // print{a:4,b:5,c:6}.keys().size();
+      LIST(uint8_t, OP_MAP_INIT, OP_CONSTANT, 0, OP_CONSTANT, 1,
+          OP_MAP_DATA, OP_CONSTANT, 2, OP_CONSTANT, 3, OP_MAP_DATA,
+          OP_CONSTANT, 4, OP_CONSTANT, 5, OP_MAP_DATA, OP_INVOKE, 6, 0,
+          OP_INVOKE, 7, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("a"), N(4.0), S("b"), N(5.0), S("c"), N(6.0),
+          S("keys"), S("size")) },
+  // MapsKeysBadArity
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun),
+      // ({}).keys(nil);
+      LIST(uint8_t, OP_MAP_INIT, OP_NIL, OP_INVOKE, 0, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("keys")) },
+  // MapsRemoveSimple1
+  { INTERPRET_OK, "false\n", LIST(LitFun),
+      // print{}.remove("");
+      LIST(uint8_t, OP_MAP_INIT, OP_CONSTANT, 1, OP_INVOKE, 0, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("remove"), S("")) },
+  // MapsRemoveSimple2
+  { INTERPRET_OK, "{a: 1, b: 2}\ntrue\n{b: 2}\n", LIST(LitFun),
+      LIST(uint8_t, OP_MAP_INIT, OP_CONSTANT, 1, OP_CONSTANT, 2,
+          OP_MAP_DATA, OP_CONSTANT, 3, OP_CONSTANT, 4, OP_MAP_DATA,
+          OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0, 0, OP_PRINT,
+          OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_INVOKE, 5, 1,
+          OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("m"), S("a"), N(1.0), S("b"), N(2.0), S("remove")) },
+  // MapsRemoveBadArity
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // ({}).remove();
+      LIST(uint8_t, OP_MAP_INIT, OP_INVOKE, 0, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("remove")) },
+  // MapsRemoveNonStringKey1
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      LIST(LitFun),
+      // ({}).remove(nil);
+      LIST(uint8_t, OP_MAP_INIT, OP_NIL, OP_INVOKE, 0, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("remove")) },
+  // MapsRemoveNonStringKey2
+  { INTERPRET_RUNTIME_ERROR, "Maps can only be indexed by string.",
+      LIST(LitFun),
+      // ({}).remove({});
+      LIST(uint8_t, OP_MAP_INIT, OP_MAP_INIT, OP_INVOKE, 0, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("remove")) },
+};
+
+VM_TEST(Maps, maps, 26);
 
 UTEST_STATE();
 

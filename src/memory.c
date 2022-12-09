@@ -127,6 +127,11 @@ static void blackenObject(GC* gc, Obj* object) {
       markArray(gc, &list->elements);
       break;
     }
+    case OBJ_MAP: {
+      ObjMap* map = (ObjMap*)object;
+      markTable(gc, &map->table);
+      break;
+    }
     case OBJ_UPVALUE:
       markValue(gc, ((ObjUpvalue*)object)->closed);
       break;
@@ -173,6 +178,12 @@ static void freeObject(GC* gc, Obj* object) {
       ObjList* list = (ObjList*)object;
       freeValueArray(gc, &list->elements);
       FREE(gc, ObjList, object);
+      break;
+    }
+    case OBJ_MAP: {
+      ObjMap* map = (ObjMap*)object;
+      freeTable(gc, &map->table);
+      FREE(gc, ObjMap, object);
       break;
     }
     case OBJ_NATIVE: FREE(gc, ObjNative, object); break;

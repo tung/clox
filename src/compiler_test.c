@@ -1430,6 +1430,84 @@ SourceToDump lists[] = {
 
 DUMP_SRC(Lists, lists, 8);
 
+SourceToDump maps[] = {
+  { false, "({)", "Expect identifier or '['." },
+  { false, "({,)", "Expect identifier or '['." },
+  { false, "({a)", "Expect ':' after map key." },
+  { false, "({a:)", "Expect expression." },
+  { false, "({a:,)", "Expect expression." },
+  { false, "({a:1)", "Expect '}' after map." },
+  { false, "({a:1,)", "Expect identifier or '['." },
+  { false, "({[)", "Expect expression." },
+  { false, "({[])", "Expect expression." },
+  { false, "({[\"a\")", "Expect ']' after expression." },
+  { false, "({[\"a\"])", "Expect ':' after map key." },
+  { true, "({});",
+      "== <script> ==\n"
+      "0000    1 OP_MAP_INIT\n"
+      "0001    | OP_POP\n"
+      "0002    | OP_NIL\n"
+      "0003    | OP_RETURN\n" },
+  { true, "({a:1});",
+      "== <script> ==\n"
+      "0000    1 OP_MAP_INIT\n"
+      "0001    | OP_CONSTANT         0 'a'\n"
+      "0003    | OP_CONSTANT         1 '1'\n"
+      "0005    | OP_MAP_DATA\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_NIL\n"
+      "0008    | OP_RETURN\n" },
+  { true, "({a:1,});",
+      "== <script> ==\n"
+      "0000    1 OP_MAP_INIT\n"
+      "0001    | OP_CONSTANT         0 'a'\n"
+      "0003    | OP_CONSTANT         1 '1'\n"
+      "0005    | OP_MAP_DATA\n"
+      "0006    | OP_POP\n"
+      "0007    | OP_NIL\n"
+      "0008    | OP_RETURN\n" },
+  { true, "({[\"a\"+\"b\"]:1+2});",
+      "== <script> ==\n"
+      "0000    1 OP_MAP_INIT\n"
+      "0001    | OP_CONSTANT         0 'a'\n"
+      "0003    | OP_ADD_C            1 'b'\n"
+      "0005    | OP_CONSTANT         2 '1'\n"
+      "0007    | OP_ADD_C            3 '2'\n"
+      "0009    | OP_MAP_DATA\n"
+      "0010    | OP_POP\n"
+      "0011    | OP_NIL\n"
+      "0012    | OP_RETURN\n" },
+  { true, "({a:1,b:2});",
+      "== <script> ==\n"
+      "0000    1 OP_MAP_INIT\n"
+      "0001    | OP_CONSTANT         0 'a'\n"
+      "0003    | OP_CONSTANT         1 '1'\n"
+      "0005    | OP_MAP_DATA\n"
+      "0006    | OP_CONSTANT         2 'b'\n"
+      "0008    | OP_CONSTANT         3 '2'\n"
+      "0010    | OP_MAP_DATA\n"
+      "0011    | OP_POP\n"
+      "0012    | OP_NIL\n"
+      "0013    | OP_RETURN\n" },
+  { true, "({a:1,b:{c:2}});",
+      "== <script> ==\n"
+      "0000    1 OP_MAP_INIT\n"
+      "0001    | OP_CONSTANT         0 'a'\n"
+      "0003    | OP_CONSTANT         1 '1'\n"
+      "0005    | OP_MAP_DATA\n"
+      "0006    | OP_CONSTANT         2 'b'\n"
+      "0008    | OP_MAP_INIT\n"
+      "0009    | OP_CONSTANT         3 'c'\n"
+      "0011    | OP_CONSTANT         4 '2'\n"
+      "0013    | OP_MAP_DATA\n"
+      "0014    | OP_MAP_DATA\n"
+      "0015    | OP_POP\n"
+      "0016    | OP_NIL\n"
+      "0017    | OP_RETURN\n" },
+};
+
+DUMP_SRC(Maps, maps, 17);
+
 SourceToDump error[] = {
   { false, "print ;", "Expect expression." },
   { false, "print #", "Unexpected character." },

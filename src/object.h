@@ -19,6 +19,7 @@
 #define IS_FUNCTION(value)     isObjType(value, OBJ_FUNCTION)
 #define IS_INSTANCE(value)     isObjType(value, OBJ_INSTANCE)
 #define IS_LIST(value)         isObjType(value, OBJ_LIST)
+#define IS_MAP(value)          isObjType(value, OBJ_MAP)
 #define IS_STRING(value)       isObjType(value, OBJ_STRING)
 
 #define AS_BOUND_METHOD(value) ((ObjBoundMethod*)AS_OBJ(value))
@@ -27,6 +28,7 @@
 #define AS_FUNCTION(value)     ((ObjFunction*)AS_OBJ(value))
 #define AS_INSTANCE(value)     ((ObjInstance*)AS_OBJ(value))
 #define AS_LIST(value)         ((ObjList*)AS_OBJ(value))
+#define AS_MAP(value)          ((ObjMap*)AS_OBJ(value))
 #define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value)      (((ObjString*)AS_OBJ(value))->chars)
 // clang-format on
@@ -38,6 +40,7 @@ typedef enum {
   OBJ_FUNCTION,
   OBJ_INSTANCE,
   OBJ_LIST,
+  OBJ_MAP,
   OBJ_NATIVE,
   OBJ_STRING,
   OBJ_UPVALUE,
@@ -101,12 +104,18 @@ typedef struct {
   ValueArray elements;
 } ObjList;
 
+typedef struct {
+  Obj obj;
+  Table table;
+} ObjMap;
+
 ObjBoundMethod* newBoundMethod(GC* gc, Value receiver, Obj* method);
 ObjClass* newClass(GC* gc, ObjString* name);
 ObjClosure* newClosure(GC* gc, ObjFunction* function);
 ObjFunction* newFunction(GC* gc);
 ObjInstance* newInstance(GC* gc, ObjClass* klass);
 ObjList* newList(GC* gc);
+ObjMap* newMap(GC* gc);
 ObjString* concatStrings(GC* gc, Table* strings, const char* a,
     int aLen, uint32_t aHash, const char* b, int bLen);
 ObjString* copyString(

@@ -82,6 +82,12 @@ ObjList* newList(GC* gc) {
   return list;
 }
 
+ObjMap* newMap(GC* gc) {
+  ObjMap* map = ALLOCATE_OBJ(gc, ObjMap, OBJ_MAP);
+  initTable(&map->table, 0.75);
+  return map;
+}
+
 ObjNative* newNative(GC* gc, NativeFn function) {
   ObjNative* native = ALLOCATE_OBJ(gc, ObjNative, OBJ_NATIVE);
   native->function = function;
@@ -180,6 +186,27 @@ void printObject(FILE* fout, Value value) {
         printValueShallow(fout, list->elements.values[i]);
       }
       fputc(']', fout);
+      break;
+    }
+    case OBJ_MAP: {
+      ObjMap* map = AS_MAP(value);
+      fputc('{', fout);
+      bool first = true;
+      for (int i = 0; i < map->table.capacity; ++i) {
+        Entry* entry = &map->table.entries[i];
+        if (entry->key == NULL) {
+          continue;
+        }
+        if (first) {
+          first = false;
+        } else {
+          fputs(", ", fout);
+        }
+        fprintf(fout, "%.*s", entry->key->length, entry->key->chars);
+        fputs(": ", fout);
+        printValueShallow(fout, entry->value);
+      }
+      fputc('}', fout);
       break;
     }
     case OBJ_NATIVE: fprintf(fout, "<native fn>"); break;
