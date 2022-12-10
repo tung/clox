@@ -120,6 +120,7 @@ deps_dir = $(mode_dir)deps/
 
 # Object and dependency file destinations.
 c_objs         = $(c_srcs:$(src_dir)%.c=$(objs_dir)%.o)
+main_obj       = $(main_src:$(src_dir)%.c=$(objs_dir)%.o)
 c_deps         = $(c_srcs:$(src_dir)%.c=$(deps_dir)%.d)
 main_link_dep  = $(main_src:$(src_dir)%.c=$(deps_dir)%.link.d)
 test_link_deps = $(test_srcs:$(src_dir)%.c=$(deps_dir)%.link.d)
@@ -234,6 +235,27 @@ format:
 checkformat:
 	clang-format --dry-run -Werror $(format_srcs:%="%")
 
+######################
+### Version String ###
+######################
+
+# Makefile fragment with version info; depend on $(version_mk) and read $(version_str) to use.
+version_mk = $(mode_dir)version.mk
+version = $(MODE)$(shell V=$$(git -C $(src_dir:%="%") describe --always --dirty 2>/dev/null) && printf -- "-git-%s" "$${V}" || printf "")
+version_fragment = version_str = $(version)
+
+# Version info stored as a Makefile fragment, e.g. version_str = debug-git-123abcd
+$(version_mk):
+	printf "%s\n" "$(version_fragment)" > $(version_mk)
+
+# Delete the version fragment if its stale so it can be recreated.
+ifneq ($(file <$(version_mk)),$(version_fragment))
+  $(shell $(RM) $(version_mk))
+endif
+
+# (Re)create $(version_mk) so $(version_str) is available.
+-include $(version_mk)
+
 ##########################################################
 ### Compiling, Linking and Auto-Generated Dependencies ###
 ##########################################################
@@ -261,8 +283,13 @@ $(mode_dir) $(objs_dir) $(deps_dir):
 	mkdir -p $@
 
 # Compile $(objs_dir)*.o objects from each $(src_dir)*.c source file.
+# $(main_obj) depends on $(version_mk); leave it out of the link command.
 $(c_objs): $(objs_dir)%.o: $(src_dir)%.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $(filter-out $(version_mk),$<)
+
+# Depend on and include version for $(main_obj).
+$(main_obj): $(version_mk)
+$(main_obj): CFLAGS += -DVERSION="$(version_str)"
 
 # Auto-generate $(deps_dir)*.d files from each $(src_dir)*.c source file.
 # These files contain *.o compile dependencies that are -include'd by this Makefile.

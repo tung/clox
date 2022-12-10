@@ -12,6 +12,13 @@
 #include "memory.h"
 #include "vm.h"
 
+#define STR(x) #x
+#define XSTR(x) STR(x)
+
+static void printVersion(void) {
+  puts("clox " XSTR(VERSION));
+}
+
 static void repl(void) {
   VM vm;
   initVM(&vm, stdout, stderr);
@@ -26,6 +33,8 @@ static void repl(void) {
 
   linenoiseSetMultiLine(1);
   linenoiseHistorySetMaxLen(100);
+
+  printVersion();
 
   for (;;) {
     const char* prompt = src.buf && src.buf[inputStart] ? "" : "> ";
@@ -117,14 +126,16 @@ static void runFile(const char* path) {
 
 int main(int argc, char* argv[]) {
   while (argc > 1) {
-    if (!strncmp("--dump", argv[1], sizeof("--dump"))) {
+    if (!strcmp(argv[1], "--version")) {
+      printVersion();
+      return 0;
+    } else if (!strcmp(argv[1], "--dump")) {
       debugPrintCode = true;
-    } else if (!strncmp("--trace", argv[1], sizeof("--trace"))) {
+    } else if (!strcmp(argv[1], "--trace")) {
       debugTraceExecution = true;
-    } else if (!strncmp("--log-gc", argv[1], sizeof("--log-gc"))) {
+    } else if (!strcmp(argv[1], "--log-gc")) {
       debugLogGC = true;
-    } else if (!strncmp(
-                   "--stress-gc", argv[1], sizeof("--stress-gc"))) {
+    } else if (!strcmp(argv[1], "--stress-gc")) {
       debugStressGC = true;
     } else {
       break;
