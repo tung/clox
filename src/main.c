@@ -15,8 +15,8 @@
 #define STR(x) #x
 #define XSTR(x) STR(x)
 
-static void printVersion(void) {
-  puts("clox " XSTR(VERSION));
+static void printVersion(FILE* fout) {
+  fputs("clox " XSTR(VERSION) "\n", fout);
 }
 
 static void repl(int argc, const char* argv[]) {
@@ -35,7 +35,7 @@ static void repl(int argc, const char* argv[]) {
   linenoiseSetMultiLine(1);
   linenoiseHistorySetMaxLen(100);
 
-  printVersion();
+  printVersion(stdout);
 
   for (;;) {
     const char* prompt = src.buf && src.buf[inputStart] ? "" : "> ";
@@ -126,11 +126,35 @@ static void runFile(const char* path, int argc, const char* argv[]) {
   }
 }
 
+static void printHelp(FILE* fout) {
+  printVersion(fout);
+  fputs(
+      "\n"
+      "Usage: clox [options] [path]\n"
+      "\n"
+      "   -D, --dump\t\t(debug) Dump disassembled script\n"
+      "   -T, --trace\t\t(debug) Trace script execution\n"
+      "   -L, --log-gc\t\t(debug) Log garbage collector\n"
+      "   -S, --stress-gc\t(debug) Always collect garbage\n"
+      "   -h, -?, --help\tShow help (this message) and exit\n"
+      "   -v, --version\tShow version information and exit\n",
+      fout);
+}
+
 int main(int argc, const char* argv[]) {
   const char* argv0 = argv[0];
+  const char* script = NULL;
+
   while (argc > 1) {
-    if (!strcmp(argv[1], "--version")) {
-      printVersion();
+    if (!strcmp(argv[1], "--")) {
+      argv++;
+      argc--;
+      break;
+    } else if (!strcmp(argv[1], "--version")) {
+      printVersion(stdout);
+      return 0;
+    } else if (!strcmp(argv[1], "--help")) {
+      printHelp(stdout);
       return 0;
     } else if (!strcmp(argv[1], "--dump")) {
       debugPrintCode = true;
@@ -140,20 +164,44 @@ int main(int argc, const char* argv[]) {
       debugLogGC = true;
     } else if (!strcmp(argv[1], "--stress-gc")) {
       debugStressGC = true;
+    } else if (!strncmp(argv[1], "--", 2)) {
+      fprintf(stderr, "Unknown option: '%s'\n", argv[1]);
+      printHelp(stderr);
+      return 1;
+    } else if (argv[1][0] == '-') {
+      if (!argv[1][1]) {
+        script = argv[1];
+        break;
+      }
+      for (const char* a = argv[1] + 1; *a; ++a) {
+        switch (*a) {
+          case 'v': printVersion(stdout); return 0;
+          case '?':
+          case 'h': printHelp(stdout); return 0;
+          case 'D': debugPrintCode = true; break;
+          case 'T': debugTraceExecution = true; break;
+          case 'L': debugLogGC = true; break;
+          case 'S': debugStressGC = true; break;
+          default:
+            fprintf(stderr, "Unknown option: '%c'\n", *a);
+            printHelp(stderr);
+            return 1;
+        }
+      }
     } else {
+      script = argv[1];
       break;
     }
     argv++;
     argc--;
   }
+
   argv[0] = argv0;
 
-  if (argc == 1) {
-    repl(argc, argv);
-  } else if (argc == 2) {
-    runFile(argv[1], argc, argv);
+  if (script) {
+    runFile(script, argc, argv);
   } else {
-    fprintf(stderr, "Usage: clox [path]\n");
+    repl(argc, argv);
   }
 
   return 0;
