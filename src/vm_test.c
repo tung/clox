@@ -1195,6 +1195,94 @@ VMCase classesSuper[] = {
 
 VM_TEST(ClassesSuper, classesSuper, 4);
 
+VMCase nativeArgc[] = {
+  // NativeArgcTrivial
+  { INTERPRET_OK, "0\n", LIST(LitFun),
+      // print argc();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("argc")) },
+  // NativeArgcWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun),
+      // argc(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("argc")) },
+};
+
+VM_TEST(NativeArgc, nativeArgc, 2);
+
+VMCase nativeArgv[] = {
+  // NativeArgvWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // argv();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("argv")) },
+  // NativeArgvNotNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
+      // argv(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("argv")) },
+  // NativeArgvOutOfBounds
+  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (0).",
+      LIST(LitFun),
+      // argv(1);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("argv"), N(1.0)) },
+};
+
+VM_TEST(NativeArgv, nativeArgv, 3);
+
+UTEST(VM, NativeArgs) {
+  MemBuf out, err;
+  VM vm;
+  initMemBuf(&out);
+  initMemBuf(&err);
+  initVM(&vm, out.fptr, err.fptr);
+
+  const char* args[] = { "clox", "foo", "bar", "baz", NULL };
+  argsVM(&vm, ARRAY_SIZE(args), args);
+
+  size_t temps = 0;
+
+  ObjFunction* scriptFun = newFunction(&vm.gc);
+  pushTemp(&vm.gc, OBJ_VAL(scriptFun));
+  temps++;
+  temps += fillFun(&vm.gc, &vm.strings, scriptFun,
+      // for(var i=0;i<argc();i=i+1)print argv(i);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_GET_LOCAL, 1, OP_GET_GLOBAL, 1,
+          0, OP_CALL, 0, OP_LESS, OP_PJMP_IF_FALSE, 0, 24, OP_JUMP, 0,
+          10, OP_GET_LOCAL, 1, OP_ADD_C, 2, OP_SET_LOCAL, 1, OP_POP,
+          OP_LOOP, 0, 24, OP_GET_GLOBAL, 3, 0, OP_GET_LOCAL, 1, OP_CALL,
+          1, OP_PRINT, OP_LOOP, 0, 21, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, N(0.0), S("argc"), N(1.0), S("argv")),
+      LIST(ObjFunction*));
+
+  push(&vm, OBJ_VAL(scriptFun));
+
+  while (temps > 0) {
+    popTemp(&vm.gc);
+    temps--;
+  }
+
+  InterpretResult ires = interpretCall(&vm, (Obj*)scriptFun, 0);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  fflush(out.fptr);
+  fflush(err.fptr);
+  EXPECT_STREQ("clox\nfoo\nbar\nbaz\n\n", out.buf);
+  EXPECT_STREQ("", err.buf);
+
+  freeVM(&vm);
+  freeMemBuf(&out);
+  freeMemBuf(&err);
+}
+
 VMCase nativeClock[] = {
   // NativeClockSimple
   { INTERPRET_OK, "true\n", LIST(LitFun),

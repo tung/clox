@@ -353,6 +353,10 @@ INTERPRET(Strings, strings, 7);
 
 InterpretCase nativeFunctions[] = {
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "argc(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "argv();" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       "clock(nil);" },
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "str();" },
@@ -363,11 +367,16 @@ InterpretCase nativeFunctions[] = {
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "round();" },
   { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
+      "argv(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
       "ceil(nil);" },
   { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
       "floor(nil);" },
   { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
       "round(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (0).",
+      "argv(1);" },
+  { INTERPRET_OK, "0\n", "print argc();" },
   { INTERPRET_OK, "<native fn>\n", "print clock;" },
   { INTERPRET_OK, "true\n", "print clock()>=0;" },
   { INTERPRET_OK, "hi1\n", "print \"hi\"+str(1);" },
@@ -377,7 +386,7 @@ InterpretCase nativeFunctions[] = {
   { INTERPRET_OK, "1\n", "print round(1.49);" },
 };
 
-INTERPRET(NativeFunctions, nativeFunctions, 15);
+INTERPRET(NativeFunctions, nativeFunctions, 20);
 
 InterpretCase functions[] = {
   { INTERPRET_COMPILE_ERROR, "Expect function name.", "fun" },

@@ -22,6 +22,7 @@ typedef struct {
 typedef struct {
   FILE* fout;
   FILE* ferr;
+  ValueArray args;
 
   CallFrame frames[FRAMES_MAX];
   int frameCount;
@@ -48,6 +49,7 @@ typedef enum {
 
 void initVM(VM* vm, FILE* fout, FILE* ferr);
 void freeVM(VM* vm);
+void argsVM(VM* vm, int argc, const char* argv[]);
 void push(VM* vm, Value value);
 Value pop(VM* vm);
 InterpretResult interpretCall(VM* vm, Obj* callable, int argCount);

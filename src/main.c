@@ -19,9 +19,10 @@ static void printVersion(void) {
   puts("clox " XSTR(VERSION));
 }
 
-static void repl(void) {
+static void repl(int argc, const char* argv[]) {
   VM vm;
   initVM(&vm, stdout, stderr);
+  argsVM(&vm, argc, argv);
 
   const char prefix[] = "print";
   const size_t inputStart = sizeof(prefix) - 1;
@@ -104,12 +105,13 @@ static void readFile(MemBuf* mbuf, const char* path) {
   fclose(file);
 }
 
-static void runFile(const char* path) {
+static void runFile(const char* path, int argc, const char* argv[]) {
   VM vm;
   MemBuf source;
   InterpretResult result;
 
   initVM(&vm, stdout, stderr);
+  argsVM(&vm, argc, argv);
   initMemBuf(&source);
   readFile(&source, path);
   result = interpret(&vm, source.buf);
@@ -124,7 +126,8 @@ static void runFile(const char* path) {
   }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, const char* argv[]) {
+  const char* argv0 = argv[0];
   while (argc > 1) {
     if (!strcmp(argv[1], "--version")) {
       printVersion();
@@ -143,11 +146,12 @@ int main(int argc, char* argv[]) {
     argv++;
     argc--;
   }
+  argv[0] = argv0;
 
   if (argc == 1) {
-    repl();
+    repl(argc, argv);
   } else if (argc == 2) {
-    runFile(argv[1]);
+    runFile(argv[1], argc, argv);
   } else {
     fprintf(stderr, "Usage: clox [path]\n");
   }

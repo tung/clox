@@ -58,6 +58,49 @@ static bool checkArity(VM* vm, int expected, int actual) {
   return expected == actual;
 }
 
+static bool checkValueArrayIndex(
+    VM* vm, ValueArray* array, Value indexValue) {
+  double indexNum = AS_NUMBER(indexValue);
+
+  if (indexNum < 0 || indexNum >= (double)array->count) {
+    runtimeError(
+        vm, "Index (%g) out of bounds (%d).", indexNum, array->count);
+    return false;
+  }
+
+  if ((double)(int)indexNum != indexNum) {
+    runtimeError(vm, "Index (%g) must be a whole number.", indexNum);
+    return false;
+  }
+
+  return true;
+}
+
+static bool argcNative(VM* vm, int argCount, Value* args) {
+  (void)args;
+  if (!checkArity(vm, 0, argCount)) {
+    return false;
+  }
+  push(vm, NUMBER_VAL((double)vm->args.count));
+  return true;
+}
+
+static bool argvNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_NUMBER(args[0])) {
+    runtimeError(vm, "Argument must be a number.");
+    return false;
+  }
+  if (!checkValueArrayIndex(vm, &vm->args, args[0])) {
+    return false;
+  }
+  int pos = (int)AS_NUMBER(args[0]);
+  push(vm, vm->args.values[pos]);
+  return true;
+}
+
 static bool clockNative(VM* vm, int argCount, Value* args) {
   (void)args;
   if (!checkArity(vm, 0, argCount)) {
@@ -134,6 +177,10 @@ static void defineNative(VM* vm, const char* name, NativeFn function) {
 static void vmMarkRoots(GC* gc, void* arg) {
   VM* vm = (VM*)arg;
 
+  for (int i = 0; i < vm->args.count; i++) {
+    markValue(gc, vm->args.values[i]);
+  }
+
   for (Value* slot = vm->stack; slot < vm->stackTop; slot++) {
     markValue(gc, *slot);
   }
@@ -178,21 +225,8 @@ static bool checkListIndex(VM* vm, Value listValue, Value indexValue) {
     runtimeError(vm, "Lists can only be indexed by number.");
     return false;
   }
-
-  ObjList* list = AS_LIST(listValue);
-  double indexNum = AS_NUMBER(indexValue);
-  if (indexNum < 0 || indexNum >= (double)list->elements.count) {
-    runtimeError(vm, "Index (%g) out of bounds (%d).", indexNum,
-        list->elements.count);
-    return false;
-  }
-
-  if ((double)(int)indexNum != indexNum) {
-    runtimeError(vm, "Index (%g) must be a whole number.", indexNum);
-    return false;
-  }
-
-  return true;
+  return checkValueArrayIndex(
+      vm, &AS_LIST(listValue)->elements, indexValue);
 }
 
 static bool listInsert(VM* vm, int argCount, Value* args) {
@@ -352,6 +386,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   vm->gc.fixWeak = (void (*)(void*))tableRemoveWhite;
   vm->gc.fixWeakArg = &vm->strings;
 
+  initValueArray(&vm->args);
   initTable(&vm->globals, 0.75);
   initValueArray(&vm->globalSlots);
   initTable(&vm->strings, 0.75);
@@ -364,6 +399,8 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   initListClass(vm);
   initMapClass(vm);
 
+  defineNative(vm, "argc", argcNative);
+  defineNative(vm, "argv", argvNative);
   defineNative(vm, "clock", clockNative);
   defineNative(vm, "str", strNative);
   defineNative(vm, "ceil", ceilNative);
@@ -372,11 +409,23 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
 }
 
 void freeVM(VM* vm) {
+  freeValueArray(&vm->gc, &vm->args);
   freeTable(&vm->gc, &vm->globals);
   freeValueArray(&vm->gc, &vm->globalSlots);
   freeTable(&vm->gc, &vm->strings);
   vm->initString = NULL;
   freeGC(&vm->gc);
+}
+
+void argsVM(VM* vm, int argc, const char* argv[]) {
+  for (int i = 0; i < argc; ++i) {
+    const char* ptr = argv[i] ? argv[i] : "";
+    ObjString* s = copyString(&vm->gc, &vm->strings, ptr, strlen(ptr));
+    Value arg = OBJ_VAL(s);
+    pushTemp(&vm->gc, arg);
+    writeValueArray(&vm->gc, &vm->args, arg);
+    popTemp(&vm->gc);
+  }
 }
 
 void push(VM* vm, Value value) {
