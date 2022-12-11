@@ -361,6 +361,49 @@ InterpretCase strings[] = {
 
 INTERPRET(Strings, strings, 11);
 
+InterpretCase stringsParseNum[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "\"\".parsenum(nil);" },
+  { INTERPRET_OK, "-123.456\n", "print \" -123.456 \".parsenum();" },
+  { INTERPRET_OK, "579\n",
+      "print \"123\".parsenum()+\"456\".parsenum();" },
+  { INTERPRET_OK, "nil\n", "print \"123 z\".parsenum();" },
+};
+
+INTERPRET(StringsParseNum, stringsParseNum, 4);
+
+InterpretCase stringsSize[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      "\"\".size(nil);" },
+  { INTERPRET_OK, "0\n", "print \"\".size();" },
+  { INTERPRET_OK, "11\n", "print \"hello world\".size();" },
+  { INTERPRET_OK, "11\n", "var s=\"hello world\".size;print s();" },
+};
+
+INTERPRET(StringsSize, stringsSize, 4);
+
+InterpretCase stringsSubstr[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 2 arguments but got 0.",
+      "\"\".substr();" },
+  { INTERPRET_RUNTIME_ERROR, "Start must be a number.",
+      "\"\".substr(nil,0);" },
+  { INTERPRET_RUNTIME_ERROR, "End must be a number.",
+      "\"\".substr(0,nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Start (0.5) must be a whole number.",
+      "\"a\".substr(0.5,1);" },
+  { INTERPRET_RUNTIME_ERROR, "End (0.5) must be a whole number.",
+      "\"a\".substr(0,0.5);" },
+  { INTERPRET_OK, "true\n", "print \"\".substr(0,0)==\"\";" },
+  { INTERPRET_OK, "hello\n", "print \"hello\".substr(0,-1);" },
+  { INTERPRET_OK, "ello\n", "print \"hello\".substr(1,2147483647);" },
+  { INTERPRET_OK, "hell\n", "print \"hello\".substr(-2147483648,-2);" },
+  { INTERPRET_OK, "hello\nworld\n",
+      "var msg=\"hello world\";"
+      "print msg.substr(0,5);print msg.substr(-6,-1);" },
+};
+
+INTERPRET(StringsSubstr, stringsSubstr, 10);
+
 InterpretCase nativeFunctions[] = {
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       "argc(nil);" },
@@ -613,7 +656,7 @@ InterpretCase classes[] = {
   { INTERPRET_RUNTIME_ERROR,
       "Only lists and instances have properties.", "0.x;" },
   { INTERPRET_RUNTIME_ERROR,
-      "Only lists and instances have properties.", "\"\".x;" },
+      "Only lists and instances have properties.", "class F{}F.x;" },
   { INTERPRET_RUNTIME_ERROR,
       "Can only index lists, maps, strings and instances.",
       "0[\"x\"];" },
@@ -654,10 +697,12 @@ InterpretCase methods[] = {
       "class F{init(){return 0;}}" },
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       "class F{}F(0);" },
-  { INTERPRET_RUNTIME_ERROR, "Only lists and instances have methods.",
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists, maps, strings and instances have methods.",
       "0.x();" },
-  { INTERPRET_RUNTIME_ERROR, "Only lists and instances have methods.",
-      "\"\".x();" },
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists, maps, strings and instances have methods.",
+      "class F{}F.x();" },
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x'.",
       "class F{}F().x();" },
   { INTERPRET_RUNTIME_ERROR, "Undefined property 'x1234567'.",

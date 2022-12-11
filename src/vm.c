@@ -1,9 +1,12 @@
 #include "vm.h"
 
 #include <assert.h>
+#include <ctype.h>
+#include <limits.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -210,6 +213,7 @@ static void vmMarkRoots(GC* gc, void* arg) {
   markObject(gc, (Obj*)vm->initString);
   markObject(gc, (Obj*)vm->listClass);
   markObject(gc, (Obj*)vm->mapClass);
+  markObject(gc, (Obj*)vm->stringClass);
 }
 
 static void defineNativeMethod(
@@ -380,6 +384,101 @@ static void initMapClass(VM* vm) {
   defineNativeMethod(vm, vm->mapClass, "remove", mapRemove);
 }
 
+static bool stringParseNum(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 0, argCount)) {
+    return false;
+  }
+  ObjString* string = AS_STRING(args[-1]);
+  char* after;
+  double result = strtod(string->chars, &after);
+  while (after < string->chars + string->length) {
+    if (!isspace(*after)) {
+      break;
+    }
+    ++after;
+  }
+  if (after == string->chars + string->length) {
+    push(vm, NUMBER_VAL(result));
+  } else {
+    push(vm, NIL_VAL);
+  }
+  return true;
+}
+
+static bool stringSize(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 0, argCount)) {
+    return false;
+  }
+  ObjString* string = AS_STRING(args[-1]);
+  push(vm, NUMBER_VAL((double)string->length));
+  return true;
+}
+
+static bool substrIndex(
+    VM* vm, Value input, const char* type, int length, int* index) {
+  if (!IS_NUMBER(input)) {
+    runtimeError(vm, "%s must be a number.", type);
+    return false;
+  }
+  double num = AS_NUMBER(input);
+  if (num <= (double)INT_MIN) {
+    *index = INT_MIN;
+  } else if (num >= (double)INT_MAX) {
+    *index = INT_MAX;
+  } else {
+    if ((double)(int)num != num) {
+      runtimeError(vm, "%s (%g) must be a whole number.", type, num);
+      return false;
+    }
+    *index = num;
+  }
+  if (*index < 0) {
+    *index += length + 1;
+  }
+  if (*index < 0) {
+    *index = 0;
+  } else if (*index > length) {
+    *index = length;
+  }
+  return true;
+}
+
+static bool stringSubstr(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 2, argCount)) {
+    return false;
+  }
+  ObjString* string = AS_STRING(args[-1]);
+  int start;
+  int end;
+  if (!substrIndex(vm, args[0], "Start", string->length, &start)) {
+    return false;
+  }
+  if (!substrIndex(vm, args[1], "End", string->length, &end)) {
+    return false;
+  }
+  const char* chars = "";
+  int length = 0;
+  if (start < end) {
+    chars = string->chars + start;
+    length = end - start;
+  }
+  push(vm, OBJ_VAL(copyString(&vm->gc, &vm->strings, chars, length)));
+  return true;
+}
+
+static void initStringClass(VM* vm) {
+  const char stringStr[] = "(String)";
+  ObjString* stringClassName = copyString(
+      &vm->gc, &vm->strings, stringStr, sizeof(stringStr) - 1);
+  pushTemp(&vm->gc, OBJ_VAL(stringClassName));
+  vm->stringClass = newClass(&vm->gc, stringClassName);
+  popTemp(&vm->gc);
+
+  defineNativeMethod(vm, vm->stringClass, "parsenum", stringParseNum);
+  defineNativeMethod(vm, vm->stringClass, "size", stringSize);
+  defineNativeMethod(vm, vm->stringClass, "substr", stringSubstr);
+}
+
 void initVM(VM* vm, FILE* fout, FILE* ferr) {
   vm->fout = fout;
   vm->ferr = ferr;
@@ -398,10 +497,12 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   vm->initString = NULL;
   vm->listClass = NULL;
   vm->mapClass = NULL;
+  vm->stringClass = NULL;
 
   vm->initString = copyString(&vm->gc, &vm->strings, "init", 4);
   initListClass(vm);
   initMapClass(vm);
+  initStringClass(vm);
 
   defineNative(vm, "argc", argcNative);
   defineNative(vm, "argv", argvNative);
@@ -538,6 +639,8 @@ static bool invoke(VM* vm, ObjString* name, int argCount) {
     klass = vm->listClass;
   } else if (IS_MAP(receiver)) {
     klass = vm->mapClass;
+  } else if (IS_STRING(receiver)) {
+    klass = vm->stringClass;
   } else if (IS_INSTANCE(receiver)) {
     ObjInstance* instance = AS_INSTANCE(receiver);
     Value value;
@@ -547,7 +650,8 @@ static bool invoke(VM* vm, ObjString* name, int argCount) {
     }
     klass = instance->klass;
   } else {
-    runtimeError(vm, "Only lists and instances have methods.");
+    runtimeError(
+        vm, "Only lists, maps, strings and instances have methods.");
     return false;
   }
 
@@ -873,6 +977,8 @@ static InterpretResult run(VM* vm) {
           klass = vm->listClass;
         } else if (IS_MAP(receiver)) {
           klass = vm->mapClass;
+        } else if (IS_STRING(receiver)) {
+          klass = vm->stringClass;
         } else if (IS_INSTANCE(receiver)) {
           ObjInstance* instance = AS_INSTANCE(peek(vm, 0));
           Value value;

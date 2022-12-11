@@ -916,6 +916,129 @@ VMCase stringsIndex[] = {
 
 VM_TEST(StringsIndex, stringsIndex, 4);
 
+VMCase stringsParseNum[] = {
+  // StringsParseNumSimple
+  { INTERPRET_OK, "-123.456\n", LIST(LitFun),
+      // print " -123.456 ".parsenum();
+      LIST(uint8_t, OP_CONSTANT, 0, OP_INVOKE, 1, 0, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S(" -123.456 "), S("parsenum")) },
+  // StringsParseNumWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun),
+      // "".parsenum(nil);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_INVOKE, 1, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S(""), S("parsenum")) },
+  // StringsParseNumFailure
+  { INTERPRET_OK, "nil\n", LIST(LitFun),
+      // print "123 z".parsenum();
+      LIST(uint8_t, OP_CONSTANT, 0, OP_INVOKE, 1, 0, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("123 z"), S("parsenum")) },
+};
+
+VM_TEST(StringsParseNum, stringsParseNum, 3);
+
+VMCase stringsSize[] = {
+  // StringsSizeSimple1
+  { INTERPRET_OK, "11\n", LIST(LitFun),
+      // print "hello world".size();
+      LIST(uint8_t, OP_CONSTANT, 0, OP_INVOKE, 1, 0, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("hello world"), S("size")) },
+  // StringsSizeSimple2
+  { INTERPRET_OK, "11\n", LIST(LitFun),
+      // var s = "hello world".size; print s();
+      LIST(uint8_t, OP_CONSTANT, 1, OP_GET_PROPERTY, 2,
+          OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0, 0, OP_CALL, 0,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("s"), S("hello world"), S("size")) },
+  // StringsSizeWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
+      LIST(LitFun),
+      // "".size(nil);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_INVOKE, 1, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S(""), S("size")) },
+};
+
+VM_TEST(StringsSize, stringsSize, 3);
+
+VMCase stringsSubstr[] = {
+  // StringsSubstrTrivial
+  { INTERPRET_OK, "true\n", LIST(LitFun),
+      // print "".substr(0, 0) == "";
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 2, OP_CONSTANT, 2,
+          OP_INVOKE, 1, 2, OP_CONSTANT, 0, OP_EQUAL, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S(""), S("substr"), N(0.0)) },
+  // StringsSubstrSimple
+  { INTERPRET_OK, "hello\n", LIST(LitFun),
+      // print "hello".substr(0, -1);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 2, OP_CONSTANT, 3,
+          OP_NEGATE, OP_INVOKE, 1, 2, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("hello"), S("substr"), N(0.0), N(1.0)) },
+  // StringsSubstrMulti
+  { INTERPRET_OK, "hello\nworld\n", LIST(LitFun),
+      // var msg="hello world";
+      // print msg.substr(0, 5); print msg.substr(-6, -1);
+      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL,
+          0, 0, OP_CONSTANT, 3, OP_CONSTANT, 4, OP_INVOKE, 2, 2,
+          OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 5, OP_NEGATE,
+          OP_CONSTANT, 6, OP_NEGATE, OP_INVOKE, 2, 2, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("msg"), S("hello world"), S("substr"), N(0.0), N(5.0),
+          N(6.0), N(1.0)) },
+  // StringsSubstrStartIntMin
+  { INTERPRET_OK, "ello\n", LIST(LitFun),
+      // print "hello".substr(1, 2147483647);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 2, OP_CONSTANT, 3,
+          OP_INVOKE, 1, 2, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("hello"), S("substr"), N(1.0), N(2147483647.0)) },
+  // StringsSubstrEndIntMax
+  { INTERPRET_OK, "hell\n", LIST(LitFun),
+      // print "hello".substr(-2147483648, -2);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 2, OP_CONSTANT, 3,
+          OP_INVOKE, 1, 2, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("hello"), S("substr"), N(-2147483648.0), N(-2.0)) },
+  // StringsSubstrWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 2 arguments but got 0.",
+      LIST(LitFun),
+      // "".substr();
+      LIST(uint8_t, OP_CONSTANT, 0, OP_INVOKE, 1, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S(""), S("substr")) },
+  // StringsSubstrStartNonNumber
+  { INTERPRET_RUNTIME_ERROR, "Start must be a number.", LIST(LitFun),
+      // "".substr(nil, 0);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_NIL, OP_CONSTANT, 2, OP_INVOKE,
+          1, 2, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S(""), S("substr"), N(0.0)) },
+  // StringsSubstrEndNonNumber
+  { INTERPRET_RUNTIME_ERROR, "End must be a number.", LIST(LitFun),
+      // "".substr(0, nil);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 2, OP_NIL, OP_INVOKE,
+          1, 2, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S(""), S("substr"), N(0.0)) },
+  // StringsSubstrStartBadNumber
+  { INTERPRET_RUNTIME_ERROR, "Start (0.5) must be a whole number.",
+      LIST(LitFun),
+      // "a".substr(0.5, 1);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 2, OP_CONSTANT, 3,
+          OP_INVOKE, 1, 2, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("a"), S("substr"), N(0.5), N(1.0)) },
+  // StringsSubstrEndBadNumber
+  { INTERPRET_RUNTIME_ERROR, "End (0.5) must be a whole number.",
+      LIST(LitFun),
+      // "a".substr(0, 0.5);
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 2, OP_CONSTANT, 3,
+          OP_INVOKE, 1, 2, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("a"), S("substr"), N(0.0), N(0.5)) },
+};
+
+VM_TEST(StringsSubstr, stringsSubstr, 10);
+
 VMCase classesIndex[] = {
   // ClassesIndexSimple
   { INTERPRET_OK, "1\n", LIST(LitFun),
@@ -1108,7 +1231,8 @@ VMCase classesMethods[] = {
       LIST(Lit, S("blah"), F(0), S("F"), S("F"), S("f"), S("F"), S("f"),
           S("blah"), S("blah"), S("f"), S("blah")) },
   // ClassesInvokeNonInstance
-  { INTERPRET_RUNTIME_ERROR, "Only lists and instances have methods.",
+  { INTERPRET_RUNTIME_ERROR,
+      "Only lists, maps, strings and instances have methods.",
       LIST(LitFun),
       // 0.x();
       LIST(uint8_t, OP_CONSTANT, 0, OP_INVOKE, 1, 0, OP_POP, OP_NIL,
