@@ -58,22 +58,33 @@ static bool checkArity(VM* vm, int expected, int actual) {
   return expected == actual;
 }
 
-static bool checkValueArrayIndex(
-    VM* vm, ValueArray* array, Value indexValue) {
+static bool checkIndexBounds(
+    VM* vm, const char* type, int bounds, Value indexValue) {
+  if (!IS_NUMBER(indexValue)) {
+    runtimeError(vm, "%s must be a number.", type);
+    return false;
+  }
+
   double indexNum = AS_NUMBER(indexValue);
 
-  if (indexNum < 0 || indexNum >= (double)array->count) {
+  if (indexNum < 0 || indexNum >= (double)bounds) {
     runtimeError(
-        vm, "Index (%g) out of bounds (%d).", indexNum, array->count);
+        vm, "%s (%g) out of bounds (%d).", type, indexNum, bounds);
     return false;
   }
 
   if ((double)(int)indexNum != indexNum) {
-    runtimeError(vm, "Index (%g) must be a whole number.", indexNum);
+    runtimeError(vm, "%s (%g) must be a whole number.", type, indexNum);
     return false;
   }
 
   return true;
+}
+
+static bool checkStringIndex(
+    VM* vm, ObjString* string, Value indexValue) {
+  return checkIndexBounds(
+      vm, "String index", string->length, indexValue);
 }
 
 static bool argcNative(VM* vm, int argCount, Value* args) {
@@ -89,11 +100,7 @@ static bool argvNative(VM* vm, int argCount, Value* args) {
   if (!checkArity(vm, 1, argCount)) {
     return false;
   }
-  if (!IS_NUMBER(args[0])) {
-    runtimeError(vm, "Argument must be a number.");
-    return false;
-  }
-  if (!checkValueArrayIndex(vm, &vm->args, args[0])) {
+  if (!checkIndexBounds(vm, "Argument", vm->args.count, args[0])) {
     return false;
   }
   int pos = (int)AS_NUMBER(args[0]);
@@ -221,12 +228,9 @@ static void defineNativeMethod(
 }
 
 static bool checkListIndex(VM* vm, Value listValue, Value indexValue) {
-  if (!IS_NUMBER(indexValue)) {
-    runtimeError(vm, "Lists can only be indexed by number.");
-    return false;
-  }
-  return checkValueArrayIndex(
-      vm, &AS_LIST(listValue)->elements, indexValue);
+  ObjList* list = AS_LIST(listValue);
+  return checkIndexBounds(
+      vm, "List index", list->elements.count, indexValue);
 }
 
 static bool listInsert(VM* vm, int argCount, Value* args) {
@@ -926,6 +930,16 @@ static InterpretResult run(VM* vm) {
             NEXT;
           }
           runtimeError(vm, "Undefined key '%s'.", key->chars);
+        } else if (IS_STRING(peek(vm, 1))) {
+          ObjString* string = AS_STRING(peek(vm, 1));
+          if (!checkStringIndex(vm, string, peek(vm, 0))) {
+            return INTERPRET_RUNTIME_ERROR;
+          }
+          int index = (int)AS_NUMBER(pop(vm));
+          char c = string->chars[index];
+          pop(vm); // String.
+          push(vm, NUMBER_VAL((double)c));
+          NEXT;
         } else if (IS_INSTANCE(peek(vm, 1))) {
           if (!IS_STRING(peek(vm, 0))) {
             runtimeError(
@@ -944,7 +958,7 @@ static InterpretResult run(VM* vm) {
           runtimeError(vm, "Undefined property '%s'.", name->chars);
         } else {
           runtimeError(
-              vm, "Only lists, maps and instances can be indexed.");
+              vm, "Can only index lists, maps, strings and instances.");
         }
         return INTERPRET_RUNTIME_ERROR;
       }
@@ -988,7 +1002,7 @@ static InterpretResult run(VM* vm) {
           NEXT;
         } else {
           runtimeError(
-              vm, "Only lists, maps and instances can be indexed.");
+              vm, "Can only set index of lists, maps and instances.");
         }
         return INTERPRET_RUNTIME_ERROR;
       }

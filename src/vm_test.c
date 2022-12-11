@@ -882,6 +882,40 @@ VMCase closures[] = {
 
 VM_TEST(Closures, closures, 2);
 
+VMCase stringsIndex[] = {
+  // StringsIndexSimple
+  { INTERPRET_OK, "97\n98\n99\n", LIST(LitFun),
+      // var s="abc";print s[0];print s[1];print s[2];
+      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL,
+          0, 0, OP_CONSTANT, 2, OP_GET_INDEX, OP_PRINT, OP_GET_GLOBAL,
+          0, 0, OP_CONSTANT, 3, OP_GET_INDEX, OP_PRINT, OP_GET_GLOBAL,
+          0, 0, OP_CONSTANT, 4, OP_GET_INDEX, OP_PRINT, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("s"), S("abc"), N(0.0), N(1.0), N(2.0)) },
+  // StringsIndexGetOutOfBounds
+  { INTERPRET_RUNTIME_ERROR, "String index (0) out of bounds (0).",
+      LIST(LitFun),
+      // ""[0];
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_INDEX,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S(""), N(0.0)) },
+  // StringsIndexGetBadNumber
+  { INTERPRET_RUNTIME_ERROR,
+      "String index (0.5) must be a whole number.", LIST(LitFun),
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_INDEX,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("a"), N(0.5)) },
+  // StringsIndexSetInvalid
+  { INTERPRET_RUNTIME_ERROR,
+      "Can only set index of lists, maps and instances.", LIST(LitFun),
+      // "a"["x"] = 1;
+      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
+          OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("a"), S("x"), N(1.0)) },
+};
+
+VM_TEST(StringsIndex, stringsIndex, 4);
+
 VMCase classesIndex[] = {
   // ClassesIndexSimple
   { INTERPRET_OK, "1\n", LIST(LitFun),
@@ -901,32 +935,28 @@ VMCase classesIndex[] = {
       LIST(Lit, S("F"), S("x")) },
   // ClassesIndexInvalidGet1
   { INTERPRET_RUNTIME_ERROR,
-      "Only lists, maps and instances can be indexed.", LIST(LitFun),
+      "Can only index lists, maps, strings and instances.",
+      LIST(LitFun),
       // 0["x"];
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_INDEX,
           OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(0.0), S("x")) },
   // ClassesIndexInvalidGet2
   { INTERPRET_RUNTIME_ERROR,
-      "Only lists, maps and instances can be indexed.", LIST(LitFun),
-      // "a"["x"];
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_GET_INDEX,
+      "Can only index lists, maps, strings and instances.",
+      LIST(LitFun),
+      // class F{}F["x"];
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
+          0, OP_POP, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_GET_INDEX,
           OP_POP, OP_NIL, OP_RETURN),
-      LIST(Lit, S("a"), S("x")) },
+      LIST(Lit, S("F"), S("x")) },
   // ClassesIndexInvalidSet1
   { INTERPRET_RUNTIME_ERROR,
-      "Only lists, maps and instances can be indexed.", LIST(LitFun),
+      "Can only set index of lists, maps and instances.", LIST(LitFun),
       // 0["x"] = 1;
       LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
           OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(0.0), S("x"), N(1.0)) },
-  // ClassesIndexInvalidSet2
-  { INTERPRET_RUNTIME_ERROR,
-      "Only lists, maps and instances can be indexed.", LIST(LitFun),
-      // "a"["x"] = 1;
-      LIST(uint8_t, OP_CONSTANT, 0, OP_CONSTANT, 1, OP_CONSTANT, 2,
-          OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
-      LIST(Lit, S("a"), S("x"), N(1.0)) },
   // ClassesIndexInstanceGetBadIndex1
   { INTERPRET_RUNTIME_ERROR, "Instances can only be indexed by string.",
       LIST(LitFun),
@@ -963,7 +993,7 @@ VMCase classesIndex[] = {
       LIST(Lit, S("F"), S("f"), N(1.0)) },
 };
 
-VM_TEST(ClassesIndex, classesIndex, 10);
+VM_TEST(ClassesIndex, classesIndex, 9);
 
 VMCase classes[] = {
   // ClassesPrint
@@ -1228,7 +1258,7 @@ VMCase nativeArgv[] = {
           OP_NIL, OP_RETURN),
       LIST(Lit, S("argv")) },
   // NativeArgvOutOfBounds
-  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (0).",
+  { INTERPRET_RUNTIME_ERROR, "Argument (1) out of bounds (0).",
       LIST(LitFun),
       // argv(1);
       LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
@@ -1416,56 +1446,56 @@ VMCase lists[] = {
           OP_CONSTANT, 1, OP_GET_INDEX, OP_PRINT, OP_NIL, OP_RETURN),
       LIST(Lit, S("l"), N(0.0), N(1.0)) },
   // ListsGetIndexNonNumber
-  { INTERPRET_RUNTIME_ERROR, "Lists can only be indexed by number.",
+  { INTERPRET_RUNTIME_ERROR, "List index must be a number.",
       LIST(LitFun),
       // [nil][nil];
       LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_NIL,
           OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit) },
   // ListsSetIndexNonNumber
-  { INTERPRET_RUNTIME_ERROR, "Lists can only be indexed by number.",
+  { INTERPRET_RUNTIME_ERROR, "List index must be a number.",
       LIST(LitFun),
       // [nil][nil]=nil;
       LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_NIL, OP_NIL,
           OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit) },
   // ListsGetIndexGetOutOfBounds1
-  { INTERPRET_RUNTIME_ERROR, "Index (-1) out of bounds (1).",
+  { INTERPRET_RUNTIME_ERROR, "List index (-1) out of bounds (1).",
       LIST(LitFun),
       // [nil][-1];
       LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
           OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(-1.0)) },
   // ListsSetIndexGetOutOfBounds1
-  { INTERPRET_RUNTIME_ERROR, "Index (-1) out of bounds (1).",
+  { INTERPRET_RUNTIME_ERROR, "List index (-1) out of bounds (1).",
       LIST(LitFun),
       // [nil][-1]=nil;
       LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
           OP_NIL, OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(-1.0)) },
   // ListsGetIndexGetOutOfBounds2
-  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (1).",
+  { INTERPRET_RUNTIME_ERROR, "List index (1) out of bounds (1).",
       LIST(LitFun),
       // [nil][1];
       LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
           OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(1.0)) },
   // ListsSetIndexGetOutOfBounds2
-  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (1).",
+  { INTERPRET_RUNTIME_ERROR, "List index (1) out of bounds (1).",
       LIST(LitFun),
       // [nil][1]=nil;
       LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
           OP_NIL, OP_SET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(1.0)) },
   // ListsGetIndexGetBadNumber
-  { INTERPRET_RUNTIME_ERROR, "Index (0.5) must be a whole number.",
+  { INTERPRET_RUNTIME_ERROR, "List index (0.5) must be a whole number.",
       LIST(LitFun),
       // [nil][0.5];
       LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
           OP_GET_INDEX, OP_POP, OP_NIL, OP_RETURN),
       LIST(Lit, N(0.5)) },
   // ListsSetIndexGetBadNumber
-  { INTERPRET_RUNTIME_ERROR, "Index (0.5) must be a whole number.",
+  { INTERPRET_RUNTIME_ERROR, "List index (0.5) must be a whole number.",
       LIST(LitFun),
       // [nil][0.5]=nil;
       LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_LIST_DATA, OP_CONSTANT, 0,
@@ -1487,7 +1517,7 @@ VMCase lists[] = {
           OP_RETURN),
       LIST(Lit, S("insert")) },
   // ListsInsertBadIndex
-  { INTERPRET_RUNTIME_ERROR, "Lists can only be indexed by number.",
+  { INTERPRET_RUNTIME_ERROR, "List index must be a number.",
       LIST(LitFun),
       // [].insert(nil,nil);
       LIST(uint8_t, OP_LIST_INIT, OP_NIL, OP_NIL, OP_INVOKE, 0, 2,
@@ -1550,7 +1580,7 @@ VMCase lists[] = {
           OP_RETURN),
       LIST(Lit, S("remove")) },
   // ListsRemoveBadIndex
-  { INTERPRET_RUNTIME_ERROR, "Index (1) out of bounds (0).",
+  { INTERPRET_RUNTIME_ERROR, "List index (1) out of bounds (0).",
       LIST(LitFun),
       // [].remove(1);
       LIST(uint8_t, OP_LIST_INIT, OP_CONSTANT, 1, OP_INVOKE, 0, 1,
