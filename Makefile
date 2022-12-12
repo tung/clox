@@ -253,8 +253,11 @@ ifneq ($(file <$(version_mk)),$(version_fragment))
   $(shell $(RM) $(version_mk))
 endif
 
-# (Re)create $(version_mk) so $(version_str) is available.
--include $(version_mk)
+# Avoid remaking $(version_mk) if we're just cleaning up.
+ifneq ($(should_make_deps),)
+  # (Re)create $(version_mk) so $(version_str) is available.
+  -include $(version_mk)
+endif
 
 ##########################################################
 ### Compiling, Linking and Auto-Generated Dependencies ###
