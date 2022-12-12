@@ -414,6 +414,8 @@ InterpretCase nativeFunctions[] = {
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "str();" },
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "type();" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "ceil();" },
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "floor();" },
@@ -433,13 +435,23 @@ InterpretCase nativeFunctions[] = {
   { INTERPRET_OK, "<native fn>\n", "print clock;" },
   { INTERPRET_OK, "true\n", "print clock()>=0;" },
   { INTERPRET_OK, "hi1\n", "print \"hi\"+str(1);" },
+  { INTERPRET_OK, "boolean\nnil\nnumber\n",
+      "print type(true);print type(nil);print type(0);" },
+  { INTERPRET_OK, "string\nlist\nmap\n",
+      "print type(\"\");print type([]);print type({});" },
+  { INTERPRET_OK, "function\n", "fun f(){}print type(f);" },
+  { INTERPRET_OK, "function\n", "{var x;fun g(){x;}print type(g);}" },
+  { INTERPRET_OK, "native function\n", "print type(type);" },
+  { INTERPRET_OK, "class\ninstance\nfunction\n",
+      "class F{m(){}}"
+      "print type(F);print type(F());print type(F().m);" },
   { INTERPRET_OK, "2\n", "print ceil(1.5);" },
   { INTERPRET_OK, "1\n", "print floor(1.5);" },
   { INTERPRET_OK, "2\n", "print round(1.5);" },
   { INTERPRET_OK, "1\n", "print round(1.49);" },
 };
 
-INTERPRET(NativeFunctions, nativeFunctions, 20);
+INTERPRET(NativeFunctions, nativeFunctions, 27);
 
 InterpretCase functions[] = {
   { INTERPRET_COMPILE_ERROR, "Expect function name.", "fun" },

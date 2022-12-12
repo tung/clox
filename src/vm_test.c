@@ -1472,6 +1472,112 @@ VMCase nativeStr[] = {
 
 VM_TEST(NativeStr, nativeStr, 2);
 
+VMCase nativeType[] = {
+  // NativeTypeWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // type();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("type")) },
+  // NativeTypeValues
+  { INTERPRET_OK, "boolean\nnil\nnumber\n", LIST(LitFun),
+      // print type(true); print type(nil); print type(0);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_TRUE, OP_CALL, 1, OP_PRINT,
+          OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_PRINT,
+          OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("type"), N(0.0)) },
+  // NativeTypeObjects
+  { INTERPRET_OK, "string\nlist\nmap\n", LIST(LitFun),
+      // print type(""); print type([]); print type({});
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_LIST_INIT, OP_CALL, 1,
+          OP_PRINT, OP_GET_GLOBAL, 0, 0, OP_MAP_INIT, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("type"), S("")) },
+  // NativeTypeFunctionClosure
+  // fun f() {} print type(f);
+  // { var x; fun g() { x; } print type(g); }
+  { INTERPRET_OK, "function\nfunction\n",
+      LIST(LitFun,
+          { "f", 0, 0, LIST(uint8_t, OP_NIL, OP_RETURN), LIST(Lit) },
+          { "g", 0, 1,
+              LIST(uint8_t, OP_GET_UPVALUE, 0, OP_POP, OP_NIL,
+                  OP_RETURN),
+              LIST(Lit) }),
+      LIST(uint8_t, OP_CONSTANT, 1, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL,
+          2, 0, OP_GET_GLOBAL, 0, 0, OP_CALL, 1, OP_PRINT, OP_NIL,
+          OP_CLOSURE, 3, 1, 1, OP_GET_GLOBAL, 2, 0, OP_GET_LOCAL, 2,
+          OP_CALL, 1, OP_PRINT, OP_POP, OP_CLOSE_UPVALUE, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("f"), F(0), S("type"), F(1)) },
+  // NativeTypeNative
+  { INTERPRET_OK, "native function\n", LIST(LitFun),
+      // print type(type);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_GET_GLOBAL, 0, 0, OP_CALL,
+          1, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("type")) },
+  // NativeTypeClass
+  // class F { m() {} }
+  // print type(F); print type(F()); print type(F().m);
+  { INTERPRET_OK, "class\ninstance\nfunction\n",
+      LIST(LitFun,
+          { "m", 0, 0, LIST(uint8_t, OP_NIL, OP_RETURN), LIST(Lit) }),
+      LIST(uint8_t, OP_CLASS, 0, OP_DEFINE_GLOBAL, 0, OP_GET_GLOBAL, 0,
+          0, OP_CONSTANT, 2, OP_METHOD, 1, OP_POP, OP_GET_GLOBAL, 3, 0,
+          OP_GET_GLOBAL, 0, 0, OP_CALL, 1, OP_PRINT, OP_GET_GLOBAL, 3,
+          0, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_CALL, 1, OP_PRINT,
+          OP_GET_GLOBAL, 3, 0, OP_GET_GLOBAL, 0, 0, OP_CALL, 0,
+          OP_GET_PROPERTY, 1, OP_CALL, 1, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("F"), S("m"), F(0), S("type")) },
+};
+
+VM_TEST(NativeType, nativeType, 6);
+
+UTEST(VM, NativeTypeUpvalue) {
+  MemBuf out, err;
+  VM vm;
+  initMemBuf(&out);
+  initMemBuf(&err);
+  initVM(&vm, out.fptr, err.fptr);
+
+  size_t temps = 0;
+
+  ObjFunction* scriptFun = newFunction(&vm.gc);
+  pushTemp(&vm.gc, OBJ_VAL(scriptFun));
+  temps++;
+  temps += fillFun(&vm.gc, &vm.strings, scriptFun,
+      // print type(<upvalue>);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("type")), LIST(ObjFunction*));
+
+  ObjUpvalue* upvalue = newUpvalue(&vm.gc, NULL);
+  pushTemp(&vm.gc, OBJ_VAL(upvalue));
+  temps++;
+  addConstant(&vm.gc, &scriptFun->chunk, OBJ_VAL(upvalue));
+
+  push(&vm, OBJ_VAL(scriptFun));
+
+  while (temps > 0) {
+    popTemp(&vm.gc);
+    temps--;
+  }
+
+  InterpretResult ires = interpretCall(&vm, (Obj*)scriptFun, 0);
+  EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
+
+  fflush(out.fptr);
+  fflush(err.fptr);
+  EXPECT_STREQ("upvalue\n", out.buf);
+  EXPECT_STREQ("", err.buf);
+
+  freeVM(&vm);
+  freeMemBuf(&out);
+  freeMemBuf(&err);
+}
+
 VMCase nativeCeil[] = {
   // NativeCeilSimple
   { INTERPRET_OK, "2\n", LIST(LitFun),

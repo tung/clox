@@ -134,6 +134,35 @@ static bool strNative(VM* vm, int argCount, Value* args) {
   return true;
 }
 
+static bool typeNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  const char* t = "unknown";
+  if (IS_OBJ(args[0])) {
+    switch (OBJ_TYPE(args[0])) {
+      case OBJ_BOUND_METHOD:
+      case OBJ_CLOSURE:
+      case OBJ_FUNCTION: t = "function"; break;
+      case OBJ_CLASS: t = "class"; break;
+      case OBJ_INSTANCE: t = "instance"; break;
+      case OBJ_LIST: t = "list"; break;
+      case OBJ_MAP: t = "map"; break;
+      case OBJ_NATIVE: t = "native function"; break;
+      case OBJ_STRING: t = "string"; break;
+      case OBJ_UPVALUE: t = "upvalue"; break;
+    }
+  } else if (IS_BOOL(args[0])) {
+    t = "boolean";
+  } else if (IS_NIL(args[0])) {
+    t = "nil";
+  } else if (IS_NUMBER(args[0])) {
+    t = "number";
+  }
+  push(vm, OBJ_VAL(copyString(&vm->gc, &vm->strings, t, strlen(t))));
+  return true;
+}
+
 static bool ceilNative(VM* vm, int argCount, Value* args) {
   if (!checkArity(vm, 1, argCount)) {
     return false;
@@ -508,6 +537,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   defineNative(vm, "argv", argvNative);
   defineNative(vm, "clock", clockNative);
   defineNative(vm, "str", strNative);
+  defineNative(vm, "type", typeNative);
   defineNative(vm, "ceil", ceilNative);
   defineNative(vm, "floor", floorNative);
   defineNative(vm, "round", roundNative);
