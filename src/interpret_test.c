@@ -449,6 +449,14 @@ InterpretCase nativeClock[] = {
 
 INTERPRET(NativeClock, nativeClock, 3);
 
+InterpretCase nativeEprint[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "eprint();" },
+  { INTERPRET_RUNTIME_ERROR, "123.456\n", "eprint(123.456);eprint();" },
+};
+
+INTERPRET(NativeEprint, nativeEprint, 2);
+
 InterpretCase nativeStr[] = {
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "str();" },

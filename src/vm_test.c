@@ -1504,6 +1504,24 @@ VMCase nativeClock[] = {
 
 VM_TEST(NativeClock, nativeClock, 2);
 
+VMCase nativeEprint[] = {
+  // NativeEprintToStdErr
+  { INTERPRET_RUNTIME_ERROR, "123.456\n", LIST(LitFun),
+      // eprint(123.546); eprint();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_POP, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("eprint"), N(123.456)) },
+  // NativeEprintWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // eprint();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("eprint")) },
+};
+
+VM_TEST(NativeEprint, nativeEprint, 2);
+
 VMCase nativeStr[] = {
   // NativeStrSimple
   { INTERPRET_OK, "hi1\n", LIST(LitFun),

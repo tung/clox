@@ -145,6 +145,16 @@ static bool clockNative(VM* vm, int argCount, Value* args) {
   return true;
 }
 
+static bool eprintNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  printValue(vm->ferr, args[0]);
+  fputc('\n', vm->ferr);
+  push(vm, NIL_VAL);
+  return true;
+}
+
 static bool strNative(VM* vm, int argCount, Value* args) {
   if (!checkArity(vm, 1, argCount)) {
     return false;
@@ -562,6 +572,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   defineNative(vm, "argv", argvNative);
   defineNative(vm, "chr", chrNative);
   defineNative(vm, "clock", clockNative);
+  defineNative(vm, "eprint", eprintNative);
   defineNative(vm, "str", strNative);
   defineNative(vm, "type", typeNative);
   defineNative(vm, "ceil", ceilNative);
