@@ -111,6 +111,31 @@ static bool argvNative(VM* vm, int argCount, Value* args) {
   return true;
 }
 
+static bool chrNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_NUMBER(args[0])) {
+    runtimeError(vm, "Argument must be a number.");
+    return false;
+  }
+  double num = AS_NUMBER(args[0]);
+  if (num < (double)CHAR_MIN || num > (double)CHAR_MAX) {
+    runtimeError(vm, "Argument (%g) must be between %d and %d.", num,
+        CHAR_MIN, CHAR_MAX);
+    return false;
+  }
+  if ((double)(char)num != num) {
+    runtimeError(vm, "Argument (%g) must be a whole number.", num);
+    return false;
+  }
+  char buf[2];
+  buf[0] = (char)num;
+  buf[1] = '\0';
+  push(vm, OBJ_VAL(copyString(&vm->gc, &vm->strings, buf, 1)));
+  return true;
+}
+
 static bool clockNative(VM* vm, int argCount, Value* args) {
   (void)args;
   if (!checkArity(vm, 0, argCount)) {
@@ -535,6 +560,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
 
   defineNative(vm, "argc", argcNative);
   defineNative(vm, "argv", argvNative);
+  defineNative(vm, "chr", chrNative);
   defineNative(vm, "clock", clockNative);
   defineNative(vm, "str", strNative);
   defineNative(vm, "type", typeNative);

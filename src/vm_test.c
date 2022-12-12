@@ -1437,6 +1437,55 @@ UTEST(VM, NativeArgs) {
   freeMemBuf(&err);
 }
 
+VMCase nativeChr[] = {
+  // NativeChrSimple1
+  { INTERPRET_OK, "a\n", LIST(LitFun),
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("chr"), N(97.0)) },
+  // NativeChrSimple2
+  { INTERPRET_OK, "1\n", LIST(LitFun),
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_INVOKE, 2, 0, OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("chr"), N(0.0), S("size")) },
+  // NativeChrWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // chr();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("chr")) },
+  // NativeChrNotNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
+      // chr(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("chr")) },
+  // NativeChrNumberTooLow
+  { INTERPRET_RUNTIME_ERROR, "Argument (-129) must be between ",
+      LIST(LitFun),
+      // chr(-129);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("chr"), N(-129.0)) },
+  // NativeChrNumberTooHigh
+  { INTERPRET_RUNTIME_ERROR, "Argument (256) must be between ",
+      LIST(LitFun),
+      // chr(256);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("chr"), N(256.0)) },
+  // NativeChrBadNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument (0.5) must be a whole number.",
+      LIST(LitFun),
+      // chr(0.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("chr"), N(0.5)) },
+};
+
+VM_TEST(NativeChr, nativeChr, 7);
+
 VMCase nativeClock[] = {
   // NativeClockSimple
   { INTERPRET_OK, "true\n", LIST(LitFun),
@@ -1448,8 +1497,8 @@ VMCase nativeClock[] = {
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       LIST(LitFun),
       // clock(nil);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_NIL,
-          OP_RETURN),
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_POP,
+          OP_NIL, OP_RETURN),
       LIST(Lit, S("clock")) },
 };
 

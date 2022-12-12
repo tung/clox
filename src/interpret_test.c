@@ -409,6 +409,8 @@ InterpretCase nativeFunctions[] = {
       "argc(nil);" },
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "argv();" },
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "chr();" },
   { INTERPRET_RUNTIME_ERROR, "Expected 0 arguments but got 1.",
       "clock(nil);" },
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
@@ -424,14 +426,24 @@ InterpretCase nativeFunctions[] = {
   { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
       "argv(nil);" },
   { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
+      "chr(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
       "ceil(nil);" },
   { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
       "floor(nil);" },
   { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
       "round(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Argument (0.5) must be a whole number.",
+      "chr(0.5);" },
   { INTERPRET_RUNTIME_ERROR, "Argument (1) out of bounds (0).",
       "argv(1);" },
+  { INTERPRET_RUNTIME_ERROR, "Argument (-129) must be between ",
+      "chr(-129);" },
+  { INTERPRET_RUNTIME_ERROR, "Argument (256) must be between ",
+      "chr(256);" },
   { INTERPRET_OK, "0\n", "print argc();" },
+  { INTERPRET_OK, "a\n", "print chr(97);" },
+  { INTERPRET_OK, "1\n", "print chr(0).size();" },
   { INTERPRET_OK, "<native fn>\n", "print clock;" },
   { INTERPRET_OK, "true\n", "print clock()>=0;" },
   { INTERPRET_OK, "hi1\n", "print \"hi\"+str(1);" },
@@ -451,7 +463,7 @@ InterpretCase nativeFunctions[] = {
   { INTERPRET_OK, "1\n", "print round(1.49);" },
 };
 
-INTERPRET(NativeFunctions, nativeFunctions, 27);
+INTERPRET(NativeFunctions, nativeFunctions, 34);
 
 InterpretCase functions[] = {
   { INTERPRET_COMPILE_ERROR, "Expect function name.", "fun" },
