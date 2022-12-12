@@ -90,6 +90,27 @@ static void readFile(MemBuf* mbuf, const char* path) {
 
   char tmp[1024];
   size_t num;
+
+  // If the first character is '#', skip up to the first newline.
+  num = fread(&tmp, 1, sizeof(tmp), file);
+  if (num > 0) {
+    if (tmp[0] == '#') {
+      char* newline;
+      do {
+        newline = memchr(tmp, '\n', num);
+        if (newline) {
+          break;
+        }
+        num = fread(&tmp, 1, sizeof(tmp), file);
+      } while (num > 0);
+      if (newline) {
+        fwrite(newline, 1, tmp + sizeof(tmp) - newline, mbuf->fptr);
+      }
+    } else {
+      fwrite(&tmp, 1, num, mbuf->fptr);
+    }
+  }
+
   while ((num = fread(&tmp, 1, sizeof(tmp), file)) > 0) {
     fwrite(&tmp, 1, num, mbuf->fptr);
   }
