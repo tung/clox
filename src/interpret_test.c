@@ -423,6 +423,16 @@ InterpretCase nativeArgv[] = {
 
 INTERPRET(NativeArgv, nativeArgv, 3);
 
+InterpretCase nativeCeil[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "ceil();" },
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
+      "ceil(nil);" },
+  { INTERPRET_OK, "2\n", "print ceil(1.5);" },
+};
+
+INTERPRET(NativeCeil, nativeCeil, 3);
+
 InterpretCase nativeChr[] = {
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "chr();" },
@@ -457,6 +467,27 @@ InterpretCase nativeEprint[] = {
 
 INTERPRET(NativeEprint, nativeEprint, 2);
 
+InterpretCase nativeFloor[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "floor();" },
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
+      "floor(nil);" },
+  { INTERPRET_OK, "1\n", "print floor(1.5);" },
+};
+
+INTERPRET(NativeFloor, nativeFloor, 3);
+
+InterpretCase nativeRound[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "round();" },
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
+      "round(nil);" },
+  { INTERPRET_OK, "2\n", "print round(1.5);" },
+  { INTERPRET_OK, "1\n", "print round(1.49);" },
+};
+
+INTERPRET(NativeRound, nativeRound, 4);
+
 InterpretCase nativeStr[] = {
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
       "str();" },
@@ -481,37 +512,6 @@ InterpretCase nativeType[] = {
 };
 
 INTERPRET(NativeType, nativeType, 7);
-
-InterpretCase nativeCeil[] = {
-  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
-      "ceil();" },
-  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
-      "ceil(nil);" },
-  { INTERPRET_OK, "2\n", "print ceil(1.5);" },
-};
-
-INTERPRET(NativeCeil, nativeCeil, 3);
-
-InterpretCase nativeFloor[] = {
-  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
-      "floor();" },
-  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
-      "floor(nil);" },
-  { INTERPRET_OK, "1\n", "print floor(1.5);" },
-};
-
-INTERPRET(NativeFloor, nativeFloor, 3);
-
-InterpretCase nativeRound[] = {
-  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
-      "round();" },
-  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
-      "round(nil);" },
-  { INTERPRET_OK, "2\n", "print round(1.5);" },
-  { INTERPRET_OK, "1\n", "print round(1.49);" },
-};
-
-INTERPRET(NativeRound, nativeRound, 4);
 
 InterpretCase functions[] = {
   { INTERPRET_COMPILE_ERROR, "Expect function name.", "fun" },

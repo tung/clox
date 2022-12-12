@@ -1437,6 +1437,29 @@ UTEST(VM, NativeArgs) {
   freeMemBuf(&err);
 }
 
+VMCase nativeCeil[] = {
+  // NativeCeilSimple
+  { INTERPRET_OK, "2\n", LIST(LitFun),
+      // print ceil(1.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("ceil"), N(1.5)) },
+  // NativeCeilWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // ceil();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("ceil")) },
+  // NativeCeilNotNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
+      // ceil(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("ceil")) },
+};
+
+VM_TEST(NativeCeil, nativeCeil, 3);
+
 VMCase nativeChr[] = {
   // NativeChrSimple1
   { INTERPRET_OK, "a\n", LIST(LitFun),
@@ -1521,6 +1544,52 @@ VMCase nativeEprint[] = {
 };
 
 VM_TEST(NativeEprint, nativeEprint, 2);
+
+VMCase nativeFloor[] = {
+  // NativeFloorSimple
+  { INTERPRET_OK, "1\n", LIST(LitFun),
+      // print floor(1.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("floor"), N(1.5)) },
+  // NativeFloorWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // floor();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("floor")) },
+  // NativeFloorNotNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
+      // floor(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("floor")) },
+};
+
+VM_TEST(NativeFloor, nativeFloor, 3);
+
+VMCase nativeRound[] = {
+  // NativeRoundSimple
+  { INTERPRET_OK, "2\n", LIST(LitFun),
+      // print round(1.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_PRINT, OP_NIL, OP_RETURN),
+      LIST(Lit, S("round"), N(1.5)) },
+  // NativeRoundWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // round();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
+      LIST(Lit, S("round")) },
+  // NativeRoundNotNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
+      // round(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_PRINT,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("round")) },
+};
+
+VM_TEST(NativeRound, nativeRound, 3);
 
 VMCase nativeStr[] = {
   // NativeStrSimple
@@ -1644,75 +1713,6 @@ UTEST(VM, NativeTypeUpvalue) {
   freeMemBuf(&out);
   freeMemBuf(&err);
 }
-
-VMCase nativeCeil[] = {
-  // NativeCeilSimple
-  { INTERPRET_OK, "2\n", LIST(LitFun),
-      // print ceil(1.5);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
-          OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Lit, S("ceil"), N(1.5)) },
-  // NativeCeilWrongNumArgs
-  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
-      LIST(LitFun),
-      // ceil();
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
-      LIST(Lit, S("ceil")) },
-  // NativeCeilNotNumber
-  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
-      // ceil(nil);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_PRINT,
-          OP_NIL, OP_RETURN),
-      LIST(Lit, S("ceil")) },
-};
-
-VM_TEST(NativeCeil, nativeCeil, 3);
-
-VMCase nativeFloor[] = {
-  // NativeFloorSimple
-  { INTERPRET_OK, "1\n", LIST(LitFun),
-      // print floor(1.5);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
-          OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Lit, S("floor"), N(1.5)) },
-  // NativeFloorWrongNumArgs
-  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
-      LIST(LitFun),
-      // floor();
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
-      LIST(Lit, S("floor")) },
-  // NativeFloorNotNumber
-  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
-      // floor(nil);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_PRINT,
-          OP_NIL, OP_RETURN),
-      LIST(Lit, S("floor")) },
-};
-
-VM_TEST(NativeFloor, nativeFloor, 3);
-
-VMCase nativeRound[] = {
-  // NativeRoundSimple
-  { INTERPRET_OK, "2\n", LIST(LitFun),
-      // print round(1.5);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
-          OP_PRINT, OP_NIL, OP_RETURN),
-      LIST(Lit, S("round"), N(1.5)) },
-  // NativeRoundWrongNumArgs
-  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
-      LIST(LitFun),
-      // round();
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_NIL, OP_RETURN),
-      LIST(Lit, S("round")) },
-  // NativeRoundNotNumber
-  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
-      // round(nil);
-      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_PRINT,
-          OP_NIL, OP_RETURN),
-      LIST(Lit, S("round")) },
-};
-
-VM_TEST(NativeRound, nativeRound, 3);
 
 VMCase lists[] = {
   // ListsDataNonList1

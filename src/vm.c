@@ -111,6 +111,18 @@ static bool argvNative(VM* vm, int argCount, Value* args) {
   return true;
 }
 
+static bool ceilNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_NUMBER(args[0])) {
+    runtimeError(vm, "Argument must be a number.");
+    return false;
+  }
+  push(vm, NUMBER_VAL(ceil(AS_NUMBER(args[0]))));
+  return true;
+}
+
 static bool chrNative(VM* vm, int argCount, Value* args) {
   if (!checkArity(vm, 1, argCount)) {
     return false;
@@ -155,6 +167,30 @@ static bool eprintNative(VM* vm, int argCount, Value* args) {
   return true;
 }
 
+static bool floorNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_NUMBER(args[0])) {
+    runtimeError(vm, "Argument must be a number.");
+    return false;
+  }
+  push(vm, NUMBER_VAL(floor(AS_NUMBER(args[0]))));
+  return true;
+}
+
+static bool roundNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_NUMBER(args[0])) {
+    runtimeError(vm, "Argument must be a number.");
+    return false;
+  }
+  push(vm, NUMBER_VAL(round(AS_NUMBER(args[0]))));
+  return true;
+}
+
 static bool strNative(VM* vm, int argCount, Value* args) {
   if (!checkArity(vm, 1, argCount)) {
     return false;
@@ -195,42 +231,6 @@ static bool typeNative(VM* vm, int argCount, Value* args) {
     t = "number";
   }
   push(vm, OBJ_VAL(copyString(&vm->gc, &vm->strings, t, strlen(t))));
-  return true;
-}
-
-static bool ceilNative(VM* vm, int argCount, Value* args) {
-  if (!checkArity(vm, 1, argCount)) {
-    return false;
-  }
-  if (!IS_NUMBER(args[0])) {
-    runtimeError(vm, "Argument must be a number.");
-    return false;
-  }
-  push(vm, NUMBER_VAL(ceil(AS_NUMBER(args[0]))));
-  return true;
-}
-
-static bool floorNative(VM* vm, int argCount, Value* args) {
-  if (!checkArity(vm, 1, argCount)) {
-    return false;
-  }
-  if (!IS_NUMBER(args[0])) {
-    runtimeError(vm, "Argument must be a number.");
-    return false;
-  }
-  push(vm, NUMBER_VAL(floor(AS_NUMBER(args[0]))));
-  return true;
-}
-
-static bool roundNative(VM* vm, int argCount, Value* args) {
-  if (!checkArity(vm, 1, argCount)) {
-    return false;
-  }
-  if (!IS_NUMBER(args[0])) {
-    runtimeError(vm, "Argument must be a number.");
-    return false;
-  }
-  push(vm, NUMBER_VAL(round(AS_NUMBER(args[0]))));
   return true;
 }
 
@@ -570,14 +570,14 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
 
   defineNative(vm, "argc", argcNative);
   defineNative(vm, "argv", argvNative);
+  defineNative(vm, "ceil", ceilNative);
   defineNative(vm, "chr", chrNative);
   defineNative(vm, "clock", clockNative);
   defineNative(vm, "eprint", eprintNative);
-  defineNative(vm, "str", strNative);
-  defineNative(vm, "type", typeNative);
-  defineNative(vm, "ceil", ceilNative);
   defineNative(vm, "floor", floorNative);
   defineNative(vm, "round", roundNative);
+  defineNative(vm, "str", strNative);
+  defineNative(vm, "type", typeNative);
 }
 
 void freeVM(VM* vm) {
