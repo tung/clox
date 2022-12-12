@@ -20,7 +20,7 @@ UTEST(InterpretMulti, ForceGC) {
   initVM(&vm, out.fptr, err.fptr);
 
   debugStressGC = false; // Test non-stressed garbage collection.
-  for (size_t i = 0; i < 10; ++i) {
+  for (size_t i = 0; i < 20; ++i) {
     InterpretResult ires = interpret(&vm, "fun a(){}");
     EXPECT_EQ((InterpretResult)INTERPRET_OK, ires);
     if (ires != INTERPRET_OK) {
@@ -466,6 +466,21 @@ InterpretCase nativeEprint[] = {
 };
 
 INTERPRET(NativeEprint, nativeEprint, 2);
+
+InterpretCase nativeExit[] = {
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      "exit();" },
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.",
+      "exit(nil);" },
+  { INTERPRET_RUNTIME_ERROR, "Argument (-1) must be between 0 and ",
+      "exit(-1);" },
+  { INTERPRET_RUNTIME_ERROR, "Argument (1e+10) must be between 0 and ",
+      "exit(10000000000);" },
+  { INTERPRET_RUNTIME_ERROR, "Argument (0.5) must be a whole number.",
+      "exit(0.5);" },
+};
+
+INTERPRET(NativeExit, nativeExit, 5);
 
 InterpretCase nativeFloor[] = {
   { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",

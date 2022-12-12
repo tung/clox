@@ -1545,6 +1545,45 @@ VMCase nativeEprint[] = {
 
 VM_TEST(NativeEprint, nativeEprint, 2);
 
+VMCase nativeExit[] = {
+  // NativeExitWrongNumArgs
+  { INTERPRET_RUNTIME_ERROR, "Expected 1 arguments but got 0.",
+      LIST(LitFun),
+      // exit();
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CALL, 0, OP_POP, OP_NIL,
+          OP_RETURN),
+      LIST(Lit, S("exit")) },
+  // NativeExitNotNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument must be a number.", LIST(LitFun),
+      // exit(nil);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_NIL, OP_CALL, 1, OP_POP,
+          OP_NIL, OP_RETURN),
+      LIST(Lit, S("exit")) },
+  // NativeExitNumberTooLow
+  { INTERPRET_RUNTIME_ERROR, "Argument (-1) must be between 0 and ",
+      LIST(LitFun),
+      // exit(-1);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_NEGATE,
+          OP_CALL, 1, OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("exit"), N(1.0)) },
+  // NativeExitNumberTooHigh
+  { INTERPRET_RUNTIME_ERROR, "Argument (1e+10) must be between 0 and ",
+      LIST(LitFun),
+      // exit(10000000000);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("exit"), N(10000000000.0)) },
+  // NativeExitBadNumber
+  { INTERPRET_RUNTIME_ERROR, "Argument (0.5) must be a whole number.",
+      LIST(LitFun),
+      // exit(0.5);
+      LIST(uint8_t, OP_GET_GLOBAL, 0, 0, OP_CONSTANT, 1, OP_CALL, 1,
+          OP_POP, OP_NIL, OP_RETURN),
+      LIST(Lit, S("exit"), N(0.5)) },
+};
+
+VM_TEST(NativeExit, nativeExit, 5);
+
 VMCase nativeFloor[] = {
   // NativeFloorSimple
   { INTERPRET_OK, "1\n", LIST(LitFun),

@@ -167,6 +167,28 @@ static bool eprintNative(VM* vm, int argCount, Value* args) {
   return true;
 }
 
+static bool exitNative(VM* vm, int argCount, Value* args) {
+  if (!checkArity(vm, 1, argCount)) {
+    return false;
+  }
+  if (!IS_NUMBER(args[0])) {
+    runtimeError(vm, "Argument must be a number.");
+    return false;
+  }
+  double num = AS_NUMBER(args[0]);
+  if (num < 0.0 || num > (double)UCHAR_MAX) {
+    runtimeError(
+        vm, "Argument (%g) must be between 0 and %d.", num, UCHAR_MAX);
+    return false;
+  }
+  if ((double)(int)num != num) {
+    runtimeError(vm, "Argument (%g) must be a whole number.", num);
+    return false;
+  }
+  exit((int)num);
+  return true;
+}
+
 static bool floorNative(VM* vm, int argCount, Value* args) {
   if (!checkArity(vm, 1, argCount)) {
     return false;
@@ -574,6 +596,7 @@ void initVM(VM* vm, FILE* fout, FILE* ferr) {
   defineNative(vm, "chr", chrNative);
   defineNative(vm, "clock", clockNative);
   defineNative(vm, "eprint", eprintNative);
+  defineNative(vm, "exit", exitNative);
   defineNative(vm, "floor", floorNative);
   defineNative(vm, "round", roundNative);
   defineNative(vm, "str", strNative);
