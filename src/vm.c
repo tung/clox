@@ -843,7 +843,7 @@ static InterpretResult run(VM* vm) {
   (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
 
 #define READ_CONSTANT() \
-  (frame->function->chunk.constants.values[READ_BYTE()])
+  (frame->function->chunk.constants.values[READ_SHORT()])
 
 #define READ_STRING() AS_STRING(READ_CONSTANT())
 #define BINARY_OP(valueType, op) \
@@ -999,10 +999,10 @@ static InterpretResult run(VM* vm) {
           return INTERPRET_RUNTIME_ERROR;
         }
         uint16_t slotInt = (uint16_t)AS_NUMBER(slot);
-        frame->ip[-2] = OP_GET_GLOBAL_I;
-        frame->ip[-1] = (uint8_t)(slotInt >> 8);
-        frame->ip[0] = (uint8_t)(slotInt & 0xff);
-        frame->ip -= 2;
+        frame->ip[-3] = OP_GET_GLOBAL_I;
+        frame->ip[-2] = (uint8_t)(slotInt >> 8);
+        frame->ip[-1] = (uint8_t)(slotInt & 0xff);
+        frame->ip -= 3;
         NEXT;
       }
       CASE(OP_GET_GLOBAL_I) {
@@ -1038,10 +1038,10 @@ static InterpretResult run(VM* vm) {
           return INTERPRET_RUNTIME_ERROR;
         }
         uint16_t slotInt = (uint16_t)AS_NUMBER(slot);
-        frame->ip[-2] = OP_SET_GLOBAL_I;
-        frame->ip[-1] = (uint8_t)(slotInt >> 8);
-        frame->ip[0] = (uint8_t)(slotInt & 0xff);
-        frame->ip -= 2;
+        frame->ip[-3] = OP_SET_GLOBAL_I;
+        frame->ip[-2] = (uint8_t)(slotInt >> 8);
+        frame->ip[-1] = (uint8_t)(slotInt & 0xff);
+        frame->ip -= 3;
         NEXT;
       }
       CASE(OP_SET_GLOBAL_I) {

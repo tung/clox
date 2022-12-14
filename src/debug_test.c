@@ -35,10 +35,12 @@ UTEST_F_TEARDOWN(DisassembleChunk) {
 }
 
 UTEST_F(DisassembleChunk, OpConstant) {
-  uint8_t constantIndex =
+  uint16_t constantIndex =
       addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.0));
   writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, constantIndex, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constantIndex >> 8), 123);
+  writeChunk(
+      &ufx->gc, &ufx->chunk, (uint8_t)(constantIndex & 0xff), 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -73,11 +75,11 @@ UTEST_F(DisassembleChunk, OpGetGlobal) {
   ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
   pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
 
-  uint8_t global =
+  uint16_t global =
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_GET_GLOBAL, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global & 0xff), 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -110,7 +112,8 @@ UTEST_F(DisassembleChunk, OpDefineGlobal) {
   uint8_t global =
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_DEFINE_GLOBAL, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global & 0xff), 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -129,11 +132,11 @@ UTEST_F(DisassembleChunk, OpSetGlobal) {
   ObjString* globalOStr = copyString(&ufx->gc, &strings, "foo", 3);
   pushTemp(&ufx->gc, OBJ_VAL(globalOStr));
 
-  uint8_t global =
+  uint16_t global =
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_SET_GLOBAL, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global & 0xff), 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -186,7 +189,8 @@ UTEST_F(DisassembleChunk, OpGetProperty) {
   uint8_t global =
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_GET_PROPERTY, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global & 0xff), 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -208,7 +212,8 @@ UTEST_F(DisassembleChunk, OpSetProperty) {
   uint8_t global =
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_SET_PROPERTY, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global & 0xff), 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -230,7 +235,8 @@ UTEST_F(DisassembleChunk, OpGetSuper) {
   uint8_t method =
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_GET_SUPER, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, method, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(method >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(method & 0xff), 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -246,7 +252,9 @@ UTEST_F(DisassembleChunk, OpLessC) {
   uint8_t constantIndex =
       addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.0));
   writeChunk(&ufx->gc, &ufx->chunk, OP_LESS_C, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, constantIndex, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constantIndex >> 8), 123);
+  writeChunk(
+      &ufx->gc, &ufx->chunk, (uint8_t)(constantIndex & 0xff), 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -258,7 +266,9 @@ UTEST_F(DisassembleChunk, OpAddC) {
   uint8_t constantIndex =
       addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.0));
   writeChunk(&ufx->gc, &ufx->chunk, OP_ADD_C, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, constantIndex, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constantIndex >> 8), 123);
+  writeChunk(
+      &ufx->gc, &ufx->chunk, (uint8_t)(constantIndex & 0xff), 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -270,7 +280,9 @@ UTEST_F(DisassembleChunk, OpSubtractC) {
   uint8_t constantIndex =
       addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.0));
   writeChunk(&ufx->gc, &ufx->chunk, OP_SUBTRACT_C, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, constantIndex, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constantIndex >> 8), 123);
+  writeChunk(
+      &ufx->gc, &ufx->chunk, (uint8_t)(constantIndex & 0xff), 123);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
 
   fflush(ufx->err.fptr);
@@ -343,7 +355,8 @@ UTEST_F(DisassembleChunk, OpInvoke) {
   uint8_t method =
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_INVOKE, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, method, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(method >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(method & 0xff), 123);
   writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
 
   popTemp(&ufx->gc);
@@ -366,7 +379,8 @@ UTEST_F(DisassembleChunk, OpSuperInvoke) {
   uint8_t method =
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_SUPER_INVOKE, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, method, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(method >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(method & 0xff), 123);
   writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
 
   popTemp(&ufx->gc);
@@ -388,7 +402,8 @@ UTEST_F(DisassembleChunk, OpClosure0) {
 
   uint8_t funIndex = addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(fun));
   writeChunk(&ufx->gc, &ufx->chunk, OP_CLOSURE, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, funIndex, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(funIndex >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(funIndex & 0xff), 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -410,7 +425,8 @@ UTEST_F(DisassembleChunk, OpClosure2) {
 
   uint8_t funIndex = addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(fun));
   writeChunk(&ufx->gc, &ufx->chunk, OP_CLOSURE, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, funIndex, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(funIndex >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(funIndex & 0xff), 123);
   writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
   writeChunk(&ufx->gc, &ufx->chunk, 1, 123);
   writeChunk(&ufx->gc, &ufx->chunk, 0, 123);
@@ -422,8 +438,8 @@ UTEST_F(DisassembleChunk, OpClosure2) {
   fflush(ufx->err.fptr);
   const char msg[] =
       "0000  123 OP_CLOSURE          0 <script>\n"
-      "0002      |                     local 1\n"
-      "0004      |                     upvalue 2\n";
+      "0003      |                     local 1\n"
+      "0005      |                     upvalue 2\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 
   freeTable(&ufx->gc, &strings);
@@ -439,7 +455,8 @@ UTEST_F(DisassembleChunk, OpClass) {
   uint8_t global =
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(globalOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_CLASS, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, global, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(global & 0xff), 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -461,7 +478,8 @@ UTEST_F(DisassembleChunk, OpMethod) {
   uint8_t method =
       addConstant(&ufx->gc, &ufx->chunk, OBJ_VAL(methodOStr));
   writeChunk(&ufx->gc, &ufx->chunk, OP_METHOD, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, method, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(method >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(method & 0xff), 123);
 
   popTemp(&ufx->gc);
   disassembleInstruction(ufx->err.fptr, &ufx->chunk, 0);
@@ -487,7 +505,8 @@ UTEST_F(DisassembleChunk, Chapter14Sample1) {
 UTEST_F(DisassembleChunk, Chapter14Sample2) {
   int constant = addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.2));
   writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, constant, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constant >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constant & 0xff), 123);
   writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 123);
   disassembleChunk(ufx->err.fptr, &ufx->chunk, "test chunk");
 
@@ -495,14 +514,15 @@ UTEST_F(DisassembleChunk, Chapter14Sample2) {
   const char msg[] =
       "== test chunk ==\n"
       "0000  123 OP_CONSTANT         0 '1.2'\n"
-      "0002    | OP_RETURN\n";
+      "0003    | OP_RETURN\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 
 UTEST_F(DisassembleChunk, Chapter15Sample1) {
   int constant = addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.2));
   writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, constant, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constant >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constant & 0xff), 123);
   writeChunk(&ufx->gc, &ufx->chunk, OP_NEGATE, 123);
   writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 123);
   disassembleChunk(ufx->err.fptr, &ufx->chunk, "test chunk");
@@ -511,22 +531,25 @@ UTEST_F(DisassembleChunk, Chapter15Sample1) {
   const char msg[] =
       "== test chunk ==\n"
       "0000  123 OP_CONSTANT         0 '1.2'\n"
-      "0002    | OP_NEGATE\n"
-      "0003    | OP_RETURN\n";
+      "0003    | OP_NEGATE\n"
+      "0004    | OP_RETURN\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 
 UTEST_F(DisassembleChunk, Chapter15Sample2) {
   int constant = addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(1.2));
   writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, constant, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constant >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constant & 0xff), 123);
   constant = addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(3.4));
   writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, constant, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constant >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constant & 0xff), 123);
   writeChunk(&ufx->gc, &ufx->chunk, OP_ADD, 123);
   constant = addConstant(&ufx->gc, &ufx->chunk, NUMBER_VAL(5.6));
   writeChunk(&ufx->gc, &ufx->chunk, OP_CONSTANT, 123);
-  writeChunk(&ufx->gc, &ufx->chunk, constant, 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constant >> 8), 123);
+  writeChunk(&ufx->gc, &ufx->chunk, (uint8_t)(constant & 0xff), 123);
   writeChunk(&ufx->gc, &ufx->chunk, OP_DIVIDE, 123);
   writeChunk(&ufx->gc, &ufx->chunk, OP_NEGATE, 123);
   writeChunk(&ufx->gc, &ufx->chunk, OP_RETURN, 123);
@@ -536,12 +559,12 @@ UTEST_F(DisassembleChunk, Chapter15Sample2) {
   const char msg[] =
       "== test chunk ==\n"
       "0000  123 OP_CONSTANT         0 '1.2'\n"
-      "0002    | OP_CONSTANT         1 '3.4'\n"
-      "0004    | OP_ADD\n"
-      "0005    | OP_CONSTANT         2 '5.6'\n"
-      "0007    | OP_DIVIDE\n"
-      "0008    | OP_NEGATE\n"
-      "0009    | OP_RETURN\n";
+      "0003    | OP_CONSTANT         1 '3.4'\n"
+      "0006    | OP_ADD\n"
+      "0007    | OP_CONSTANT         2 '5.6'\n"
+      "0010    | OP_DIVIDE\n"
+      "0011    | OP_NEGATE\n"
+      "0012    | OP_RETURN\n";
   EXPECT_STREQ(msg, ufx->err.buf);
 }
 

@@ -15,21 +15,23 @@ void disassembleChunk(FILE* ferr, Chunk* chunk, const char* name) {
 
 static int constantInstruction(
     FILE* ferr, const char* name, Chunk* chunk, int offset) {
-  uint8_t constant = chunk->code[offset + 1];
+  uint16_t constant = (uint16_t)(chunk->code[offset + 1] << 8);
+  constant |= chunk->code[offset + 2];
   fprintf(ferr, "%-16s %4d '", name, constant);
   printValue(ferr, chunk->constants.values[constant]);
   fprintf(ferr, "'\n");
-  return offset + 2;
+  return offset + 3;
 }
 
 static int invokeInstruction(
     FILE* ferr, const char* name, Chunk* chunk, int offset) {
-  uint8_t constant = chunk->code[offset + 1];
-  uint8_t argCount = chunk->code[offset + 2];
+  uint16_t constant = (uint16_t)(chunk->code[offset + 1] << 8);
+  constant |= chunk->code[offset + 2];
+  uint8_t argCount = chunk->code[offset + 3];
   fprintf(ferr, "%-16s (%d args) %4d '", name, argCount, constant);
   printValue(ferr, chunk->constants.values[constant]);
   fprintf(ferr, "'\n");
-  return offset + 3;
+  return offset + 4;
 }
 
 static int simpleInstruction(FILE* ferr, const char* name, int offset) {
@@ -82,16 +84,14 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
     case OP_SET_LOCAL:
       return byteInstruction(ferr, "OP_SET_LOCAL", chunk, offset);
     case OP_GET_GLOBAL:
-      return constantInstruction(ferr, "OP_GET_GLOBAL", chunk, offset) +
-          1;
+      return constantInstruction(ferr, "OP_GET_GLOBAL", chunk, offset);
     case OP_GET_GLOBAL_I:
       return shortInstruction(ferr, "OP_GET_GLOBAL_I", chunk, offset);
     case OP_DEFINE_GLOBAL:
       return constantInstruction(
           ferr, "OP_DEFINE_GLOBAL", chunk, offset);
     case OP_SET_GLOBAL:
-      return constantInstruction(ferr, "OP_SET_GLOBAL", chunk, offset) +
-          1;
+      return constantInstruction(ferr, "OP_SET_GLOBAL", chunk, offset);
     case OP_SET_GLOBAL_I:
       return shortInstruction(ferr, "OP_SET_GLOBAL_I", chunk, offset);
     case OP_GET_UPVALUE:
@@ -148,7 +148,8 @@ int disassembleInstruction(FILE* ferr, Chunk* chunk, int offset) {
       return invokeInstruction(ferr, "OP_SUPER_INVOKE", chunk, offset);
     case OP_CLOSURE: {
       offset++;
-      uint8_t constant = chunk->code[offset++];
+      uint16_t constant = (uint16_t)(chunk->code[offset++] << 8);
+      constant |= chunk->code[offset++];
       fprintf(ferr, "%-16s %4d ", "OP_CLOSURE", constant);
       printValue(ferr, chunk->constants.values[constant]);
       fprintf(ferr, "\n");
