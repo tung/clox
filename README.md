@@ -385,7 +385,7 @@ Giving `-` as the path will read the script from standard input.
 The first line of a script is treated as a comment if it starts with a `#` character, so this is allowed:
 
 ```
-$ cat - >EOF foo.lox
+$ cat <<EOF >foo.lox
 #!/path/to/clox
 print "hello from clox";
 EOF
