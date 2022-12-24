@@ -6,6 +6,8 @@ I made this while following along the final part of [Robert Nystrom's Crafting I
 This is was a learning project for a toy language, so I probably won't respond to issues or pull requests.
 Still, it's small, fast and handy for quick scripts, so here it is.
 
+See also: <https://tung.github.io/posts/my-workflow-for-following-crafting-interpreters/>
+
 ## Features
 
 This has all of the features of baseline Lox ([described in detail here](https://craftinginterpreters.com/the-lox-language.html)):
@@ -523,6 +525,7 @@ utest.h and ubench.h are public domain under the Unlicense, thanks to Neil Henni
 
 ## See Also
 
+- Blog post: <https://tung.github.io/posts/my-workflow-for-following-crafting-interpreters/>
 - *Crafting Interpreters* by Robert Nystrom: <https://craftinginterpreters.com/>
 - Big list of Lox implementations: <https://github.com/munificent/craftinginterpreters/wiki/Lox-Implementations>
 - Linenoise, used by the REPL for line editing: <https://github.com/antirez/linenoise>
